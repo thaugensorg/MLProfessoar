@@ -1,16 +1,24 @@
+<# this is a powershell script that will generate an Azure environment for the semisupervised framework.
+
+It does not accept parameters yet, just set the variable values at the top to fit your needs.
+
+This does not yet deploy from source control, that will come in a future version.#>
+
 $storageAccountKey = $null
 $resourceGroupName = "semisupervisedFramework"
 $storageAccountName = "semisupervisedstorage"
+$location = "centralus" #get a list of all the locations and put a link to the web address here.
+$subscription = "Thaugen-semisupervised-vision-closed-loop-solution"
 
 if (az group exists --name $resourceGroupName) `
 	{az group delete `
 	  --name $resourceGroupName `
-	  --subscription Thaugen-semisupervised-vision-closed-loop-solution `
+	  --subscription $subscription `
 	  --yes -y}
 
 az group create `
   --name $resourceGroupName `
-  --location centralus
+  --location $location
 
 az storage account create `
     --location centralus `
