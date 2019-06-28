@@ -14,6 +14,8 @@ using Microsoft.Azure;
 using Microsoft.WindowsAzure.Storage;
 using Microsoft.WindowsAzure.Storage.Blob;
 using Microsoft.WindowsAzure.Storage.DataMovement;
+using Microsoft.Azure.CognitiveServices.Vision.ComputerVision;
+using Microsoft.Azure.CognitiveServices.Vision.ComputerVision.Models;
 
 namespace semisupervisedFramework
 {
@@ -25,6 +27,14 @@ namespace semisupervisedFramework
         {
             string pendingEvaluationStorageContainerName = "pendingevaluation";
             string evaluatedDataStorageContainerName = "evaluateddata";
+            string subscriptionKey = "8717e6c09c6d486e951013857027b022";
+            // Specify the features to return
+            List<VisualFeatureTypes> features =
+            new List<VisualFeatureTypes>()
+        {
+            VisualFeatureTypes.Brands,
+        };
+
             //use the following lines if you want to have the user enter the account name and account key from the command line.
             //Console.WriteLine("Enter Storage account name:");
             //string accountName = Console.ReadLine();
@@ -41,12 +51,26 @@ namespace semisupervisedFramework
 
             //Get a reference to a container, if the container does not exist create one then get the reference to the blob you want to evaluate."
             CloudBlockBlob dataEvaluating = GetBlob(storageAccount, pendingEvaluationStorageContainerName, blobName);
+
+            ComputerVisionClient computerVision = new ComputerVisionClient(
+    new ApiKeyServiceClientCredentials(subscriptionKey),
+    new System.Net.Http.DelegatingHandler[] { });
+
+            // Specify the Azure region
+            computerVision.Endpoint = "https://centralus.api.cognitive.microsoft.com";
+
+            string dataEvaluatingSas = GetBlobSharedAccessSignature(dataEvaluating);
+            string dataEvaluatingUrl = dataEvaluating.Uri + dataEvaluatingSas;
+
+            var t1 = AnalyzeRemoteAsync(computerVision, dataEvaluatingUrl, features);
+
             CloudBlockBlob evaluatedData = GetBlob(storageAccount, evaluatedDataStorageContainerName, blobName);
 
             TransferAzureBlobToAzureBlob(storageAccount, dataEvaluating, evaluatedData).Wait();
 
             log.LogInformation($"C# Blob trigger function Processed blob\n Name:{blobName} \n Size: {myBlob.Length} Bytes");
         }
+
         public static async Task TransferAzureBlobToAzureBlob(CloudStorageAccount account, CloudBlockBlob sourceBlob, CloudBlockBlob destinationBlob)
         {
             TransferCheckpoint checkpoint = null;
@@ -114,9 +138,51 @@ namespace semisupervisedFramework
 
             return context;
         }
+
+        public static string GetBlobSharedAccessSignature(CloudBlockBlob cloudBlockBlob)
+        {
+            string sasContainerToken;
+
+            SharedAccessBlobPolicy sharedPolicy = new SharedAccessBlobPolicy()
+            {
+                SharedAccessStartTime = DateTime.UtcNow.AddHours(1),
+                SharedAccessExpiryTime = DateTime.UtcNow.AddHours(1),
+                Permissions = SharedAccessBlobPermissions.Read
+            };
+
+            sasContainerToken = cloudBlockBlob.GetSharedAccessSignature(sharedPolicy);
+            return sasContainerToken;
+        }
+        // Analyze a remote image
+        private static async Task AnalyzeRemoteAsync(ComputerVisionClient computerVision, string imageUrl, List<VisualFeatureTypes> features)
+        {
+            if (!Uri.IsWellFormedUriString(imageUrl, UriKind.Absolute))
+            {
+                Console.WriteLine(
+                    "\nInvalid remoteImageUrl:\n{0} \n", imageUrl);
+                return;
+            }
+
+            ImageAnalysis analysis = await computerVision.AnalyzeImageAsync(imageUrl, features);
+            DisplayResults(analysis, imageUrl);
+        }
+        // Display the most relevant caption for the image
+        private static void DisplayResults(ImageAnalysis analysis, string imageUri)
+        {
+            Console.WriteLine(imageUri);
+            if (analysis.Description.Captions.Count != 0)
+            {
+                Console.WriteLine(analysis.Description.Captions[0].Text + "\n");
+            }
+            else
+            {
+                Console.WriteLine("No description generated.");
+            }
+
+        }
     }
 
-    public class Program
+        public class Program
     {
         public static SingleTransferContext GetSingleTransferContext(TransferCheckpoint checkpoint)
         {
