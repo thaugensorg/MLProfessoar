@@ -11,9 +11,13 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Diagnostics;
 using Microsoft.Azure;
+using System.Net.Http;
+using System.Net.Http.Headers;
+using Microsoft.Extensions.Configuration;
 using Microsoft.WindowsAzure.Storage;
 using Microsoft.WindowsAzure.Storage.Blob;
 using Microsoft.WindowsAzure.Storage.DataMovement;
+using Microsoft.Azure.Management.CognitiveServices.Models;
 using Microsoft.Azure.CognitiveServices.Vision.ComputerVision;
 using Microsoft.Azure.CognitiveServices.Vision.ComputerVision.Models;
 
@@ -27,13 +31,15 @@ namespace semisupervisedFramework
         {
             string pendingEvaluationStorageContainerName = "pendingevaluation";
             string evaluatedDataStorageContainerName = "evaluateddata";
-            string subscriptionKey = "8717e6c09c6d486e951013857027b022";
+            string storageConnection = GetEnvironmentVariable("AzureWebJobsStorage");
+            string subscriptionKey = GetEnvironmentVariable("CognitiveServicesKey");
+
             // Specify the features to return
             List<VisualFeatureTypes> features =
             new List<VisualFeatureTypes>()
-        {
-            VisualFeatureTypes.Brands,
-        };
+            {
+                VisualFeatureTypes.Brands,
+            };
 
             //use the following lines if you want to have the user enter the account name and account key from the command line.
             //Console.WriteLine("Enter Storage account name:");
@@ -46,15 +52,14 @@ namespace semisupervisedFramework
             //CloudStorageAccount account = CloudStorageAccount.Parse(storageConnectionString);
 
             // Create Reference to Azure Storage Account
-            String storageConnection = "DefaultEndpointsProtocol=https;AccountName=semisupervisedstorage;AccountKey=XBHB5fxDqFAZQLRzcN/C/QLiR+55obGzE7hDdRjSsD07mcNwmpwFnH2MZWayPajGSiXRl4wO3rUFbKiXnSpPaw==;EndpointSuffix=core.windows.net";
             CloudStorageAccount storageAccount = CloudStorageAccount.Parse(storageConnection);
 
             //Get a reference to a container, if the container does not exist create one then get the reference to the blob you want to evaluate."
             CloudBlockBlob dataEvaluating = GetBlob(storageAccount, pendingEvaluationStorageContainerName, blobName);
 
             ComputerVisionClient computerVision = new ComputerVisionClient(
-    new ApiKeyServiceClientCredentials(subscriptionKey),
-    new System.Net.Http.DelegatingHandler[] { });
+                new ApiKeyServiceClientCredentials(subscriptionKey),
+                new System.Net.Http.DelegatingHandler[] { });
 
             // Specify the Azure region
             computerVision.Endpoint = "https://centralus.api.cognitive.microsoft.com";
@@ -69,6 +74,11 @@ namespace semisupervisedFramework
             TransferAzureBlobToAzureBlob(storageAccount, dataEvaluating, evaluatedData).Wait();
 
             log.LogInformation($"C# Blob trigger function Processed blob\n Name:{blobName} \n Size: {myBlob.Length} Bytes");
+        }
+
+        public static string GetEnvironmentVariable(string name)
+        {
+            return System.Environment.GetEnvironmentVariable(name, EnvironmentVariableTarget.Process);
         }
 
         public static async Task TransferAzureBlobToAzureBlob(CloudStorageAccount account, CloudBlockBlob sourceBlob, CloudBlockBlob destinationBlob)
