@@ -17,6 +17,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.WindowsAzure.Storage;
 using Microsoft.WindowsAzure.Storage.Blob;
 using Microsoft.WindowsAzure.Storage.DataMovement;
+using Microsoft.WindowsAzure.Storage.Auth;
 using Microsoft.Azure.Management.CognitiveServices.Models;
 using Microsoft.Azure.CognitiveServices.Vision.ComputerVision;
 using Microsoft.Azure.CognitiveServices.Vision.ComputerVision.Models;
@@ -38,35 +39,30 @@ namespace semisupervisedFramework
             List<VisualFeatureTypes> features =
             new List<VisualFeatureTypes>()
             {
-                VisualFeatureTypes.Brands,
+            VisualFeatureTypes.Brands, VisualFeatureTypes.Description,
+            VisualFeatureTypes.ImageType, VisualFeatureTypes.Tags
             };
-
-            //use the following lines if you want to have the user enter the account name and account key from the command line.
-            //Console.WriteLine("Enter Storage account name:");
-            //string accountName = Console.ReadLine();
-
-            //Console.WriteLine("\nEnter Storage account key:");
-            //string accountKey = Console.ReadLine();
-
-            //string storageConnectionString = "DefaultEndpointsProtocol=https;AccountName=" + accountName + ";AccountKey=" + accountKey;
-            //CloudStorageAccount account = CloudStorageAccount.Parse(storageConnectionString);
 
             // Create Reference to Azure Storage Account
             CloudStorageAccount storageAccount = CloudStorageAccount.Parse(storageConnection);
-
+            
             //Get a reference to a container, if the container does not exist create one then get the reference to the blob you want to evaluate."
             CloudBlockBlob dataEvaluating = GetBlob(storageAccount, pendingEvaluationStorageContainerName, blobName);
 
+            //Instanciate a computer vision client to submit image for analysis
             ComputerVisionClient computerVision = new ComputerVisionClient(
                 new ApiKeyServiceClientCredentials(subscriptionKey),
                 new System.Net.Http.DelegatingHandler[] { });
 
             // Specify the Azure region
-            computerVision.Endpoint = "https://centralus.api.cognitive.microsoft.com";
+            computerVision.Endpoint = "https://westus.api.cognitive.microsoft.com";
 
-            string dataEvaluatingSas = GetBlobSharedAccessSignature(dataEvaluating);
-            string dataEvaluatingUrl = dataEvaluating.Uri + dataEvaluatingSas;
+            //Currently only working with public access set on blob folders
+            //Generate a URL with SAS token to submit to analyze image API
+            //string dataEvaluatingSas = GetBlobSharedAccessSignature(dataEvaluating);
+            string dataEvaluatingUrl = dataEvaluating.Uri.ToString(); //+ dataEvaluatingSas;
 
+            //Code works with this publically available image address
             var t1 = AnalyzeRemoteAsync(computerVision, dataEvaluatingUrl, features);
 
             CloudBlockBlob evaluatedData = GetBlob(storageAccount, evaluatedDataStorageContainerName, blobName);
@@ -86,7 +82,7 @@ namespace semisupervisedFramework
             TransferCheckpoint checkpoint = null;
             SingleTransferContext context = GetSingleTransferContext(checkpoint);
             CancellationTokenSource cancellationSource = new CancellationTokenSource();
-            //Console.WriteLine("\nTransfer started...\nPress 'c' to temporarily cancel your transfer...\n");
+            Console.WriteLine("\nTransfer started...\nPress 'c' to temporarily cancel your transfer...\n");
 
             Stopwatch stopWatch = Stopwatch.StartNew();
             Task task;
@@ -137,6 +133,37 @@ namespace semisupervisedFramework
 
             return blob;
         }
+
+        public static CloudBlobContainer GetBlobContainer(CloudStorageAccount account, string containerName)
+        {
+            string containerPolicyName = "evaluationPolicy";
+
+            CloudBlobClient blobClient = account.CreateCloudBlobClient();
+            CloudBlobContainer blobContainer = blobClient.GetContainerReference(containerName);
+            blobContainer.CreateIfNotExistsAsync().Wait();
+
+            // create the stored policy we will use, with the relevant permissions and expiry time
+            SharedAccessBlobPolicy storedPolicy = new SharedAccessBlobPolicy()
+            {
+                SharedAccessExpiryTime = DateTime.UtcNow.AddHours(10),
+                Permissions = SharedAccessBlobPermissions.Read |
+                              SharedAccessBlobPermissions.Write |
+                              SharedAccessBlobPermissions.List
+            };
+
+            // get the existing permissions (alternatively create new BlobContainerPermissions())
+            //BlobContainerPermissions permissions = await blobContainer.GetPermissionsAsync();
+
+            // optionally clear out any existing policies on this container
+            //permissions.SharedAccessPolicies.Clear();
+            // add in the new one
+            //permissions.SharedAccessPolicies.Add(containerPolicyName, storedPolicy);
+            // save back to the container
+            //blobContainer.SetPermissionsAsync(permissions);
+
+
+            return blobContainer;
+        }
         public static SingleTransferContext GetSingleTransferContext(TransferCheckpoint checkpoint)
         {
             SingleTransferContext context = new SingleTransferContext(checkpoint);
@@ -173,6 +200,7 @@ namespace semisupervisedFramework
                 return;
             }
 
+            //Analyze image and display the results in the console
             ImageAnalysis analysis = await computerVision.AnalyzeImageAsync(imageUrl, features);
             DisplayResults(analysis, imageUrl);
         }

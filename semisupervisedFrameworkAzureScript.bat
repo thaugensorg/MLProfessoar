@@ -4,61 +4,105 @@ It does not accept parameters yet, just set the variable values at the top to fi
 
 This does not yet deploy from source control, that will come in a future version.#>
 
-$storageAccountKey = $null
-$resourceGroupName = "semisupervisedFramework"
-$storageAccountName = "semisupervisedstorage"
-$location = "centralus" #get a list of all the locations and put a link to the web address here.
 $subscription = "Thaugen-semisupervised-vision-closed-loop-solution"
 
-if (az group exists --name $resourceGroupName) `
+#variables for framework
+$frameworkResourceGroupName = "semisupervisedFramework"
+$frameworkStorageAccountName = "semisupervisedstorage"
+$frameworkStorageAccountKey = $null
+$frameworkLocation = "centralus" #get a list of all the locations and put a link to the web address here.
+
+if (az group exists --name $frameworkResourceGroupName) `
 	{az group delete `
-	  --name $resourceGroupName `
+	  --name $frameworkResourceGroupName `
 	  --subscription $subscription `
 	  --yes -y}
 
 az group create `
-  --name $resourceGroupName `
-  --location $location
+  --name $frameworkResourceGroupName `
+  --location $frameworkLocation
 
 az storage account create `
-    --location centralus `
-    --name $storageAccountName `
-    --resource-group $resourceGroupName `
+    --location $frameworkLocation `
+    --name $frameworkStorageAccountName `
+    --resource-group $frameworkResourceGroupName `
     --sku Standard_LRS
 
-$storageAccountKey = `
+$frameworkStorageAccountKey = `
 	(get-azureRmStorageAccountKey `
-		-resourceGroupName $resourceGroupName `
-		-AccountName $storageAccountName).Value[0]
+		-resourceGroupName $frameworkResourceGroupName `
+		-AccountName $frameworkStorageAccountName).Value[0]
 
 az functionapp create `
   --name semisupervisedApp `
-  --storage-account $storageAccountName `
-  --consumption-plan-location centralus `
-  --resource-group $resourceGroupName
+  --storage-account $frameworkStorageAccountName `
+  --consumption-plan-location $frameworkLocation `
+  --resource-group $frameworkResourceGroupName
 
 az storage container create `
   --name labeledtrainingdata `
-  --account-name $storageAccountName `
-  --account-key $storageAccountKey
+  --account-name $frameworkStorageAccountName `
+  --account-key $frameworkStorageAccountKey 
 
 az storage container create `
   --name pendingsupervision `
-  --account-name $storageAccountName `
-  --account-key $storageAccountKey `
+  --account-name $frameworkStorageAccountName `
+  --account-key $frameworkStorageAccountKey `
   --fail-on-exist
 
 az storage container create `
   --name pendingevaluation `
-  --account-name $storageAccountName `
-  --account-key $storageAccountKey `
+  --account-name $frameworkStorageAccountName `
+  --account-key $frameworkStorageAccountKey `
   --fail-on-exist
 
 az storage container create `
   --name evaluateddata `
-  --account-name $storageAccountName `
-  --account-key $storageAccountKey `
+  --account-name $frameworkStorageAccountName `
+  --account-key $frameworkStorageAccountKey `
   --fail-on-exist
+
+$subscription = "Thaugen-semisupervised-vision-closed-loop-solution"
+
+$modelResourceGroupName = "imageAnalysisModel"
+$modelStorageAccountName = "imageanalysisstorage"
+$modelStorageAccountKey = $null
+$modelLocation = "westus"
+
+if (az group exists --name $modelResourceGroupName) `
+	{az group delete `
+	  --name $modelResourceGroupName `
+	  --subscription $subscription `
+	  --yes -y}
+
+az group create `
+  --name $modelResourceGroupName `
+  --location $modelLocation 
+
+az storage account create `
+    --location $modelLocation `
+    --name $modelStorageAccountName `
+    --resource-group $modelResourceGroupName `
+    --sku Standard_LRS
+
+$modelStorageAccountKey = `
+	(get-azureRmStorageAccountKey `
+		-resourceGroupName $modelResourceGroupName `
+		-AccountName $modelStorageAccountName).Value[0]
+
+az functionapp create `
+  --name brandDetectionApp `
+  --storage-account $modelStorageAccountName `
+  --consumption-plan-location $modelLocation `
+  --resource-group $modelResourceGroupName 
+
+az cognitiveservices account create `
+    --name "brandDetection" `
+    --resource-group $modelResourceGroupName `
+    --kind ComputerVision `
+    --sku F0 `
+    --location westus `
+    --yes
 
 #gitrepo=https://github.com/thaugensorg/semi-supervisedModelSolution.git
 #token=<Replace with a GitHub access token>
