@@ -94,7 +94,17 @@ az functionapp create `
   --name brandDetectionApp `
   --storage-account $modelStorageAccountName `
   --consumption-plan-location $modelLocation `
-  --resource-group $modelResourceGroupName 
+  --resource-group $modelResourceGroupName `
+  --os-type "Linux" `
+  --runtime "python"
+
+az cognitiveservices account create `
+    --name "brandDetection" `
+    --resource-group $modelResourceGroupName `
+    --kind ComputerVision `
+    --sku F0 `
+    --location westus `
+    --yes
 
 az cognitiveservices account create `
     --name "brandDetection" `
