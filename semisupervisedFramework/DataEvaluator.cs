@@ -11,6 +11,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Diagnostics;
 using Microsoft.Azure;
+using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using Microsoft.Extensions.Configuration;
@@ -50,24 +51,30 @@ namespace semisupervisedFramework
             CloudBlockBlob dataEvaluating = GetBlob(storageAccount, pendingEvaluationStorageContainerName, blobName);
 
             //Instanciate a computer vision client to submit image for analysis
-            ComputerVisionClient computerVision = new ComputerVisionClient(
-                new ApiKeyServiceClientCredentials(subscriptionKey),
-                new System.Net.Http.DelegatingHandler[] { });
+            //ComputerVisionClient computerVision = new ComputerVisionClient(
+            //new ApiKeyServiceClientCredentials(subscriptionKey),
+            //new System.Net.Http.DelegatingHandler[] { });
 
             // Specify the Azure region
-            computerVision.Endpoint = "https://westus.api.cognitive.microsoft.com";
+            //computerVision.Endpoint = "https://westus.api.cognitive.microsoft.com";
 
             //Currently only working with public access set on blob folders
             //Generate a URL with SAS token to submit to analyze image API
             //string dataEvaluatingSas = GetBlobSharedAccessSignature(dataEvaluating);
-            string dataEvaluatingUrl = dataEvaluating.Uri.ToString(); //+ dataEvaluatingSas;
+            //string dataEvaluatingUrl = dataEvaluating.Uri.ToString(); //+ dataEvaluatingSas;
 
             //Code works with this publically available image address
-            var t1 = AnalyzeRemoteAsync(computerVision, dataEvaluatingUrl, features);
+            //var t1 = AnalyzeRemoteAsync(computerVision, dataEvaluatingUrl, features);
 
-            CloudBlockBlob evaluatedData = GetBlob(storageAccount, evaluatedDataStorageContainerName, blobName);
+            //Make a request to the model service passing the file URL
+            HttpClient client = new HttpClient();
+            HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, new Uri("https://branddetectionapp.azurewebsites.net/api/detectBrand"));
+            HttpResponseMessage response = client.SendAsync(request).Result;
+            var responseString = response.Content.ReadAsStringAsync().Result;
 
-            TransferAzureBlobToAzureBlob(storageAccount, dataEvaluating, evaluatedData).Wait();
+            //CloudBlockBlob evaluatedData = GetBlob(storageAccount, evaluatedDataStorageContainerName, blobName);
+
+            //TransferAzureBlobToAzureBlob(storageAccount, dataEvaluating, evaluatedData).Wait();
 
             log.LogInformation($"C# Blob trigger function Processed blob\n Name:{blobName} \n Size: {myBlob.Length} Bytes");
         }
