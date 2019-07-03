@@ -1,6 +1,8 @@
 using System;
 using System.Configuration;
 using System.IO;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Routing;
 using Microsoft.Azure.WebJobs;
 using Microsoft.Azure.WebJobs.Host;
 using Microsoft.Extensions.Logging;
@@ -22,6 +24,7 @@ using Microsoft.WindowsAzure.Storage.Auth;
 using Microsoft.Azure.Management.CognitiveServices.Models;
 using Microsoft.Azure.CognitiveServices.Vision.ComputerVision;
 using Microsoft.Azure.CognitiveServices.Vision.ComputerVision.Models;
+using Microsoft.AspNetCore.Http;
 
 namespace semisupervisedFramework
 {
@@ -61,14 +64,16 @@ namespace semisupervisedFramework
             //Currently only working with public access set on blob folders
             //Generate a URL with SAS token to submit to analyze image API
             //string dataEvaluatingSas = GetBlobSharedAccessSignature(dataEvaluating);
-            //string dataEvaluatingUrl = dataEvaluating.Uri.ToString(); //+ dataEvaluatingSas;
+            string dataEvaluatingUrl = dataEvaluating.Uri.ToString(); //+ dataEvaluatingSas;
 
             //Code works with this publically available image address
             //var t1 = AnalyzeRemoteAsync(computerVision, dataEvaluatingUrl, features);
 
             //Make a request to the model service passing the file URL
             HttpClient client = new HttpClient();
-            HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, new Uri("https://branddetectionapp.azurewebsites.net/api/detectBrand"));
+            HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, new Uri("https://branddetectionapp.azurewebsites.net/api/detectBrand/?name=" + dataEvaluatingUrl));
+            //HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, new Uri("http://localhost:7071/api/detectBrand/?name=" + dataEvaluatingUrl));
+            //HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, new Uri("https://branddetectionapp.azurewebsites.net/api/detectBrand/?name=" + blobName));
             HttpResponseMessage response = client.SendAsync(request).Result;
             var responseString = response.Content.ReadAsStringAsync().Result;
 

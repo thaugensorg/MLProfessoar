@@ -106,13 +106,6 @@ az cognitiveservices account create `
     --location westus `
     --yes
 
-az cognitiveservices account create `
-    --name "brandDetection" `
-    --resource-group $modelResourceGroupName `
-    --kind ComputerVision `
-    --sku F0 `
-    --location westus `
-    --yes
 
 #gitrepo=https://github.com/thaugensorg/semi-supervisedModelSolution.git
 #token=<Replace with a GitHub access token>
