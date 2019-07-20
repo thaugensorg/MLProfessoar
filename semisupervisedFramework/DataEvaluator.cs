@@ -16,6 +16,7 @@ using Microsoft.Azure;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
+using System.Web;
 using Microsoft.Extensions.Configuration;
 using Microsoft.WindowsAzure.Storage;
 using Microsoft.WindowsAzure.Storage.Blob;
@@ -25,6 +26,8 @@ using Microsoft.Azure.Management.CognitiveServices.Models;
 using Microsoft.Azure.CognitiveServices.Vision.ComputerVision;
 using Microsoft.Azure.CognitiveServices.Vision.ComputerVision.Models;
 using Microsoft.AspNetCore.Http;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 
 namespace semisupervisedFramework
 {
@@ -36,16 +39,13 @@ namespace semisupervisedFramework
         {
             string pendingEvaluationStorageContainerName = "pendingevaluation";
             string evaluatedDataStorageContainerName = "evaluateddata";
+            string pendingSupervisionStorageContainerName = "pendingSupervision";
+            string modelValidationStorageContainerName = "modelValidation";
             string storageConnection = GetEnvironmentVariable("AzureWebJobsStorage");
             string subscriptionKey = GetEnvironmentVariable("CognitiveServicesKey");
-
-            // Specify the features to return
-            List<VisualFeatureTypes> features =
-            new List<VisualFeatureTypes>()
-            {
-            VisualFeatureTypes.Brands, VisualFeatureTypes.Description,
-            VisualFeatureTypes.ImageType, VisualFeatureTypes.Tags
-            };
+            string confidenceJSONPath = Environment.GetEnvironmentVariable("confidenceJSONPath");
+            double confidenceThreshold = Convert.ToDouble(Environment.GetEnvironmentVariable("confidenceThreshold"));
+            double modelVerificationPercent = Convert.ToDouble(Environment.GetEnvironmentVariable("modelVerificationPercentage"));
 
             // Create Reference to Azure Storage Account
             CloudStorageAccount storageAccount = CloudStorageAccount.Parse(storageConnection);
@@ -53,33 +53,43 @@ namespace semisupervisedFramework
             //Get a reference to a container, if the container does not exist create one then get the reference to the blob you want to evaluate."
             CloudBlockBlob dataEvaluating = GetBlob(storageAccount, pendingEvaluationStorageContainerName, blobName);
 
-            //Instanciate a computer vision client to submit image for analysis
-            //ComputerVisionClient computerVision = new ComputerVisionClient(
-            //new ApiKeyServiceClientCredentials(subscriptionKey),
-            //new System.Net.Http.DelegatingHandler[] { });
-
-            // Specify the Azure region
-            //computerVision.Endpoint = "https://westus.api.cognitive.microsoft.com";
-
-            //Currently only working with public access set on blob folders
+            //****Currently only working with public access set on blob folders
             //Generate a URL with SAS token to submit to analyze image API
             //string dataEvaluatingSas = GetBlobSharedAccessSignature(dataEvaluating);
             string dataEvaluatingUrl = dataEvaluating.Uri.ToString(); //+ dataEvaluatingSas;
-
-            //Code works with this publically available image address
-            //var t1 = AnalyzeRemoteAsync(computerVision, dataEvaluatingUrl, features);
 
             //Make a request to the model service passing the file URL
             HttpClient client = new HttpClient();
             HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, new Uri("https://branddetectionapp.azurewebsites.net/api/detectBrand/?name=" + dataEvaluatingUrl));
             //HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, new Uri("http://localhost:7071/api/detectBrand/?name=" + dataEvaluatingUrl));
             //HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, new Uri("https://branddetectionapp.azurewebsites.net/api/detectBrand/?name=" + blobName));
+            //HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, new Uri("https://upgradedbrandedetection.azurewebsites.net/api/detectBrand/?name=test"));
             HttpResponseMessage response = client.SendAsync(request).Result;
             var responseString = response.Content.ReadAsStringAsync().Result;
 
-            //CloudBlockBlob evaluatedData = GetBlob(storageAccount, evaluatedDataStorageContainerName, blobName);
-
-            //TransferAzureBlobToAzureBlob(storageAccount, dataEvaluating, evaluatedData).Wait();
+            //deserialize response JSON, get confidence score and compare with confidence threshold
+            JObject o = JObject.Parse(responseString);
+            double confidence = (double)o.SelectToken(confidenceJSONPath);
+            //model successfully analyzed content
+            if (confidence >= confidenceThreshold)
+            {
+                //****still need to attach JSON to blob somehow*****
+                CloudBlockBlob evaluatedData = GetBlob(storageAccount, evaluatedDataStorageContainerName, blobName);
+                TransferAzureBlobToAzureBlob(storageAccount, dataEvaluating, evaluatedData).Wait();
+                Random rnd = new Random();
+                if (rnd.Next(100)/100 <= modelVerificationPercent)
+                {
+                    //****this is going to fail because the block above will have moved the blob.
+                    CloudBlockBlob modelValidation = GetBlob(storageAccount, modelValidationStorageContainerName, blobName);
+                    TransferAzureBlobToAzureBlob(storageAccount, dataEvaluating, modelValidation).Wait();
+                }
+            }
+            //model was not sufficiently confident in its analysis
+            else
+            {
+                CloudBlockBlob pendingSupervision = GetBlob(storageAccount, pendingSupervisionStorageContainerName, blobName);
+                TransferAzureBlobToAzureBlob(storageAccount, dataEvaluating, pendingSupervision).Wait();
+            }
 
             log.LogInformation($"C# Blob trigger function Processed blob\n Name:{blobName} \n Size: {myBlob.Length} Bytes");
         }
@@ -500,4 +510,128 @@ namespace semisupervisedFramework
             //ExecuteChoice(account);
         }
     }
+
+    public class Detail
+    {
+
+        /// <summary>
+        /// 
+        /// </summary>
+        public List<string> Landmarks { get; set; }
+    }
+
+    public class CategoriesItem
+    {
+
+        /// <summary>
+        /// 
+        /// </summary>
+        public string Name { get; set; }
+        /// <summary>
+        /// 
+        /// </summary>
+        public double Score { get; set; }
+        /// <summary>
+        /// 
+        /// </summary>
+        public Detail Detail { get; set; }
+    }
+
+    public class Color
+    {
+
+        /// <summary>
+        /// 
+        /// </summary>
+        public string DominantColorForeground { get; set; }
+        /// <summary>
+        /// 
+        /// </summary>
+        public string DominantColorBackground { get; set; }
+        /// <summary>
+        /// 
+        /// </summary>
+        public List<string> DominantColors { get; set; }
+        /// <summary>
+        /// 
+        /// </summary>
+        public string AccentColor { get; set; }
+        /// <summary>
+        /// 
+        /// </summary>
+        public string IsBwImg { get; set; }
+        /// <summary>
+        /// 
+        /// </summary>
+        public string IsBWImg { get; set; }
+    }
+
+    public class CaptionsItem
+    {
+
+        /// <summary>
+        /// 
+        /// </summary>
+        public string Text { get; set; }
+        /// <summary>
+        /// 
+        /// </summary>
+        public double Confidence { get; set; }
+    }
+
+    public class Description
+    {
+
+        /// <summary>
+        /// 
+        /// </summary>
+        public List<string> Tags { get; set; }
+        /// <summary>
+        /// 
+        /// </summary>
+        public List<CaptionsItem> Captions { get; set; }
+    }
+
+    public class Metadata
+    {
+
+        /// <summary>
+        /// 
+        /// </summary>
+        public int Width { get; set; }
+        /// <summary>
+        /// 
+        /// </summary>
+        public int Height { get; set; }
+        /// <summary>
+        /// 
+        /// </summary>
+        public string Format { get; set; }
+    }
+
+    public class Image
+    {
+
+        /// <summary>
+        /// 
+        /// </summary>
+        public List<CategoriesItem> Categories { get; set; }
+        /// <summary>
+        /// 
+        /// </summary>
+        public Color Color { get; set; }
+        /// <summary>
+        /// 
+        /// </summary>
+        public Description Description { get; set; }
+        /// <summary>
+        /// 
+        /// </summary>
+        public string RequestId { get; set; }
+        /// <summary>
+        /// 
+        /// </summary>
+        public Metadata Metadata { get; set; }
+    }
+
 }

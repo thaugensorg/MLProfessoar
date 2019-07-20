@@ -1,8 +1,45 @@
 <# this is a powershell script that will generate an Azure environment for the semisupervised framework.
 
+Need to add confidenceThreshold, confidenceJSONPath, modelVerificationPercentage
+
 It does not accept parameters yet, just set the variable values at the top to fit your needs.
 
 This does not yet deploy from source control, that will come in a future version.#>
+
+<#First set up your python environemnt.  start by reading this document: https://docs.microsoft.com/en-us/azure/azure-functions/functions-create-first-function-python
+then this document: http://www.roelpeters.be/using-python-in-azure-functions/
+
+You will need to install:
+Python: https://www.python.org/downloads/windows/ note as of this writing, 7/15/19, azure functions only supports python 3.6.x so make sure and pick that version and if your OS is 64 bit pick the 64 bit version or it can create path issues
+node.js: https://nodejs.org/en/download/
+azure functions core tools: "npm install -g azure-functions-core-tools"
+requests: "pip install requests" 
+computer vision: "pip install azure-cognitiveservices-vision-customvision" for custom or "pip install azure-cognitiveservices-vision-computervision"
+
+Then add these VS Code extenstions:
+Python
+Azure Account
+Azure Functions
+
+
+Then you will need to add these imports to the top of your python code in addition to the lines quick start added to your code:
+import os
+import json
+
+from azure.cognitiveservices.vision.computervision import ComputerVisionClient
+from azure.cognitiveservices.vision.computervision.models import VisualFeatureTypes
+from msrest.authentication import CognitiveServicesCredentials
+
+import requests
+# If you are using a Jupyter notebook, uncomment the following line.
+# %matplotlib inline
+#import matplotlib.pyplot as plt
+#from PIL import Image
+from io import BytesIO
+
+https://docs.microsoft.com/en-us/azure/azure-functions/functions-run-local
+
+#>
 
 $subscription = "Thaugen-semisupervised-vision-closed-loop-solution"
 
@@ -62,6 +99,18 @@ az storage container create `
   --account-key $frameworkStorageAccountKey `
   --fail-on-exist
 
+az storage container create `
+  --name modelvalidation`
+  --account-name $frameworkStorageAccountName `
+  --account-key $frameworkStorageAccountKey `
+  --fail-on-exist
+
+az storage container create `
+  --name pendingnewmodelevaluation
+  --account-name $frameworkStorageAccountName `
+  --account-key $frameworkStorageAccountKey `
+  --fail-on-exist
+
 $subscription = "Thaugen-semisupervised-vision-closed-loop-solution"
 
 $modelResourceGroupName = "imageAnalysisModel"
@@ -106,7 +155,6 @@ az cognitiveservices account create `
     --location westus `
     --yes
 
-
 #gitrepo=https://github.com/thaugensorg/semi-supervisedModelSolution.git
 #token=<Replace with a GitHub access token>
 
@@ -123,3 +171,47 @@ az cognitiveservices account create `
 #  --deployment-source-url https://github.com/thaugensorg/semi-supervisedModelSolution.git \
 #  --deployment-source-branch master
 
+pip install pipreqs
+pipreqs "C:\Users\thaugen\source\repos\brandDetectionModel"
+
+"{\"categories\": [{\"name\": \"outdoor_\", \"score\": 0.00390625, \"detail\": {\"landmarks\": []}}, {\"name\": \"outdoor_street\", \"score\": 0.33984375, \"detail\": {\"landmarks\": []}}], \"color\": {\"dominantColorForeground\": \"Brown\", \"dominantColorBackground\": \"Brown\", \"dominantColors\": [\"Brown\"], \"accentColor\": \"B54316\", \"isBwImg\": false, \"isBWImg\": false}, \"description\": {\"tags\": [\"building\", \"outdoor\", \"street\", \"city\", \"people\", \"busy\", \"table\", \"walking\", \"traffic\", \"filled\", \"large\", \"many\", \"group\", \"night\", \"light\", \"crowded\", \"bunch\", \"standing\", \"man\", \"sign\", \"crowd\", \"umbrella\", \"riding\", \"tall\", \"woman\", \"bus\"], \"captions\": [{\"text\": \"a group of people on a city street at night\", \"confidence\": 0.9122244462952912}]}, \"requestId\": \"d507c9be-a5ee-4bf4-a40f-3d2e80c48025\", \"metadata\": {\"width\": 450, \"height\": 600, \"format\": \"Jpeg\"}}"
+{'categories': [{'name': 'outdoor_', 'score': 0.00390625, 'detail': {'landmarks': []}}, {'name': 'outdoor_street', 'score': 0.33984375, 'detail': {'landmarks': []}}], 'color': {'dominantColorForeground': 'Brown', 'dominantColorBackground': 'Brown', 'dominantColors': ['Brown'], 'accentColor': 'B54316', 'isBwImg': False, 'isBWImg': False}, 'description': {'tags': ['building', 'outdoor', 'street', 'city', 'people', 'busy', 'table', 'walking', 'traffic', 'filled', 'large', 'many', 'group', 'night', 'light', 'crowded', 'bunch', 'standing', 'man', 'sign', 'crowd', 'umbrella', 'riding', 'tall', 'woman', 'bus'], 'captions': [{'text': 'a group of people on a city street at night', 'confidence': 0.9122244462952912}]}, 'requestId': '531dd757-b19e-41de-bb60-ac7ff9f89bc1', 'metadata': {'width': 450, 'height': 600, 'format': 'Jpeg'}}
+{{"categories": [{"name": "outdoor_", "score": 0.00390625, "detail": {"landmarks": []}}, {"name": "outdoor_street", "score": 0.33984375, "detail": {"landmarks": []}}], "color": {"dominantColorForeground": "Brown", "dominantColorBackground": "Brown", "dominantColors": ["Brown"], "accentColor": "B54316", "isBwImg": false, "isBWImg": false}, "description": {"tags": ["building", "outdoor", "street", "city", "people", "busy", "table", "walking", "traffic", "filled", "large", "many", "group", "night", "light", "crowded", "bunch", "standing", "man", "sign", "crowd", "umbrella", "riding", "tall", "woman", "bus"], "captions": [{"text": "a group of people on a city street at night", "confidence": 0.9122244462952912}]}, "requestId": "1a69a782-b654-405b-be2d-ec4f9d882076", "metadata": {"width": 450, "height": 600, "format": "Jpeg"}}}
+"\"categories\": [{\"name\": \"outdoor_\", \"score\": 0.00390625, \"detail\": {\"landmarks\": []}}, {\"name\": \"outdoor_street\", \"score\": 0.33984375, \"detail\": {\"landmarks\": []}}], \"color\": {\"dominantColorForeground\": \"Brown\", \"dominantColorBackground\": \"Brown\", \"dominantColors\": [\"Brown\"], \"accentColor\": \"B54316\", \"isBwImg\": false, \"isBWImg\": false}, \"description\": {\"tags\": [\"building\", \"outdoor\", \"street\", \"city\", \"people\", \"busy\", \"table\", \"walking\", \"traffic\", \"filled\", \"large\", \"many\", \"group\", \"night\", \"light\", \"crowded\", \"bunch\", \"standing\", \"man\", \"sign\", \"crowd\", \"umbrella\", \"riding\", \"tall\", \"woman\", \"bus\"], \"captions\": [{\"text\": \"a group of people on a city street at night\", \"confidence\": 0.9122244462952912}]}, \"requestId\": \"a75e498d-f47c-4419-9044-8fb4c763978c\", \"metadata\": {\"width\": 450, \"height\": 600, \"format\": \"Jpeg\"}"
+{
+  "categories": [
+    {
+      "name": "outdoor_",
+      "score": 0.00390625,
+      "detail": {"landmarks": []}
+    },
+    {
+      "name": "outdoor_street",
+      "score": 0.33984375,
+      "detail": {"landmarks": []}
+    }
+  ],
+  "color": {
+    "dominantColorForeground": "Brown",
+    "dominantColorBackground": "Brown",
+    "dominantColors": ["Brown"],
+    "accentColor": "B54316",
+    "isBwImg": False,
+    "isBWImg": False
+  },
+  "description": {
+    "tags": ["building", "outdoor", "street", "city", "people", "busy", "table", "walking", "traffic", "filled", "large", "many", "group", "night", "light", "crowded", "bunch", "standing", "man", "sign", "crowd", "umbrella", "riding", "tall", "woman", "bus"],
+    "captions": [
+      {
+        "text": "a group of people on a city street at night",
+	"confidence": 0.9122244462952912
+      }
+    ]
+  },
+  "requestId": "531dd757-b19e-41de-bb60-ac7ff9f89bc1",
+  "metadata": {
+    "width": 450,
+    "height": 600,
+    "format": "Jpeg"
+  }
+}
