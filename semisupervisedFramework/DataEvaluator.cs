@@ -17,6 +17,7 @@ using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Web;
+using System.Security.Cryptography;
 using Microsoft.Extensions.Configuration;
 using Microsoft.WindowsAzure.Storage;
 using Microsoft.WindowsAzure.Storage.Blob;
@@ -35,12 +36,13 @@ namespace semisupervisedFramework
     {
         [FunctionName("EvaluateData")]
 
-        public static void Run([BlobTrigger("pendingevaluation/{blobName}", Connection = "AzureWebJobsStorage")]Stream myBlob, string blobName, ILogger log)
+        public static async Task RunAsync([BlobTrigger("pendingevaluation/{blobName}", Connection = "AzureWebJobsStorage")]Stream myBlob, string blobName, ILogger log)
         {
             string pendingEvaluationStorageContainerName = "pendingevaluation";
             string evaluatedDataStorageContainerName = "evaluateddata";
-            string pendingSupervisionStorageContainerName = "pendingSupervision";
-            string modelValidationStorageContainerName = "modelValidation";
+            string pendingSupervisionStorageContainerName = "pendingsupervision";
+            string modelValidationStorageContainerName = "modelvalidation";
+            string pendingNewModelStorageContainerName = "pendingnewmodelevaluation";
             string storageConnection = GetEnvironmentVariable("AzureWebJobsStorage");
             string subscriptionKey = GetEnvironmentVariable("CognitiveServicesKey");
             string confidenceJSONPath = Environment.GetEnvironmentVariable("confidenceJSONPath");
@@ -49,14 +51,24 @@ namespace semisupervisedFramework
 
             // Create Reference to Azure Storage Account
             CloudStorageAccount storageAccount = CloudStorageAccount.Parse(storageConnection);
-            
+            CloudBlobClient blobClient = storageAccount.CreateCloudBlobClient();
+            CloudBlobContainer container = blobClient.GetContainerReference("pendingevaluation");
+
+            //compute the file hash as this will be added to the meta data to allow for file version validation
+            CloudBlockBlob blockBlob = container.GetBlockBlobReference(blobName);
+            MemoryStream memStream = new MemoryStream();
+            await blockBlob.DownloadToStreamAsync(memStream); 
+            SHA1Managed sha = new SHA1Managed();
+            byte[] checksum = sha.ComputeHash(memStream);
+
             //Get a reference to a container, if the container does not exist create one then get the reference to the blob you want to evaluate."
             CloudBlockBlob dataEvaluating = GetBlob(storageAccount, pendingEvaluationStorageContainerName, blobName);
 
             //****Currently only working with public access set on blob folders
             //Generate a URL with SAS token to submit to analyze image API
             //string dataEvaluatingSas = GetBlobSharedAccessSignature(dataEvaluating);
-            string dataEvaluatingUrl = dataEvaluating.Uri.ToString(); //+ dataEvaluatingSas;
+            //string dataEvaluatingUrl = dataEvaluating.Uri.ToString(); //+ dataEvaluatingSas;
+            string dataEvaluatingUrl = "test";
 
             //Make a request to the model service passing the file URL
             HttpClient client = new HttpClient();
@@ -91,7 +103,33 @@ namespace semisupervisedFramework
                 TransferAzureBlobToAzureBlob(storageAccount, dataEvaluating, pendingSupervision).Wait();
             }
 
+            //get the JSON object that comes before the file JSON object
+            JObject description = (JObject)o["description"];
+
+            //create the file JSON object
+            dynamic fileObject = new JObject();
+            fileObject.Name = blobName;
+            fileObject.fileID = Guid.NewGuid().ToString();
+            fileObject.fileHash = checksum;
+
+            //add the file JSON object after the description JSON object
+            o.Add(fileObject);
+            //description.AddAfterSelf(fileObject);
+
+            //add finally logic with try and catch
+
             log.LogInformation($"C# Blob trigger function Processed blob\n Name:{blobName} \n Size: {myBlob.Length} Bytes");
+        }
+
+        public static string GetMD5HashFromBlob(string fileName)
+        {
+            using (var md5 = MD5.Create())
+            {
+                using (var stream = File.OpenRead(fileName))
+                {
+                    return BitConverter.ToString(md5.ComputeHash(stream)).Replace("-", string.Empty);
+                }
+            }
         }
 
         public static string GetEnvironmentVariable(string name)

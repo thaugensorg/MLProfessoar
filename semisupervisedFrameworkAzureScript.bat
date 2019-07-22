@@ -111,6 +111,13 @@ az storage container create `
   --account-key $frameworkStorageAccountKey `
   --fail-on-exist
 
+az functionapp config appsettings set `
+    --name semisupervisedApp
+    --resource-group semisupervisedFramework
+    --settings "modelType=packaged"
+
+###### below starts the Image Analysis scripts ######
+
 $subscription = "Thaugen-semisupervised-vision-closed-loop-solution"
 
 $modelResourceGroupName = "imageAnalysisModel"
@@ -155,6 +162,11 @@ az cognitiveservices account create `
     --location westus `
     --yes
 
+az functionapp config appsettings set `
+    --name brandDetectionApp
+    --resource-group imageAnalysisModel
+    --settings "subscriptionKey=Null"
+
 #gitrepo=https://github.com/thaugensorg/semi-supervisedModelSolution.git
 #token=<Replace with a GitHub access token>
 
@@ -173,45 +185,3 @@ az cognitiveservices account create `
 
 pip install pipreqs
 pipreqs "C:\Users\thaugen\source\repos\brandDetectionModel"
-
-"{\"categories\": [{\"name\": \"outdoor_\", \"score\": 0.00390625, \"detail\": {\"landmarks\": []}}, {\"name\": \"outdoor_street\", \"score\": 0.33984375, \"detail\": {\"landmarks\": []}}], \"color\": {\"dominantColorForeground\": \"Brown\", \"dominantColorBackground\": \"Brown\", \"dominantColors\": [\"Brown\"], \"accentColor\": \"B54316\", \"isBwImg\": false, \"isBWImg\": false}, \"description\": {\"tags\": [\"building\", \"outdoor\", \"street\", \"city\", \"people\", \"busy\", \"table\", \"walking\", \"traffic\", \"filled\", \"large\", \"many\", \"group\", \"night\", \"light\", \"crowded\", \"bunch\", \"standing\", \"man\", \"sign\", \"crowd\", \"umbrella\", \"riding\", \"tall\", \"woman\", \"bus\"], \"captions\": [{\"text\": \"a group of people on a city street at night\", \"confidence\": 0.9122244462952912}]}, \"requestId\": \"d507c9be-a5ee-4bf4-a40f-3d2e80c48025\", \"metadata\": {\"width\": 450, \"height\": 600, \"format\": \"Jpeg\"}}"
-{'categories': [{'name': 'outdoor_', 'score': 0.00390625, 'detail': {'landmarks': []}}, {'name': 'outdoor_street', 'score': 0.33984375, 'detail': {'landmarks': []}}], 'color': {'dominantColorForeground': 'Brown', 'dominantColorBackground': 'Brown', 'dominantColors': ['Brown'], 'accentColor': 'B54316', 'isBwImg': False, 'isBWImg': False}, 'description': {'tags': ['building', 'outdoor', 'street', 'city', 'people', 'busy', 'table', 'walking', 'traffic', 'filled', 'large', 'many', 'group', 'night', 'light', 'crowded', 'bunch', 'standing', 'man', 'sign', 'crowd', 'umbrella', 'riding', 'tall', 'woman', 'bus'], 'captions': [{'text': 'a group of people on a city street at night', 'confidence': 0.9122244462952912}]}, 'requestId': '531dd757-b19e-41de-bb60-ac7ff9f89bc1', 'metadata': {'width': 450, 'height': 600, 'format': 'Jpeg'}}
-{{"categories": [{"name": "outdoor_", "score": 0.00390625, "detail": {"landmarks": []}}, {"name": "outdoor_street", "score": 0.33984375, "detail": {"landmarks": []}}], "color": {"dominantColorForeground": "Brown", "dominantColorBackground": "Brown", "dominantColors": ["Brown"], "accentColor": "B54316", "isBwImg": false, "isBWImg": false}, "description": {"tags": ["building", "outdoor", "street", "city", "people", "busy", "table", "walking", "traffic", "filled", "large", "many", "group", "night", "light", "crowded", "bunch", "standing", "man", "sign", "crowd", "umbrella", "riding", "tall", "woman", "bus"], "captions": [{"text": "a group of people on a city street at night", "confidence": 0.9122244462952912}]}, "requestId": "1a69a782-b654-405b-be2d-ec4f9d882076", "metadata": {"width": 450, "height": 600, "format": "Jpeg"}}}
-"\"categories\": [{\"name\": \"outdoor_\", \"score\": 0.00390625, \"detail\": {\"landmarks\": []}}, {\"name\": \"outdoor_street\", \"score\": 0.33984375, \"detail\": {\"landmarks\": []}}], \"color\": {\"dominantColorForeground\": \"Brown\", \"dominantColorBackground\": \"Brown\", \"dominantColors\": [\"Brown\"], \"accentColor\": \"B54316\", \"isBwImg\": false, \"isBWImg\": false}, \"description\": {\"tags\": [\"building\", \"outdoor\", \"street\", \"city\", \"people\", \"busy\", \"table\", \"walking\", \"traffic\", \"filled\", \"large\", \"many\", \"group\", \"night\", \"light\", \"crowded\", \"bunch\", \"standing\", \"man\", \"sign\", \"crowd\", \"umbrella\", \"riding\", \"tall\", \"woman\", \"bus\"], \"captions\": [{\"text\": \"a group of people on a city street at night\", \"confidence\": 0.9122244462952912}]}, \"requestId\": \"a75e498d-f47c-4419-9044-8fb4c763978c\", \"metadata\": {\"width\": 450, \"height\": 600, \"format\": \"Jpeg\"}"
-{
-  "categories": [
-    {
-      "name": "outdoor_",
-      "score": 0.00390625,
-      "detail": {"landmarks": []}
-    },
-    {
-      "name": "outdoor_street",
-      "score": 0.33984375,
-      "detail": {"landmarks": []}
-    }
-  ],
-  "color": {
-    "dominantColorForeground": "Brown",
-    "dominantColorBackground": "Brown",
-    "dominantColors": ["Brown"],
-    "accentColor": "B54316",
-    "isBwImg": False,
-    "isBWImg": False
-  },
-  "description": {
-    "tags": ["building", "outdoor", "street", "city", "people", "busy", "table", "walking", "traffic", "filled", "large", "many", "group", "night", "light", "crowded", "bunch", "standing", "man", "sign", "crowd", "umbrella", "riding", "tall", "woman", "bus"],
-    "captions": [
-      {
-        "text": "a group of people on a city street at night",
-	"confidence": 0.9122244462952912
-      }
-    ]
-  },
-  "requestId": "531dd757-b19e-41de-bb60-ac7ff9f89bc1",
-  "metadata": {
-    "width": 450,
-    "height": 600,
-    "format": "Jpeg"
-  }
-}
