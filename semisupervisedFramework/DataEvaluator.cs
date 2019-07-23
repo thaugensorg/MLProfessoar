@@ -38,87 +38,100 @@ namespace semisupervisedFramework
 
         public static async Task RunAsync([BlobTrigger("pendingevaluation/{blobName}", Connection = "AzureWebJobsStorage")]Stream myBlob, string blobName, ILogger log)
         {
-            string pendingEvaluationStorageContainerName = "pendingevaluation";
-            string evaluatedDataStorageContainerName = "evaluateddata";
-            string pendingSupervisionStorageContainerName = "pendingsupervision";
-            string modelValidationStorageContainerName = "modelvalidation";
-            string pendingNewModelStorageContainerName = "pendingnewmodelevaluation";
-            string storageConnection = GetEnvironmentVariable("AzureWebJobsStorage");
-            string subscriptionKey = GetEnvironmentVariable("CognitiveServicesKey");
-            string confidenceJSONPath = Environment.GetEnvironmentVariable("confidenceJSONPath");
-            double confidenceThreshold = Convert.ToDouble(Environment.GetEnvironmentVariable("confidenceThreshold"));
-            double modelVerificationPercent = Convert.ToDouble(Environment.GetEnvironmentVariable("modelVerificationPercentage"));
 
-            // Create Reference to Azure Storage Account
-            CloudStorageAccount storageAccount = CloudStorageAccount.Parse(storageConnection);
-            CloudBlobClient blobClient = storageAccount.CreateCloudBlobClient();
-            CloudBlobContainer container = blobClient.GetContainerReference("pendingevaluation");
-
-            //compute the file hash as this will be added to the meta data to allow for file version validation
-            CloudBlockBlob blockBlob = container.GetBlockBlobReference(blobName);
-            MemoryStream memStream = new MemoryStream();
-            await blockBlob.DownloadToStreamAsync(memStream); 
-            SHA1Managed sha = new SHA1Managed();
-            byte[] checksum = sha.ComputeHash(memStream);
-
-            //Get a reference to a container, if the container does not exist create one then get the reference to the blob you want to evaluate."
-            CloudBlockBlob dataEvaluating = GetBlob(storageAccount, pendingEvaluationStorageContainerName, blobName);
-
-            //****Currently only working with public access set on blob folders
-            //Generate a URL with SAS token to submit to analyze image API
-            //string dataEvaluatingSas = GetBlobSharedAccessSignature(dataEvaluating);
-            //string dataEvaluatingUrl = dataEvaluating.Uri.ToString(); //+ dataEvaluatingSas;
-            string dataEvaluatingUrl = "test";
-
-            //Make a request to the model service passing the file URL
-            HttpClient client = new HttpClient();
-            HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, new Uri("https://branddetectionapp.azurewebsites.net/api/detectBrand/?name=" + dataEvaluatingUrl));
-            //HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, new Uri("http://localhost:7071/api/detectBrand/?name=" + dataEvaluatingUrl));
-            //HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, new Uri("https://branddetectionapp.azurewebsites.net/api/detectBrand/?name=" + blobName));
-            //HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, new Uri("https://upgradedbrandedetection.azurewebsites.net/api/detectBrand/?name=test"));
-            HttpResponseMessage response = client.SendAsync(request).Result;
-            var responseString = response.Content.ReadAsStringAsync().Result;
-
-            //deserialize response JSON, get confidence score and compare with confidence threshold
-            JObject o = JObject.Parse(responseString);
-            double confidence = (double)o.SelectToken(confidenceJSONPath);
-            //model successfully analyzed content
-            if (confidence >= confidenceThreshold)
+            try
             {
-                //****still need to attach JSON to blob somehow*****
-                CloudBlockBlob evaluatedData = GetBlob(storageAccount, evaluatedDataStorageContainerName, blobName);
-                TransferAzureBlobToAzureBlob(storageAccount, dataEvaluating, evaluatedData).Wait();
-                Random rnd = new Random();
-                if (rnd.Next(100)/100 <= modelVerificationPercent)
+                string pendingEvaluationStorageContainerName = "pendingevaluation";
+                string evaluatedDataStorageContainerName = "evaluateddata";
+                string pendingSupervisionStorageContainerName = "pendingsupervision";
+                string modelValidationStorageContainerName = "modelvalidation";
+                string pendingNewModelStorageContainerName = "pendingnewmodelevaluation";
+                string storageConnection = GetEnvironmentVariable("AzureWebJobsStorage");
+                string subscriptionKey = GetEnvironmentVariable("CognitiveServicesKey");
+                string confidenceJSONPath = Environment.GetEnvironmentVariable("confidenceJSONPath");
+                double confidenceThreshold = Convert.ToDouble(Environment.GetEnvironmentVariable("confidenceThreshold"));
+                double modelVerificationPercent = Convert.ToDouble(Environment.GetEnvironmentVariable("modelVerificationPercentage"));
+
+
+                // Create Reference to Azure Storage Account
+                CloudStorageAccount storageAccount = CloudStorageAccount.Parse(storageConnection);
+                CloudBlobClient blobClient = storageAccount.CreateCloudBlobClient();
+                CloudBlobContainer container = blobClient.GetContainerReference("pendingevaluation");
+
+                //compute the file hash as this will be added to the meta data to allow for file version validation
+                CloudBlockBlob blockBlob = container.GetBlockBlobReference(blobName);
+                MemoryStream memStream = new MemoryStream();
+                await blockBlob.DownloadToStreamAsync(memStream);
+                SHA1Managed sha = new SHA1Managed();
+                byte[] checksum = sha.ComputeHash(memStream);
+
+                //Get a reference to a container, if the container does not exist create one then get the reference to the blob you want to evaluate."
+                CloudBlockBlob dataEvaluating = GetBlob(storageAccount, pendingEvaluationStorageContainerName, blobName);
+
+                //****Currently only working with public access set on blob folders
+                //Generate a URL with SAS token to submit to analyze image API
+                //string dataEvaluatingSas = GetBlobSharedAccessSignature(dataEvaluating);
+                string dataEvaluatingUrl = dataEvaluating.Uri.ToString(); //+ dataEvaluatingSas;
+                                                                          //string dataEvaluatingUrl = "test";
+
+                //Make a request to the model service passing the file URL
+                HttpClient client = new HttpClient();
+                HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, new Uri("https://branddetectionapp.azurewebsites.net/api/detectBrand/?name=" + dataEvaluatingUrl));
+                //HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, new Uri("http://localhost:7071/api/detectBrand/?name=" + dataEvaluatingUrl));
+                //HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, new Uri("https://branddetectionapp.azurewebsites.net/api/detectBrand/?name=" + blobName));
+                //HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, new Uri("https://upgradedbrandedetection.azurewebsites.net/api/detectBrand/?name=test"));
+                HttpResponseMessage response = client.SendAsync(request).Result;
+                var responseString = response.Content.ReadAsStringAsync().Result;
+
+                //deserialize response JSON, get confidence score and compare with confidence threshold
+                JObject o = JObject.Parse(responseString);
+                double confidence = (double)o.SelectToken(confidenceJSONPath);
+                //model successfully analyzed content
+                if (confidence >= confidenceThreshold)
                 {
-                    //****this is going to fail because the block above will have moved the blob.
-                    CloudBlockBlob modelValidation = GetBlob(storageAccount, modelValidationStorageContainerName, blobName);
-                    TransferAzureBlobToAzureBlob(storageAccount, dataEvaluating, modelValidation).Wait();
+                    //****still need to attach JSON to blob somehow*****
+                    CloudBlockBlob evaluatedData = GetBlob(storageAccount, evaluatedDataStorageContainerName, blobName);
+                    TransferAzureBlobToAzureBlob(storageAccount, dataEvaluating, evaluatedData).Wait();
+                    Random rnd = new Random();
+                    if (rnd.Next(100) / 100 <= modelVerificationPercent)
+                    {
+                        //****this is going to fail because the block above will have moved the blob.
+                        CloudBlockBlob modelValidation = GetBlob(storageAccount, modelValidationStorageContainerName, blobName);
+                        TransferAzureBlobToAzureBlob(storageAccount, dataEvaluating, modelValidation).Wait();
+                    }
                 }
+                //model was not sufficiently confident in its analysis
+                else
+                {
+                    CloudBlockBlob pendingSupervision = GetBlob(storageAccount, pendingSupervisionStorageContainerName, blobName);
+                    TransferAzureBlobToAzureBlob(storageAccount, dataEvaluating, pendingSupervision).Wait();
+                }
+
+                //get the JSON object that comes before the file JSON object
+                JObject description = (JObject)o["description"];
+
+                //create the file JSON object
+                dynamic fileObject = new JObject();
+                fileObject.Name = blobName;
+                fileObject.fileID = Guid.NewGuid().ToString();
+                fileObject.fileHash = checksum;
+
+                //add the file JSON object after the description JSON object
+                //o.Add(fileObject);
+                //description.AddAfterSelf(fileObject);
+
+                //add finally logic with try and catch
+
+                log.LogInformation($"C# Blob trigger function Processed blob\n Name:{blobName} \n Size: {myBlob.Length} Bytes");
             }
-            //model was not sufficiently confident in its analysis
-            else
+            catch
             {
-                CloudBlockBlob pendingSupervision = GetBlob(storageAccount, pendingSupervisionStorageContainerName, blobName);
-                TransferAzureBlobToAzureBlob(storageAccount, dataEvaluating, pendingSupervision).Wait();
+
             }
+            finally
+            {
 
-            //get the JSON object that comes before the file JSON object
-            JObject description = (JObject)o["description"];
-
-            //create the file JSON object
-            dynamic fileObject = new JObject();
-            fileObject.Name = blobName;
-            fileObject.fileID = Guid.NewGuid().ToString();
-            fileObject.fileHash = checksum;
-
-            //add the file JSON object after the description JSON object
-            o.Add(fileObject);
-            //description.AddAfterSelf(fileObject);
-
-            //add finally logic with try and catch
-
-            log.LogInformation($"C# Blob trigger function Processed blob\n Name:{blobName} \n Size: {myBlob.Length} Bytes");
+            }
         }
 
         public static string GetMD5HashFromBlob(string fileName)
