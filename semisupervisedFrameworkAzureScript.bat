@@ -116,6 +116,26 @@ az functionapp config appsettings set `
     --resource-group semisupervisedFramework
     --settings "modelType=packaged"
 
+az functionapp config appsettings set `
+    --name semisupervisedApp `
+    --resource-group semisupervisedFramework `
+    --settings "parallelOperations=8"
+
+az functionapp config appsettings set `
+    --name semisupervisedApp `
+    --resource-group semisupervisedFramework `
+    --settings "modelVerificationPercentage=.05"
+
+az functionapp config appsettings set `
+    --name semisupervisedApp `
+    --resource-group semisupervisedFramework `
+    --settings "confidenceThreshold=.95"
+
+az functionapp config appsettings set `
+    --name semisupervisedApp `
+    --resource-group semisupervisedFramework `
+    --settings "confidenceJSONPath=description.captions[0].confidence"
+
 ###### below starts the Image Analysis scripts ######
 
 $subscription = "Thaugen-semisupervised-vision-closed-loop-solution"
@@ -163,8 +183,8 @@ az cognitiveservices account create `
     --yes
 
 az functionapp config appsettings set `
-    --name brandDetectionApp
-    --resource-group imageAnalysisModel
+    --name brandDetectionApp `
+    --resource-group imageAnalysisModel `
     --settings "subscriptionKey=Null"
 
 #gitrepo=https://github.com/thaugensorg/semi-supervisedModelSolution.git
@@ -183,5 +203,5 @@ az functionapp config appsettings set `
 #  --deployment-source-url https://github.com/thaugensorg/semi-supervisedModelSolution.git \
 #  --deployment-source-branch master
 
-pip install pipreqs
-pipreqs "C:\Users\thaugen\source\repos\brandDetectionModel"
+#pip install pipreqs
+#pipreqs "C:\Users\thaugen\source\repos\brandDetectionModel"

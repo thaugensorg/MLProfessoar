@@ -46,8 +46,8 @@ namespace semisupervisedFramework
                 string pendingSupervisionStorageContainerName = "pendingsupervision";
                 string modelValidationStorageContainerName = "modelvalidation";
                 string pendingNewModelStorageContainerName = "pendingnewmodelevaluation";
-                string storageConnection = GetEnvironmentVariable("AzureWebJobsStorage");
-                string subscriptionKey = GetEnvironmentVariable("CognitiveServicesKey");
+                string storageConnection = GetEnvironmentVariable("AzureWebJobsStorage", log);
+                string subscriptionKey = GetEnvironmentVariable("CognitiveServicesKey", log);
                 string confidenceJSONPath = Environment.GetEnvironmentVariable("confidenceJSONPath");
                 double confidenceThreshold = Convert.ToDouble(Environment.GetEnvironmentVariable("confidenceThreshold"));
                 double modelVerificationPercent = Convert.ToDouble(Environment.GetEnvironmentVariable("modelVerificationPercentage"));
@@ -75,13 +75,7 @@ namespace semisupervisedFramework
                                                                           //string dataEvaluatingUrl = "test";
 
                 //Make a request to the model service passing the file URL
-                HttpClient client = new HttpClient();
-                HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, new Uri("https://branddetectionapp.azurewebsites.net/api/detectBrand/?name=" + dataEvaluatingUrl));
-                //HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, new Uri("http://localhost:7071/api/detectBrand/?name=" + dataEvaluatingUrl));
-                //HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, new Uri("https://branddetectionapp.azurewebsites.net/api/detectBrand/?name=" + blobName));
-                //HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, new Uri("https://upgradedbrandedetection.azurewebsites.net/api/detectBrand/?name=test"));
-                HttpResponseMessage response = client.SendAsync(request).Result;
-                var responseString = response.Content.ReadAsStringAsync().Result;
+                string responseString = GetEvaluationResponseString(dataEvaluatingUrl);
 
                 //deserialize response JSON, get confidence score and compare with confidence threshold
                 JObject o = JObject.Parse(responseString);
@@ -91,20 +85,20 @@ namespace semisupervisedFramework
                 {
                     //****still need to attach JSON to blob somehow*****
                     CloudBlockBlob evaluatedData = GetBlob(storageAccount, evaluatedDataStorageContainerName, blobName);
-                    TransferAzureBlobToAzureBlob(storageAccount, dataEvaluating, evaluatedData).Wait();
+                    TransferAzureBlobToAzureBlob(storageAccount, dataEvaluating, evaluatedData, log).Wait();
                     Random rnd = new Random();
                     if (rnd.Next(100) / 100 <= modelVerificationPercent)
                     {
                         //****this is going to fail because the block above will have moved the blob.
                         CloudBlockBlob modelValidation = GetBlob(storageAccount, modelValidationStorageContainerName, blobName);
-                        TransferAzureBlobToAzureBlob(storageAccount, dataEvaluating, modelValidation).Wait();
+                        TransferAzureBlobToAzureBlob(storageAccount, dataEvaluating, modelValidation, log).Wait();
                     }
                 }
                 //model was not sufficiently confident in its analysis
                 else
                 {
                     CloudBlockBlob pendingSupervision = GetBlob(storageAccount, pendingSupervisionStorageContainerName, blobName);
-                    TransferAzureBlobToAzureBlob(storageAccount, dataEvaluating, pendingSupervision).Wait();
+                    TransferAzureBlobToAzureBlob(storageAccount, dataEvaluating, pendingSupervision, log).Wait();
                 }
 
                 //get the JSON object that comes before the file JSON object
@@ -120,8 +114,6 @@ namespace semisupervisedFramework
                 //o.Add(fileObject);
                 //description.AddAfterSelf(fileObject);
 
-                //add finally logic with try and catch
-
                 log.LogInformation($"C# Blob trigger function Processed blob\n Name:{blobName} \n Size: {myBlob.Length} Bytes");
             }
             catch
@@ -131,6 +123,22 @@ namespace semisupervisedFramework
             finally
             {
 
+            }
+        }
+
+        private static string GetEvaluationResponseString(string dataEvaluatingUrl)
+        {
+            try
+            {
+                HttpClient client = new HttpClient();
+                HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, new Uri("https://branddetectionapp.azurewebsites.net/api/detectBrand/?name=" + dataEvaluatingUrl));
+                HttpResponseMessage response = client.SendAsync(request).Result;
+                var responseString = response.Content.ReadAsStringAsync().Result;
+                return responseString;
+            }
+            catch (Exception)
+            {
+                throw;
             }
         }
 
@@ -145,57 +153,43 @@ namespace semisupervisedFramework
             }
         }
 
-        public static string GetEnvironmentVariable(string name)
+        public static string GetEnvironmentVariable(string name, ILogger log)
         {
-            return System.Environment.GetEnvironmentVariable(name, EnvironmentVariableTarget.Process);
+            try
+            {
+                return System.Environment.GetEnvironmentVariable(name, EnvironmentVariableTarget.Process);
+            }
+            
+            catch (Exception e)
+            {
+                log.LogInformation("\nNo environment variable " + name + " in application environment variables", e.Message);
+                return "";
+            }
         }
 
-        public static async Task TransferAzureBlobToAzureBlob(CloudStorageAccount account, CloudBlockBlob sourceBlob, CloudBlockBlob destinationBlob)
+        public static async Task TransferAzureBlobToAzureBlob(CloudStorageAccount account, CloudBlockBlob sourceBlob, CloudBlockBlob destinationBlob, ILogger log)
         {
             TransferCheckpoint checkpoint = null;
-            SingleTransferContext context = GetSingleTransferContext(checkpoint);
+            SingleTransferContext context = GetSingleTransferContext(checkpoint, log);
             CancellationTokenSource cancellationSource = new CancellationTokenSource();
-            Console.WriteLine("\nTransfer started...\nPress 'c' to temporarily cancel your transfer...\n");
 
             Stopwatch stopWatch = Stopwatch.StartNew();
             Task task;
-            ConsoleKeyInfo keyinfo;
             try
             {
                 task = TransferManager.CopyAsync(sourceBlob, destinationBlob, true, null, context, cancellationSource.Token);
-                while (!task.IsCompleted)
-                {
-                    if (Console.KeyAvailable)
-                    {
-                        keyinfo = Console.ReadKey(true);
-                        if (keyinfo.Key == ConsoleKey.C)
-                        {
-                            cancellationSource.Cancel();
-                        }
-                    }
-                }
                 await task;
             }
             catch (Exception e)
             {
-                Console.WriteLine("\nThe transfer is canceled: {0}", e.Message);
-            }
-
-            if (cancellationSource.IsCancellationRequested)
-            {
-                Console.WriteLine("\nTransfer will resume in 3 seconds...");
-                Thread.Sleep(3000);
-                checkpoint = context.LastCheckpoint;
-                context = GetSingleTransferContext(checkpoint);
-                Console.WriteLine("\nResuming transfer...\n");
-                await TransferManager.CopyAsync(sourceBlob, destinationBlob, false, null, context, cancellationSource.Token);
+                log.LogInformation("\nThe transfer is canceled: {0}", e.Message);
             }
 
             stopWatch.Stop();
-            Console.WriteLine("\nTransfer operation completed in " + stopWatch.Elapsed.TotalSeconds + " seconds.");
-            //ExecuteChoice(account);
+            log.LogInformation("\nTransfer operation completed in " + stopWatch.Elapsed.TotalSeconds + " seconds.");
         }
-        //Gets a reference to a specific blob
+
+        //Gets a reference to a specific blob using container and blob names as strings
         public static CloudBlockBlob GetBlob(CloudStorageAccount account, string containerName, string blobName)
         {
             CloudBlobClient blobClient = account.CreateCloudBlobClient();
@@ -207,43 +201,13 @@ namespace semisupervisedFramework
             return blob;
         }
 
-        public static CloudBlobContainer GetBlobContainer(CloudStorageAccount account, string containerName)
-        {
-            string containerPolicyName = "evaluationPolicy";
-
-            CloudBlobClient blobClient = account.CreateCloudBlobClient();
-            CloudBlobContainer blobContainer = blobClient.GetContainerReference(containerName);
-            blobContainer.CreateIfNotExistsAsync().Wait();
-
-            // create the stored policy we will use, with the relevant permissions and expiry time
-            SharedAccessBlobPolicy storedPolicy = new SharedAccessBlobPolicy()
-            {
-                SharedAccessExpiryTime = DateTime.UtcNow.AddHours(10),
-                Permissions = SharedAccessBlobPermissions.Read |
-                              SharedAccessBlobPermissions.Write |
-                              SharedAccessBlobPermissions.List
-            };
-
-            // get the existing permissions (alternatively create new BlobContainerPermissions())
-            //BlobContainerPermissions permissions = await blobContainer.GetPermissionsAsync();
-
-            // optionally clear out any existing policies on this container
-            //permissions.SharedAccessPolicies.Clear();
-            // add in the new one
-            //permissions.SharedAccessPolicies.Add(containerPolicyName, storedPolicy);
-            // save back to the container
-            //blobContainer.SetPermissionsAsync(permissions);
-
-
-            return blobContainer;
-        }
-        public static SingleTransferContext GetSingleTransferContext(TransferCheckpoint checkpoint)
+        public static SingleTransferContext GetSingleTransferContext(TransferCheckpoint checkpoint, ILogger log)
         {
             SingleTransferContext context = new SingleTransferContext(checkpoint);
 
             context.ProgressHandler = new Progress<TransferStatus>((progress) =>
             {
-                Console.Write("\rBytes transferred: {0}", progress.BytesTransferred);
+                log.LogInformation("\rBytes transferred: {0}", progress.BytesTransferred);
             });
 
             return context;
@@ -264,30 +228,30 @@ namespace semisupervisedFramework
             return sasContainerToken;
         }
         // Analyze a remote image
-        private static async Task AnalyzeRemoteAsync(ComputerVisionClient computerVision, string imageUrl, List<VisualFeatureTypes> features)
+        private static async Task AnalyzeRemoteAsync(ComputerVisionClient computerVision, string imageUrl, List<VisualFeatureTypes> features, ILogger log)
         {
             if (!Uri.IsWellFormedUriString(imageUrl, UriKind.Absolute))
             {
-                Console.WriteLine(
-                    "\nInvalid remoteImageUrl:\n{0} \n", imageUrl);
+                log.LogInformation("\nInvalid remoteImageUrl:\n{0} \n", imageUrl);
                 return;
             }
 
             //Analyze image and display the results in the console
             ImageAnalysis analysis = await computerVision.AnalyzeImageAsync(imageUrl, features);
-            DisplayResults(analysis, imageUrl);
+            DisplayResults(analysis, imageUrl, log);
         }
+
         // Display the most relevant caption for the image
-        private static void DisplayResults(ImageAnalysis analysis, string imageUri)
+        private static void DisplayResults(ImageAnalysis analysis, string imageUri, ILogger log)
         {
-            Console.WriteLine(imageUri);
+            log.LogInformation(imageUri);
             if (analysis.Description.Captions.Count != 0)
             {
-                Console.WriteLine(analysis.Description.Captions[0].Text + "\n");
+                log.LogInformation(analysis.Description.Captions[0].Text + "\n");
             }
             else
             {
-                Console.WriteLine("No description generated.");
+                log.LogInformation("No description generated.");
             }
 
         }
@@ -295,67 +259,55 @@ namespace semisupervisedFramework
 
         public class Program
     {
-        public static SingleTransferContext GetSingleTransferContext(TransferCheckpoint checkpoint)
+        public static SingleTransferContext GetSingleTransferContext(TransferCheckpoint checkpoint, ILogger log)
         {
             SingleTransferContext context = new SingleTransferContext(checkpoint);
 
             context.ProgressHandler = new Progress<TransferStatus>((progress) =>
             {
-                Console.Write("\rBytes transferred: {0}", progress.BytesTransferred);
+                log.LogInformation("\rBytes transferred: {0}", progress.BytesTransferred);
             });
 
             return context;
         }
 
-        public static DirectoryTransferContext GetDirectoryTransferContext(TransferCheckpoint checkpoint)
+        public static DirectoryTransferContext GetDirectoryTransferContext(TransferCheckpoint checkpoint, ILogger log)
         {
             DirectoryTransferContext context = new DirectoryTransferContext(checkpoint);
 
             context.ProgressHandler = new Progress<TransferStatus>((progress) =>
             {
-                Console.Write("\rBytes transferred: {0}", progress.BytesTransferred);
+                log.LogInformation("\rBytes transferred: {0}", progress.BytesTransferred);
             });
 
             return context;
         }
 
-        public static void SetNumberOfParallelOperations()
+        public static void SetNumberOfParallelOperations(ILogger log)
         {
-            Console.WriteLine("\nHow many parallel operations would you like to use?");
-            string parallelOperations = Console.ReadLine();
+            //Note, the default number of cores applied to parrallel transfer of data is 8, also the default value for the environment variable.  If you change the environment
+            //variable be aware this might overwhelm your network and adversely affect other applications on the network.
+            string parallelOperations = Environment.GetEnvironmentVariable("parallelOperations");
+            log.LogInformation("\nConfiguring " + parallelOperations + " from the parallelOperations environment variable");
             TransferManager.Configurations.ParallelOperations = int.Parse(parallelOperations);
         }
 
-        public static string GetSourcePath()
-        {
-            Console.WriteLine("\nProvide path for source:");
-            string sourcePath = Console.ReadLine();
-
-            return sourcePath;
-        }
-
-        public static CloudBlockBlob GetBlob(CloudStorageAccount account)
+        public static CloudBlockBlob GetBlob(CloudStorageAccount account, string containerName, string blobName, ILogger log)
         {
             CloudBlobClient blobClient = account.CreateCloudBlobClient();
 
-            Console.WriteLine("\nProvide name of Blob container:");
-            string containerName = Console.ReadLine();
             CloudBlobContainer container = blobClient.GetContainerReference(containerName);
             container.CreateIfNotExistsAsync().Wait();
 
-            Console.WriteLine("\nProvide name of Blob:");
-            string blobName = Console.ReadLine();
             CloudBlockBlob blob = container.GetBlockBlobReference(blobName);
 
             return blob;
         }
 
-        public static CloudBlobDirectory GetBlobDirectory(CloudStorageAccount account)
+        public static CloudBlobDirectory GetBlobDirectory(CloudStorageAccount account, string containerName, ILogger log)
         {
             CloudBlobClient blobClient = account.CreateCloudBlobClient();
 
-            Console.WriteLine("\nProvide name of Blob container:");
-            string containerName = Console.ReadLine();
             CloudBlobContainer container = blobClient.GetContainerReference(containerName);
             container.CreateIfNotExistsAsync().Wait();
 
@@ -364,325 +316,27 @@ namespace semisupervisedFramework
             return blobDirectory;
         }
 
-        public static async Task TransferLocalFileToAzureBlob(CloudStorageAccount account)
+        public static async Task TransferUrlToAzureBlob(CloudStorageAccount account, string sourceURL, CloudBlockBlob destinationBlob, ILogger log)
         {
-            string localFilePath = GetSourcePath();
-            CloudBlockBlob blob = GetBlob(account);
+            Uri uri = new Uri(sourceURL);
             TransferCheckpoint checkpoint = null;
-            SingleTransferContext context = GetSingleTransferContext(checkpoint);
+            SingleTransferContext context = GetSingleTransferContext(checkpoint, log);
             CancellationTokenSource cancellationSource = new CancellationTokenSource();
-            Console.WriteLine("\nTransfer started...\nPress 'c' to temporarily cancel your transfer...\n");
 
             Stopwatch stopWatch = Stopwatch.StartNew();
             Task task;
-            ConsoleKeyInfo keyinfo;
             try
             {
-                task = TransferManager.UploadAsync(localFilePath, blob, null, context, cancellationSource.Token);
-                while (!task.IsCompleted)
-                {
-                    if (Console.KeyAvailable)
-                    {
-                        keyinfo = Console.ReadKey(true);
-                        if (keyinfo.Key == ConsoleKey.C)
-                        {
-                            cancellationSource.Cancel();
-                        }
-                    }
-                }
+                task = TransferManager.CopyAsync(uri, destinationBlob, true, null, context, cancellationSource.Token);
                 await task;
             }
             catch (Exception e)
             {
-                Console.WriteLine("\nThe transfer is canceled: {0}", e.Message);
-            }
-
-            if (cancellationSource.IsCancellationRequested)
-            {
-                Console.WriteLine("\nTransfer will resume in 3 seconds...");
-                Thread.Sleep(3000);
-                checkpoint = context.LastCheckpoint;
-                context = GetSingleTransferContext(checkpoint);
-                Console.WriteLine("\nResuming transfer...\n");
-                await TransferManager.UploadAsync(localFilePath, blob, null, context);
+                log.LogInformation("\nThe transfer is canceled: {0}", e.Message);
             }
 
             stopWatch.Stop();
-            Console.WriteLine("\nTransfer operation completed in " + stopWatch.Elapsed.TotalSeconds + " seconds.");
-            //ExecuteChoice(account);
-        }
-
-        public static async Task TransferLocalDirectoryToAzureBlobDirectory(CloudStorageAccount account)
-        {
-            string localDirectoryPath = GetSourcePath();
-            CloudBlobDirectory blobDirectory = GetBlobDirectory(account);
-            TransferCheckpoint checkpoint = null;
-            DirectoryTransferContext context = GetDirectoryTransferContext(checkpoint);
-            CancellationTokenSource cancellationSource = new CancellationTokenSource();
-            Console.WriteLine("\nTransfer started...\nPress 'c' to temporarily cancel your transfer...\n");
-
-            Stopwatch stopWatch = Stopwatch.StartNew();
-            Task task;
-            ConsoleKeyInfo keyinfo;
-            UploadDirectoryOptions options = new UploadDirectoryOptions()
-            {
-                Recursive = true
-            };
-
-            try
-            {
-                task = TransferManager.UploadDirectoryAsync(localDirectoryPath, blobDirectory, options, context, cancellationSource.Token);
-                while (!task.IsCompleted)
-                {
-                    if (Console.KeyAvailable)
-                    {
-                        keyinfo = Console.ReadKey(true);
-                        if (keyinfo.Key == ConsoleKey.C)
-                        {
-                            cancellationSource.Cancel();
-                        }
-                    }
-                }
-                await task;
-            }
-            catch (Exception e)
-            {
-                Console.WriteLine("\nThe transfer is canceled: {0}", e.Message);
-            }
-
-            if (cancellationSource.IsCancellationRequested)
-            {
-                Console.WriteLine("\nTransfer will resume in 3 seconds...");
-                Thread.Sleep(3000);
-                checkpoint = context.LastCheckpoint;
-                context = GetDirectoryTransferContext(checkpoint);
-                Console.WriteLine("\nResuming transfer...\n");
-                await TransferManager.UploadDirectoryAsync(localDirectoryPath, blobDirectory, options, context);
-            }
-
-            stopWatch.Stop();
-            Console.WriteLine("\nTransfer operation completed in " + stopWatch.Elapsed.TotalSeconds + " seconds.");
-            //ExecuteChoice(account);
-        }
-
-        public static async Task TransferUrlToAzureBlob(CloudStorageAccount account)
-        {
-            Uri uri = new Uri(GetSourcePath());
-            CloudBlockBlob blob = GetBlob(account);
-            TransferCheckpoint checkpoint = null;
-            SingleTransferContext context = GetSingleTransferContext(checkpoint);
-            CancellationTokenSource cancellationSource = new CancellationTokenSource();
-            Console.WriteLine("\nTransfer started...\nPress 'c' to temporarily cancel your transfer...\n");
-
-            Stopwatch stopWatch = Stopwatch.StartNew();
-            Task task;
-            ConsoleKeyInfo keyinfo;
-            try
-            {
-                task = TransferManager.CopyAsync(uri, blob, true, null, context, cancellationSource.Token);
-                while (!task.IsCompleted)
-                {
-                    if (Console.KeyAvailable)
-                    {
-                        keyinfo = Console.ReadKey(true);
-                        if (keyinfo.Key == ConsoleKey.C)
-                        {
-                            cancellationSource.Cancel();
-                        }
-                    }
-                }
-                await task;
-            }
-            catch (Exception e)
-            {
-                Console.WriteLine("\nThe transfer is canceled: {0}", e.Message);
-            }
-
-            if (cancellationSource.IsCancellationRequested)
-            {
-                Console.WriteLine("\nTransfer will resume in 3 seconds...");
-                Thread.Sleep(3000);
-                checkpoint = context.LastCheckpoint;
-                context = GetSingleTransferContext(checkpoint);
-                Console.WriteLine("\nResuming transfer...\n");
-                await TransferManager.CopyAsync(uri, blob, true, null, context, cancellationSource.Token);
-            }
-
-            stopWatch.Stop();
-            Console.WriteLine("\nTransfer operation completed in " + stopWatch.Elapsed.TotalSeconds + " seconds.");
-            //ExecuteChoice(account);
-        }
-
-        public static async Task TransferAzureBlobToAzureBlob(CloudStorageAccount account)
-        {
-            CloudBlockBlob sourceBlob = GetBlob(account);
-            CloudBlockBlob destinationBlob = GetBlob(account);
-            TransferCheckpoint checkpoint = null;
-            SingleTransferContext context = GetSingleTransferContext(checkpoint);
-            CancellationTokenSource cancellationSource = new CancellationTokenSource();
-            //Console.WriteLine("\nTransfer started...\nPress 'c' to temporarily cancel your transfer...\n");
-
-            Stopwatch stopWatch = Stopwatch.StartNew();
-            Task task;
-            ConsoleKeyInfo keyinfo;
-            try
-            {
-                task = TransferManager.CopyAsync(sourceBlob, destinationBlob, true, null, context, cancellationSource.Token);
-                while (!task.IsCompleted)
-                {
-                    if (Console.KeyAvailable)
-                    {
-                        keyinfo = Console.ReadKey(true);
-                        if (keyinfo.Key == ConsoleKey.C)
-                        {
-                            cancellationSource.Cancel();
-                        }
-                    }
-                }
-                await task;
-            }
-            catch (Exception e)
-            {
-                Console.WriteLine("\nThe transfer is canceled: {0}", e.Message);
-            }
-
-            if (cancellationSource.IsCancellationRequested)
-            {
-                Console.WriteLine("\nTransfer will resume in 3 seconds...");
-                Thread.Sleep(3000);
-                checkpoint = context.LastCheckpoint;
-                context = GetSingleTransferContext(checkpoint);
-                Console.WriteLine("\nResuming transfer...\n");
-                await TransferManager.CopyAsync(sourceBlob, destinationBlob, false, null, context, cancellationSource.Token);
-            }
-
-            stopWatch.Stop();
-            Console.WriteLine("\nTransfer operation completed in " + stopWatch.Elapsed.TotalSeconds + " seconds.");
-            //ExecuteChoice(account);
+            log.LogInformation("\nTransfer operation completed in " + stopWatch.Elapsed.TotalSeconds + " seconds.");
         }
     }
-
-    public class Detail
-    {
-
-        /// <summary>
-        /// 
-        /// </summary>
-        public List<string> Landmarks { get; set; }
-    }
-
-    public class CategoriesItem
-    {
-
-        /// <summary>
-        /// 
-        /// </summary>
-        public string Name { get; set; }
-        /// <summary>
-        /// 
-        /// </summary>
-        public double Score { get; set; }
-        /// <summary>
-        /// 
-        /// </summary>
-        public Detail Detail { get; set; }
-    }
-
-    public class Color
-    {
-
-        /// <summary>
-        /// 
-        /// </summary>
-        public string DominantColorForeground { get; set; }
-        /// <summary>
-        /// 
-        /// </summary>
-        public string DominantColorBackground { get; set; }
-        /// <summary>
-        /// 
-        /// </summary>
-        public List<string> DominantColors { get; set; }
-        /// <summary>
-        /// 
-        /// </summary>
-        public string AccentColor { get; set; }
-        /// <summary>
-        /// 
-        /// </summary>
-        public string IsBwImg { get; set; }
-        /// <summary>
-        /// 
-        /// </summary>
-        public string IsBWImg { get; set; }
-    }
-
-    public class CaptionsItem
-    {
-
-        /// <summary>
-        /// 
-        /// </summary>
-        public string Text { get; set; }
-        /// <summary>
-        /// 
-        /// </summary>
-        public double Confidence { get; set; }
-    }
-
-    public class Description
-    {
-
-        /// <summary>
-        /// 
-        /// </summary>
-        public List<string> Tags { get; set; }
-        /// <summary>
-        /// 
-        /// </summary>
-        public List<CaptionsItem> Captions { get; set; }
-    }
-
-    public class Metadata
-    {
-
-        /// <summary>
-        /// 
-        /// </summary>
-        public int Width { get; set; }
-        /// <summary>
-        /// 
-        /// </summary>
-        public int Height { get; set; }
-        /// <summary>
-        /// 
-        /// </summary>
-        public string Format { get; set; }
-    }
-
-    public class Image
-    {
-
-        /// <summary>
-        /// 
-        /// </summary>
-        public List<CategoriesItem> Categories { get; set; }
-        /// <summary>
-        /// 
-        /// </summary>
-        public Color Color { get; set; }
-        /// <summary>
-        /// 
-        /// </summary>
-        public Description Description { get; set; }
-        /// <summary>
-        /// 
-        /// </summary>
-        public string RequestId { get; set; }
-        /// <summary>
-        /// 
-        /// </summary>
-        public Metadata Metadata { get; set; }
-    }
-
 }
