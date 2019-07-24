@@ -66,38 +66,39 @@ namespace semisupervisedFramework
                 byte[] checksum = sha.ComputeHash(memStream);
 
                 //Get a reference to a container, if the container does not exist create one then get the reference to the blob you want to evaluate."
-                CloudBlockBlob dataEvaluating = GetBlob(storageAccount, pendingEvaluationStorageContainerName, blobName);
+                CloudBlockBlob dataEvaluating = GetBlob(storageAccount, pendingEvaluationStorageContainerName, blobName, log);
 
                 //****Currently only working with public access set on blob folders
                 //Generate a URL with SAS token to submit to analyze image API
                 //string dataEvaluatingSas = GetBlobSharedAccessSignature(dataEvaluating);
                 string dataEvaluatingUrl = dataEvaluating.Uri.ToString(); //+ dataEvaluatingSas;
-                                                                          //string dataEvaluatingUrl = "test";
+                //string dataEvaluatingUrl = "test";
 
                 //Make a request to the model service passing the file URL
-                string responseString = GetEvaluationResponseString(dataEvaluatingUrl);
+                string responseString = GetEvaluationResponseString(dataEvaluatingUrl, log);
 
                 //deserialize response JSON, get confidence score and compare with confidence threshold
                 JObject o = JObject.Parse(responseString);
                 double confidence = (double)o.SelectToken(confidenceJSONPath);
+
                 //model successfully analyzed content
                 if (confidence >= confidenceThreshold)
                 {
                     //****still need to attach JSON to blob somehow*****
-                    CloudBlockBlob evaluatedData = GetBlob(storageAccount, evaluatedDataStorageContainerName, blobName);
+                    CloudBlockBlob evaluatedData = GetBlob(storageAccount, evaluatedDataStorageContainerName, blobName, log);
                     TransferAzureBlobToAzureBlob(storageAccount, dataEvaluating, evaluatedData, log).Wait();
                     Random rnd = new Random();
                     if (rnd.Next(100) / 100 <= modelVerificationPercent)
                     {
                         //****this is going to fail because the block above will have moved the blob.
-                        CloudBlockBlob modelValidation = GetBlob(storageAccount, modelValidationStorageContainerName, blobName);
+                        CloudBlockBlob modelValidation = GetBlob(storageAccount, modelValidationStorageContainerName, blobName, log);
                         TransferAzureBlobToAzureBlob(storageAccount, dataEvaluating, modelValidation, log).Wait();
                     }
                 }
                 //model was not sufficiently confident in its analysis
                 else
                 {
-                    CloudBlockBlob pendingSupervision = GetBlob(storageAccount, pendingSupervisionStorageContainerName, blobName);
+                    CloudBlockBlob pendingSupervision = GetBlob(storageAccount, pendingSupervisionStorageContainerName, blobName, log);
                     TransferAzureBlobToAzureBlob(storageAccount, dataEvaluating, pendingSupervision, log).Wait();
                 }
 
@@ -126,19 +127,55 @@ namespace semisupervisedFramework
             }
         }
 
-        private static string GetEvaluationResponseString(string dataEvaluatingUrl)
+        private static string GetEvaluationResponseString(string dataEvaluatingUrl, ILogger log)
         {
             try
             {
                 HttpClient client = new HttpClient();
-                HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, new Uri("https://branddetectionapp.azurewebsites.net/api/detectBrand/?name=" + dataEvaluatingUrl));
+                string modelRequestUrl = constructModelRequestUrl(dataEvaluatingUrl, log);
+                HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, new Uri(modelRequestUrl));
+                //HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, new Uri("https://branddetectionapp.azurewebsites.net/api/detectBrand/?name=" + dataEvaluatingUrl));
                 HttpResponseMessage response = client.SendAsync(request).Result;
                 var responseString = response.Content.ReadAsStringAsync().Result;
                 return responseString;
             }
-            catch (Exception)
+            catch (Exception e)
             {
-                throw;
+                log.LogInformation("\nFailed HTTP request for URL" + dataEvaluatingUrl + " in application environment variables", e.Message);
+                return "";
+            }
+        }
+
+        private static string constructModelRequestUrl(string dataEvaluatingUrl, ILogger log)
+        {
+            try
+            {
+                //get environment variables used to construct the model request URL
+                string modelServiceEndpoint = Environment.GetEnvironmentVariable("modelServiceEndpoint");
+                if (modelServiceEndpoint == null || modelServiceEndpoint == "") 
+                {
+                    throw (new EnvironmentVariableNotSetException("modelServiceEndpoint environment variable not set"));
+                }
+                string modelAssetParameterName = Environment.GetEnvironmentVariable("modelAssetParameterName");
+
+                //construct model request URL
+                string modelRequestUrl = modelServiceEndpoint;
+                if (modelAssetParameterName != null & modelAssetParameterName != "")
+                {
+                    modelRequestUrl = modelRequestUrl + "?" + modelAssetParameterName + "=";
+                    modelRequestUrl = modelRequestUrl + dataEvaluatingUrl;
+                }
+                else
+                {
+                    throw (new EnvironmentVariableNotSetException("modelAssetParameterName environment variable not set"));
+                }
+
+                return modelRequestUrl;
+            }
+            catch (EnvironmentVariableNotSetException e)
+            {
+                log.LogInformation(e.Message);
+                return null;
             }
         }
 
@@ -182,35 +219,51 @@ namespace semisupervisedFramework
             }
             catch (Exception e)
             {
-                log.LogInformation("\nThe transfer is canceled: {0}", e.Message);
+                log.LogInformation("\nThe Azure Blob " + sourceBlob + " transfer to " + destinationBlob + " failed.", e.Message);
             }
 
             stopWatch.Stop();
-            log.LogInformation("\nTransfer operation completed in " + stopWatch.Elapsed.TotalSeconds + " seconds.");
+            log.LogInformation("The Azure Blob " + sourceBlob + " transfer to " + destinationBlob + " completed in:" + stopWatch.Elapsed.TotalSeconds + " seconds.");
         }
 
         //Gets a reference to a specific blob using container and blob names as strings
-        public static CloudBlockBlob GetBlob(CloudStorageAccount account, string containerName, string blobName)
+        public static CloudBlockBlob GetBlob(CloudStorageAccount account, string containerName, string blobName, ILogger log)
         {
-            CloudBlobClient blobClient = account.CreateCloudBlobClient();
-            CloudBlobContainer container = blobClient.GetContainerReference(containerName);
-            container.CreateIfNotExistsAsync().Wait();
+            try
+            {
+                CloudBlobClient blobClient = account.CreateCloudBlobClient();
+                CloudBlobContainer container = blobClient.GetContainerReference(containerName);
+                container.CreateIfNotExistsAsync().Wait();
 
-            CloudBlockBlob blob = container.GetBlockBlobReference(blobName);
+                CloudBlockBlob blob = container.GetBlockBlobReference(blobName);
 
-            return blob;
+                return blob;
+            }
+            catch (Exception e)
+            {
+                log.LogInformation("\nNo blob " + blobName + " found in " + containerName + " ", e.Message);
+                return null;
+            }
         }
 
         public static SingleTransferContext GetSingleTransferContext(TransferCheckpoint checkpoint, ILogger log)
         {
-            SingleTransferContext context = new SingleTransferContext(checkpoint);
-
-            context.ProgressHandler = new Progress<TransferStatus>((progress) =>
+            try
             {
-                log.LogInformation("\rBytes transferred: {0}", progress.BytesTransferred);
-            });
+                SingleTransferContext context = new SingleTransferContext(checkpoint);
 
-            return context;
+                context.ProgressHandler = new Progress<TransferStatus>((progress) =>
+                {
+                    log.LogInformation("\rBytes transferred: {0}", progress.BytesTransferred);
+                });
+
+                return context;
+            }
+            catch (Exception e)
+            {
+                log.LogInformation("\nGet transfer progress update fails.", e.Message);
+                return null;
+            }
         }
 
         public static string GetBlobSharedAccessSignature(CloudBlockBlob cloudBlockBlob)
@@ -230,15 +283,23 @@ namespace semisupervisedFramework
         // Analyze a remote image
         private static async Task AnalyzeRemoteAsync(ComputerVisionClient computerVision, string imageUrl, List<VisualFeatureTypes> features, ILogger log)
         {
-            if (!Uri.IsWellFormedUriString(imageUrl, UriKind.Absolute))
+            try
             {
-                log.LogInformation("\nInvalid remoteImageUrl:\n{0} \n", imageUrl);
+                if (!Uri.IsWellFormedUriString(imageUrl, UriKind.Absolute))
+                {
+                    throw (new InvalidUrlException("\nInvalid remoteImageUrl: " + imageUrl));
+                }
+
+                //Analyze image and display the results in the console
+                ImageAnalysis analysis = await computerVision.AnalyzeImageAsync(imageUrl, features);
+                DisplayResults(analysis, imageUrl, log);
                 return;
             }
-
-            //Analyze image and display the results in the console
-            ImageAnalysis analysis = await computerVision.AnalyzeImageAsync(imageUrl, features);
-            DisplayResults(analysis, imageUrl, log);
+            catch (InvalidUrlException e)
+            {
+                log.LogInformation(e.Message);
+                return;
+            }
         }
 
         // Display the most relevant caption for the image
@@ -337,6 +398,21 @@ namespace semisupervisedFramework
 
             stopWatch.Stop();
             log.LogInformation("\nTransfer operation completed in " + stopWatch.Elapsed.TotalSeconds + " seconds.");
+        }
+    }
+    public class EnvironmentVariableNotSetException : Exception
+    {
+        public EnvironmentVariableNotSetException(string message)
+            : base(message)
+        {
+        }
+    }
+
+    public class InvalidUrlException : Exception
+    {
+        public InvalidUrlException(string message)
+            : base(message)
+        {
         }
     }
 }
