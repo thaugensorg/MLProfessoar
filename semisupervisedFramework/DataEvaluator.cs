@@ -73,10 +73,6 @@ namespace semisupervisedFramework
 
                 //create the blob Info JSON object for to join blobs with the correct JSON
                 dynamic blobInfoJsonObject = new JObject();
-                blobInfoJsonObject.Name = blobName;
-                blobInfoJsonObject.blobLastModified = dataEvaluating.Properties.LastModified.ToString();
-                blobInfoJsonObject.fileID = Guid.NewGuid().ToString();
-                blobInfoJsonObject.fileHash = checksum.ToString();
 
                 //****Currently only working with public access set on blob folders
                 //Generate a URL with SAS token to submit to analyze image API
@@ -103,6 +99,7 @@ namespace semisupervisedFramework
                 //model successfully analyzed content
                 if (confidence >= confidenceThreshold)
                 {
+                    //****still need to handle situation where destination blob already exists****
                     //****still need to attach JSON to blob somehow*****
                     CloudBlockBlob evaluatedData = GetBlob(storageAccount, evaluatedDataStorageContainerName, blobName, log);
                     if (evaluatedData == null)
@@ -143,12 +140,38 @@ namespace semisupervisedFramework
                 //get the JSON object that comes before the file JSON object
                 //JObject description = (JObject)o["description"];
 
-                //create environment JSON object
-                dynamic environmentJsonObject = new JObject();
 
-                //add the file JSON object after the description JSON object
-                o.Add(blobInfoJsonObject);
-                //description.AddAfterSelf(fileObject);
+
+                JObject blobAnalysis =
+                    new JObject(
+                        new JProperty("blobInfo",
+                            new JObject(
+                                new JProperty("name", blobName),
+                                new JProperty("Modified", dataEvaluating.Properties.LastModified.ToString()),
+                                new JProperty("id", Guid.NewGuid().ToString()),
+                                new JProperty("hash", checksum.ToString())
+                            )
+                        )
+                    );
+
+                //create environment JSON object
+                JObject blobEnvironment =
+                    new JObject(
+                        new JProperty("environment",
+                            new JObject(
+                                new JProperty(GetEnvironmentVariable("modelServiceEndpoint", log)),
+                                new JProperty(GetEnvironmentVariable("modelAssetParameterName", log))
+                            )
+                        )
+                    );
+
+                blobAnalysis.Add(blobEnvironment);
+                blobAnalysis.Add(o);
+
+                //blobInfoJsonObject.Name = blobName;
+                //blobInfoJsonObject.blobLastModified = dataEvaluating.Properties.LastModified.ToString();
+                //blobInfoJsonObject.fileID = Guid.NewGuid().ToString();
+                //blobInfoJsonObject.fileHash = checksum.ToString();
 
                 log.LogInformation($"C# Blob trigger function Processed blob\n Name:{blobName} \n Size: {myBlob.Length} Bytes");
             }
