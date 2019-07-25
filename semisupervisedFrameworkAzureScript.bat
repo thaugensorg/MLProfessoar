@@ -114,12 +114,7 @@ az storage container create `
 az functionapp config appsettings set `
     --name semisupervisedApp
     --resource-group semisupervisedFramework
-    --settings "modelType=packaged"
-
-az functionapp config appsettings set `
-    --name semisupervisedApp `
-    --resource-group semisupervisedFramework `
-    --settings "parallelOperations=8"
+    --settings "modelType=static"
 
 az functionapp config appsettings set `
     --name semisupervisedApp `
@@ -135,6 +130,16 @@ az functionapp config appsettings set `
     --name semisupervisedApp `
     --resource-group semisupervisedFramework `
     --settings "confidenceJSONPath=description.captions[0].confidence"
+
+az functionapp config appsettings set `
+    --name semisupervisedApp `
+    --resource-group semisupervisedFramework `
+    --settings "modelServiceEndpoint=https://branddetectionapp.azurewebsites.net/api/detectBrand/"
+
+az functionapp config appsettings set `
+    --name semisupervisedApp `
+    --resource-group semisupervisedFramework `
+    --settings "modelAssetParameterName=name"
 
 ###### below starts the Image Analysis scripts ######
 
