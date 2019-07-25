@@ -58,15 +58,18 @@ namespace semisupervisedFramework
                 CloudBlobClient blobClient = storageAccount.CreateCloudBlobClient();
                 CloudBlobContainer container = blobClient.GetContainerReference("pendingevaluation");
 
-                //compute the file hash as this will be added to the meta data to allow for file version validation
-                CloudBlockBlob blockBlob = container.GetBlockBlobReference(blobName);
-                MemoryStream memStream = new MemoryStream();
-                await blockBlob.DownloadToStreamAsync(memStream);
-                SHA1Managed sha = new SHA1Managed();
-                byte[] checksum = sha.ComputeHash(memStream);
-
                 //Get a reference to a container, if the container does not exist create one then get the reference to the blob you want to evaluate."
                 CloudBlockBlob dataEvaluating = GetBlob(storageAccount, pendingEvaluationStorageContainerName, blobName, log);
+
+                //compute the file hash as this will be added to the meta data to allow for file version validation
+                byte[] checksum = await CalculateBlobFileHash(dataEvaluating,  log);
+
+                //create the blob Info JSON object for to join blobs with the correct JSON
+                dynamic blobInfoJsonObject = new JObject();
+                blobInfoJsonObject.Name = blobName;
+                blobInfoJsonObject.blobLastModified = dataEvaluating.Properties.LastModified.ToString();
+                blobInfoJsonObject.fileID = Guid.NewGuid().ToString();
+                blobInfoJsonObject.fileHash = checksum.ToString();
 
                 //****Currently only working with public access set on blob folders
                 //Generate a URL with SAS token to submit to analyze image API
@@ -105,14 +108,11 @@ namespace semisupervisedFramework
                 //get the JSON object that comes before the file JSON object
                 JObject description = (JObject)o["description"];
 
-                //create the file JSON object
-                dynamic fileObject = new JObject();
-                fileObject.Name = blobName;
-                fileObject.fileID = Guid.NewGuid().ToString();
-                fileObject.fileHash = checksum;
+                //create environment JSON object
+                dynamic environmentJsonObject = new JObject();
 
                 //add the file JSON object after the description JSON object
-                //o.Add(fileObject);
+                o.Add(blobInfoJsonObject);
                 //description.AddAfterSelf(fileObject);
 
                 log.LogInformation($"C# Blob trigger function Processed blob\n Name:{blobName} \n Size: {myBlob.Length} Bytes");
@@ -124,6 +124,32 @@ namespace semisupervisedFramework
             finally
             {
 
+            }
+        }
+
+        private static async Task<byte[]> CalculateBlobFileHash(CloudBlockBlob blockBlob, ILogger log)
+        {
+            try
+            {
+                MemoryStream memStream = new MemoryStream();
+                await blockBlob.DownloadToStreamAsync(memStream);
+                if (memStream.Length == 0)
+                {
+                    throw (new ZeroLengthFileException("\nCloud Block Blob: " + blockBlob.Name + " is zero length"));
+                }
+                SHA1Managed sha = new SHA1Managed();
+                byte[] checksum = sha.ComputeHash(memStream);
+                return checksum;
+            }
+            catch (ZeroLengthFileException e)
+            {
+                log.LogInformation("\n" +blockBlob.Name + " is zero length.  CalculateBlobFileHash failed with error: " + e.Message);
+                return null;
+            }
+            catch (Exception e)
+            {
+                log.LogInformation("\ncalculatingBlobFileHash for " + blockBlob.Name + " failed with: " + e.Message);
+                return null;
             }
         }
 
@@ -346,35 +372,58 @@ namespace semisupervisedFramework
 
         public static void SetNumberOfParallelOperations(ILogger log)
         {
-            //Note, the default number of cores applied to parrallel transfer of data is 8, also the default value for the environment variable.  If you change the environment
-            //variable be aware this might overwhelm your network and adversely affect other applications on the network.
-            string parallelOperations = Environment.GetEnvironmentVariable("parallelOperations");
-            log.LogInformation("\nConfiguring " + parallelOperations + " from the parallelOperations environment variable");
-            TransferManager.Configurations.ParallelOperations = int.Parse(parallelOperations);
+            try
+            {
+                //Note, the default number of cores applied to parrallel transfer of data is 8, also the default value for the environment variable.  If you change the environment
+                //variable be aware this might overwhelm your network and adversely affect other applications on the network.
+                string parallelOperations = Environment.GetEnvironmentVariable("parallelOperations");
+                log.LogInformation("\nConfiguring " + parallelOperations + " from the parallelOperations environment variable");
+                TransferManager.Configurations.ParallelOperations = int.Parse(parallelOperations);
+            }
+            catch (Exception e)
+            {
+                log.LogInformation("setting parallel opertations configuration at level sopecified in parallelOperations environment variable failed: " + e.Message);
+            }
         }
 
         public static CloudBlockBlob GetBlob(CloudStorageAccount account, string containerName, string blobName, ILogger log)
         {
-            CloudBlobClient blobClient = account.CreateCloudBlobClient();
+            try
+            {
+                CloudBlobClient blobClient = account.CreateCloudBlobClient();
 
-            CloudBlobContainer container = blobClient.GetContainerReference(containerName);
-            container.CreateIfNotExistsAsync().Wait();
+                CloudBlobContainer container = blobClient.GetContainerReference(containerName);
+                container.CreateIfNotExistsAsync().Wait();
 
-            CloudBlockBlob blob = container.GetBlockBlobReference(blobName);
+                CloudBlockBlob blob = container.GetBlockBlobReference(blobName);
 
-            return blob;
+                return blob;
+            }
+            catch (Exception e)
+            {
+                log.LogInformation("GetBlob for storage account: " + account + " and containerName " + containerName + "using blobName: " + blobName + "failed with error: " + e.Message);
+                return null;
+            }
         }
 
         public static CloudBlobDirectory GetBlobDirectory(CloudStorageAccount account, string containerName, ILogger log)
         {
-            CloudBlobClient blobClient = account.CreateCloudBlobClient();
+            try
+            {
+                CloudBlobClient blobClient = account.CreateCloudBlobClient();
 
-            CloudBlobContainer container = blobClient.GetContainerReference(containerName);
-            container.CreateIfNotExistsAsync().Wait();
+                CloudBlobContainer container = blobClient.GetContainerReference(containerName);
+                container.CreateIfNotExistsAsync().Wait();
 
-            CloudBlobDirectory blobDirectory = container.GetDirectoryReference("");
+                CloudBlobDirectory blobDirectory = container.GetDirectoryReference("");
 
-            return blobDirectory;
+                return blobDirectory;
+            }
+            catch (Exception e)
+            {
+                log.LogInformation("GetBlobDirectory for storage account: " + account + " and containerName " + containerName + "failed with error: " + e.Message);
+                return null;
+            }
         }
 
         public static async Task TransferUrlToAzureBlob(CloudStorageAccount account, string sourceURL, CloudBlockBlob destinationBlob, ILogger log)
@@ -411,6 +460,14 @@ namespace semisupervisedFramework
     public class InvalidUrlException : Exception
     {
         public InvalidUrlException(string message)
+            : base(message)
+        {
+        }
+    }
+
+    public class ZeroLengthFileException : Exception
+    {
+        public ZeroLengthFileException(string message)
             : base(message)
         {
         }
