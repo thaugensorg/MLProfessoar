@@ -42,6 +42,7 @@ namespace semisupervisedFramework
             {
                 string pendingEvaluationStorageContainerName = "pendingevaluation";
                 string evaluatedDataStorageContainerName = "evaluateddata";
+                string evaluatedJSONStorageContainerName = "evaluatedjson";
                 string pendingSupervisionStorageContainerName = "pendingsupervision";
                 string modelValidationStorageContainerName = "modelvalidation";
                 string pendingNewModelStorageContainerName = "pendingnewmodelevaluation";
@@ -51,6 +52,7 @@ namespace semisupervisedFramework
                 double confidenceThreshold = Convert.ToDouble(GetEnvironmentVariable("confidenceThreshold", log));
                 double modelVerificationPercent = Convert.ToDouble(GetEnvironmentVariable("modelVerificationPercentage", log));
 
+                //------------------------This section retrieves the blob needing evaluation and calls the evaluation service for processing.-----------------------
 
                 // Create Reference to Azure Storage Account
                 CloudStorageAccount storageAccount = CloudStorageAccount.Parse(storageConnection);
@@ -71,9 +73,6 @@ namespace semisupervisedFramework
                     log.LogInformation("\nWarning: Blob Hash calculation failed and will not be included in file information blob, continuing operation.");
                 }
 
-                //create the blob Info JSON object for to join blobs with the correct JSON
-                dynamic blobInfoJsonObject = new JObject();
-
                 //****Currently only working with public access set on blob folders
                 //Generate a URL with SAS token to submit to analyze image API
                 //string dataEvaluatingSas = GetBlobSharedAccessSignature(dataEvaluating);
@@ -88,31 +87,30 @@ namespace semisupervisedFramework
                 }
 
                 //deserialize response JSON, get confidence score and compare with confidence threshold
-                JObject o = JObject.Parse(responseString);
-                string strConfidence = (string)o.SelectToken(confidenceJSONPath);
-                double confidence = (double)o.SelectToken(confidenceJSONPath);
+                JObject analysisJSON = JObject.Parse(responseString);
+                string strConfidence = (string)analysisJSON.SelectToken(confidenceJSONPath);
+                double confidence = (double)analysisJSON.SelectToken(confidenceJSONPath);
                 if (strConfidence == null)
                 {
                     throw (new MissingRequiredObject("\nNo confidence value at " + confidenceJSONPath + " from environment variable ConfidenceJSONPath."));
                 }
 
+                //--------------------------------This section processes the results of the analysis and transferes the blob to the container responsible for the nest appropriate stage of processing.-------------------------------
+
                 //model successfully analyzed content
                 if (confidence >= confidenceThreshold)
                 {
-                    //****still need to handle situation where destination blob already exists****
-                    //****still need to attach JSON to blob somehow*****
                     CloudBlockBlob evaluatedData = GetBlob(storageAccount, evaluatedDataStorageContainerName, blobName, log);
                     if (evaluatedData == null)
                     {
                         throw (new MissingRequiredObject("\nMissing evaluatedData " + blobName + " destination blob in container " + evaluatedDataStorageContainerName));
                     }
-                    TransferAzureBlobToAzureBlob(storageAccount, dataEvaluating, evaluatedData, log).Wait();
+                    CopyAzureBlobToAzureBlob(storageAccount, dataEvaluating, evaluatedData, log).Wait();
 
                     //pick a random number of successfully analyzed content blobs and submit them for supervision verification.
                     Random rnd = new Random();
                     if (rnd.Next(100) / 100 <= modelVerificationPercent)
                     {
-                        //****this is going to fail because the block above will have moved the blob.
                         CloudBlockBlob modelValidation = GetBlob(storageAccount, modelValidationStorageContainerName, blobName, log);
                         if (modelValidation == null)
                         {
@@ -123,6 +121,7 @@ namespace semisupervisedFramework
                             TransferAzureBlobToAzureBlob(storageAccount, dataEvaluating, modelValidation, log).Wait();
                         }
                     }
+                    await dataEvaluating.DeleteIfExistsAsync();
                 }
 
                 //model was not sufficiently confident in its analysis
@@ -137,10 +136,7 @@ namespace semisupervisedFramework
                     TransferAzureBlobToAzureBlob(storageAccount, dataEvaluating, pendingSupervision, log).Wait();
                 }
 
-                //get the JSON object that comes before the file JSON object
-                //JObject description = (JObject)o["description"];
-
-
+                //----------------------------This section collects information about the blob being analyzied and packages it in JSON that is then written to blob storage for later processing-----------------------------------
 
                 JObject blobAnalysis =
                     new JObject(
@@ -155,23 +151,38 @@ namespace semisupervisedFramework
                     );
 
                 //create environment JSON object
-                JObject blobEnvironment =
-                    new JObject(
-                        new JProperty("environment",
-                            new JObject(
-                                new JProperty(GetEnvironmentVariable("modelServiceEndpoint", log)),
-                                new JProperty(GetEnvironmentVariable("modelAssetParameterName", log))
-                            )
+                JProperty blobEnvironment =
+                    new JProperty("environment",
+                        new JObject(
+                            new JProperty("endpoint", GetEnvironmentVariable("modelServiceEndpoint", log)),
+                            new JProperty("parameter", GetEnvironmentVariable("modelAssetParameterName", log)),
+                            new JProperty("pendingEvaluationStorage", pendingEvaluationStorageContainerName),
+                            new JProperty("evaluatedDataStorage", evaluatedDataStorageContainerName),
+                            new JProperty("pendingSupervisionStorage", pendingSupervisionStorageContainerName),
+                            new JProperty("modelValidationStorage", modelValidationStorageContainerName),
+                            new JProperty("pendingNewModelStorage", pendingNewModelStorageContainerName),
+                            new JProperty("confidenceJSONPath", confidenceJSONPath),
+                            new JProperty("confidenceThreshold", GetEnvironmentVariable("confidenceThreshold", log)),
+                            new JProperty("verificationPercent", GetEnvironmentVariable("modelVerificationPercentage", log))
                         )
                     );
 
                 blobAnalysis.Add(blobEnvironment);
-                blobAnalysis.Add(o);
+                blobAnalysis.Merge(analysisJSON);
 
-                //blobInfoJsonObject.Name = blobName;
-                //blobInfoJsonObject.blobLastModified = dataEvaluating.Properties.LastModified.ToString();
-                //blobInfoJsonObject.fileID = Guid.NewGuid().ToString();
-                //blobInfoJsonObject.fileHash = checksum.ToString();
+                CloudBlockBlob jsonBlob = GetBlob(storageAccount, evaluatedJSONStorageContainerName, (string)blobAnalysis.SelectToken("blobInfo.id") + ".json", log);
+                jsonBlob.Properties.ContentType = "application/json";
+                string serializedJSON = JsonConvert.SerializeObject(blobAnalysis, Newtonsoft.Json.Formatting.Indented, new JsonSerializerSettings { });
+                Stream memStream = new MemoryStream(Encoding.UTF8.GetBytes(serializedJSON));
+                if (memStream.Length != 0)
+                {
+                    await jsonBlob.UploadFromStreamAsync(memStream);
+                }
+                else
+                {
+                    throw (new ZeroLengthFileException("\nencoded JSON memory stream is zero length and cannot be writted to blob storage"));
+                }
+
 
                 log.LogInformation($"C# Blob trigger function Processed blob\n Name:{blobName} \n Size: {myBlob.Length} Bytes");
             }
@@ -226,7 +237,6 @@ namespace semisupervisedFramework
                 HttpClient client = new HttpClient();
                 modelRequestUrl = ConstructModelRequestUrl(dataEvaluatingUrl, log);
                 HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, new Uri(modelRequestUrl));
-                //HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, new Uri("https://branddetectionapp.azurewebsites.net/api/detectBrand/?name=" + dataEvaluatingUrl));
                 HttpResponseMessage response = client.SendAsync(request).Result;
                 responseString = response.Content.ReadAsStringAsync().Result;
             }
@@ -307,6 +317,18 @@ namespace semisupervisedFramework
         //Transfers a blob between two azure containers.
         public static async Task TransferAzureBlobToAzureBlob(CloudStorageAccount account, CloudBlockBlob sourceBlob, CloudBlockBlob destinationBlob, ILogger log)
         {
+            await CopyAzureBlobToAzureBlob(account, sourceBlob, destinationBlob, log);
+
+            Stopwatch stopWatch = Stopwatch.StartNew();
+            await sourceBlob.DeleteIfExistsAsync();
+            stopWatch.Stop();
+            log.LogInformation("The Azure Blob " + sourceBlob + " deleted in: " + stopWatch.Elapsed.TotalSeconds + " seconds.");
+        }
+
+
+        //Transfers a blob between two azure containers.
+        public static async Task CopyAzureBlobToAzureBlob(CloudStorageAccount account, CloudBlockBlob sourceBlob, CloudBlockBlob destinationBlob, ILogger log)
+        {
             TransferCheckpoint checkpoint = null;
             SingleTransferContext context = GetSingleTransferContext(checkpoint, log);
             CancellationTokenSource cancellationSource = new CancellationTokenSource();
@@ -318,14 +340,23 @@ namespace semisupervisedFramework
                 task = TransferManager.CopyAsync(sourceBlob, destinationBlob, true, null, context, cancellationSource.Token);
                 await task;
             }
+            catch (AggregateException e)
+            {
+                e.Data.Add("sourceBlobName", sourceBlob);
+                e.Data.Add("destinationBlocName", destinationBlob);
+                throw;
+            }
             catch (Exception e)
             {
-                log.LogInformation("\nThe Azure Blob " + sourceBlob + " transfer to " + destinationBlob + " failed.", e.Message);
+                e.Data.Add("sourceBlobName", sourceBlob);
+                e.Data.Add("destinationBlocName", destinationBlob);
+                throw;
             }
-
+            
             stopWatch.Stop();
             log.LogInformation("The Azure Blob " + sourceBlob + " transfer to " + destinationBlob + " completed in:" + stopWatch.Elapsed.TotalSeconds + " seconds.");
         }
+
 
         //Gets a reference to a specific blob using container and blob names as strings
         public static CloudBlockBlob GetBlob(CloudStorageAccount account, string containerName, string blobName, ILogger log)

@@ -111,6 +111,12 @@ az storage container create `
   --account-key $frameworkStorageAccountKey `
   --fail-on-exist
 
+az storage container create `
+  --name evaluatedjson
+  --account-name $frameworkStorageAccountName `
+  --account-key $frameworkStorageAccountKey `
+  --fail-on-exist
+
 az functionapp config appsettings set `
     --name semisupervisedApp
     --resource-group semisupervisedFramework
