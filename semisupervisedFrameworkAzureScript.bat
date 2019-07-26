@@ -44,10 +44,39 @@ https://docs.microsoft.com/en-us/azure/azure-functions/functions-run-local
 $subscription = "Thaugen-semisupervised-vision-closed-loop-solution"
 
 #variables for framework
-$frameworkResourceGroupName = "semisupervisedFramework"
+$frameworkResourceGroupName = Read-Host -Prompt 'Input the name of the resource group that you want to create for installing this orchistration framework for managing semisupervised models:'
+"semisupervisedFramework"
 $frameworkStorageAccountName = "semisupervisedstorage"
 $frameworkStorageAccountKey = $null
 $frameworkLocation = "centralus" #get a list of all the locations and put a link to the web address here.
+
+$modelType = Read-Host -Prompt 'Input the type of model you would like to deploy, static or trained:'
+
+$pendingEvaluationStorageContainerName = Read-Host -Prompt 'Input name of the storage container for blobs to be evaluated by the model configured in this framework (default=pendingevaluation):'
+if ([string]::IsNullOrWhiteSpace($pendingEvaluationStorageContainerName) {$pendingEvaluationStorageContainerName = "pendingevaluation"}
+
+$evaluatedDataStorageContainerName = Read-Host -Prompt 'Input name of the storage container for blobs after they are evaluated by the model'
+if ($evaluatedDataStorageContainerName == null) {$evaluatedDataStorageContainerName = "evaluateddata"}
+
+$evaluatedJSONStorageContainerName = Read-Host -Prompt 'Input the name of the storage container for JSON blobs containing data generated from the blobs evaluated by this model:'
+if ($evaluatedJSONStorageContainerName == null) {$evaluatedJSONStorageContainerName = "evaluatedjson"}
+
+$pendingSupervisionStorageContainerName = Read-Host -Prompt 'Input the name of the storage container for blobs that require supervision after they have been evaluated by the model:'
+if ($pendingSupervisionStorageContainerName == null) {$pendingSupervisionStorageContainerName = "pendingsupervision"}
+
+$modelValidationStorageContainerName = Read-Host -Prompt 'Input the name of the storage container for blobs that will be used to validate the model after they have been evaluated by the model:'
+if ($modelValidationStorageContainerName == null) {$modelValidationStorageContainerName = "modelvalidation"}
+
+$pendingNewModelStorageContainerName = Read-Host -Prompt 'Input the name of the storage container for blobs that need to be re-evaluated after a new mode has been published:'
+if ($pendingNewModelStorageContainerName == null) {$pendingNewModelStorageContainerName = "pendingnewmodelevaluation"}
+
+$confidenceThreshold = Read-Host -Prompt 'Input the decimal value in the format of a C# Double that specifies the confidence threshold the model must return to indicate the model blob analysis is acceptable:'
+if ($confidenceThreshold == null) {$confidenceThreshold = .095}
+
+                string storageConnection = GetEnvironmentVariable("AzureWebJobsStorage", log);
+                string subscriptionKey = GetEnvironmentVariable("CognitiveServicesKey", log);
+                string confidenceJSONPath = GetEnvironmentVariable("confidenceJSONPath", log);
+                double modelVerificationPercent = Convert.ToDouble(GetEnvironmentVariable("modelVerificationPercentage", log));
 
 if (az group exists --name $frameworkResourceGroupName) `
 	{az group delete `
@@ -118,9 +147,39 @@ az storage container create `
   --fail-on-exist
 
 az functionapp config appsettings set `
-    --name semisupervisedApp
-    --resource-group semisupervisedFramework
+    --name semisupervisedApp `
+    --resource-group semisupervisedFramework `
     --settings "modelType=static"
+
+az functionapp config appsettings set `
+    --name semisupervisedApp `
+    --resource-group semisupervisedFramework `
+    --settings "pendingEvaluationStorageContainerName=pendingevaluation"
+
+az functionapp config appsettings set `
+    --name semisupervisedApp `
+    --resource-group semisupervisedFramework `
+    --settings "evaluatedDataStorageContainerName=evaluateddata"
+
+az functionapp config appsettings set `
+    --name semisupervisedApp `
+    --resource-group semisupervisedFramework `
+    --settings "evaluatedJSONStorageContainerName=evaluatedjson"
+
+az functionapp config appsettings set `
+    --name semisupervisedApp `
+    --resource-group semisupervisedFramework `
+    --settings "pendingSupervisionStorageContainerName=pendingsupervision"
+
+az functionapp config appsettings set `
+    --name semisupervisedApp `
+    --resource-group semisupervisedFramework `
+    --settings "modelValidationStorageContainerName=modelvalidation"
+
+az functionapp config appsettings set `
+    --name semisupervisedApp `
+    --resource-group semisupervisedFramework `
+    --settings "pendingNewModelStorageContainerName=pendingnewmodelevaluation"
 
 az functionapp config appsettings set `
     --name semisupervisedApp `
@@ -130,7 +189,7 @@ az functionapp config appsettings set `
 az functionapp config appsettings set `
     --name semisupervisedApp `
     --resource-group semisupervisedFramework `
-    --settings "confidenceThreshold=.95"
+    --settings "confidenceThreshold="$confidenceThreshold 
 
 az functionapp config appsettings set `
     --name semisupervisedApp `
