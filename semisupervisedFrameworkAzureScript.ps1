@@ -5,13 +5,13 @@ while([string]::IsNullOrWhiteSpace($subscription))
 
 
 #######      variables for framework
-$frameworkResourceGroupName = Read-Host -Prompt 'Input the name of the resource group that you want to create for installing this orchistration framework for managing semisupervised models.  The default value is semisupervisedFramework'
+$frameworkResourceGroupName = Read-Host -Prompt 'Input the name of the resource group that you want to create for installing this orchestration framework for managing semisupervised models.  The default value is semisupervisedFramework'
 if ([string]::IsNullOrWhiteSpace($frameworkResourceGroupName)) {$frameworkResourceGroupName = "semisupervisedFramework"}
 
-$frameworkStorageAccountName = Read-Host -Prompt 'Input the name of the azure storage account you want to create for this installation of the orchistration framework.  By default this value is semisupervisedstorage'
+$frameworkStorageAccountName = Read-Host -Prompt 'Input the name of the azure storage account you want to create for this installation of the orchestration framework.  Note this needs to be all lowercase letters.  By default this value is semisupervisedstorage'
 if ([string]::IsNullOrWhiteSpace($frameworkStorageAccountName)) {$frameworkStorageAccountName = "semisupervisedstorage"}
 
-$frameworkFunctionAppName = Read-Host -Prompt 'Input the name for the azure function app you want to create for this installation of the orchistration framework.  By default this value is semisupervisedApp'
+$frameworkFunctionAppName = Read-Host -Prompt 'Input the name for the azure function app you want to create for this installation of the orchestration framework.  By default this value is semisupervisedApp'
 if ([string]::IsNullOrWhiteSpace($frameworkFunctionAppName)) {$frameworkFunctionAppName = "semisupervisedApp"}
 
 $frameworkStorageAccountKey = $null #the script retrieves this at run time and populates it.
@@ -26,7 +26,9 @@ $message = "What type of model would you like to deploy?"
 $static = New-Object System.Management.Automation.Host.ChoiceDescription "&Static", "Static"
 $trained = New-Object System.Management.Automation.Host.ChoiceDescription "&Trained", "Trained"
 $options = [System.Management.Automation.Host.ChoiceDescription[]]($static, $trained)
-$modelType=$host.ui.PromptForChoice($title, $message, $options, 0)
+$type=$host.ui.PromptForChoice($title, $message, $options, 0)
+
+if ($type -eq 1) {$modelType = "Trained"} else {$modelType = "Static"}
 
 #These environment variables are used for both static and trained models.
 $pendingEvaluationStorageContainerName = Read-Host -Prompt 'Input the name of the storage container for blobs to be evaluated by the model configured in this framework (default=pendingevaluation)'
@@ -67,7 +69,6 @@ if ($modelType -eq "Trained")
   $modelVerificationPercent = Read-Host -Prompt 'Input the decimal value in the format of a C# Double that specifies the percentage of successfully evaluated blobs to be routed to a verification queue (default=.05)'
   if ([string]::IsNullOrWhiteSpace($modelVerificationPercent)) {$modelVerificationPercent = .05}
 }
-
 
 #########      settign up the Azure environment
 if (az group exists --name $frameworkResourceGroupName) `
@@ -147,47 +148,47 @@ if ($modelType -eq "Trained")
 az functionapp config appsettings set `
     --name $frameworkFunctionAppName `
     --resource-group $frameworkResourceGroupName `
-    --settings "modelType=" + $modelType
+    --settings "modelType=$modelType"
 
 az functionapp config appsettings set `
     --name $frameworkFunctionAppName `
     --resource-group $frameworkResourceGroupName `
-    --settings "pendingEvaluationStorageContainerName=" + $pendingEvaluationStorageContainerName
+    --settings "pendingEvaluationStorageContainerName=$pendingEvaluationStorageContainerName" 
 
 az functionapp config appsettings set `
     --name $frameworkFunctionAppName `
     --resource-group $frameworkResourceGroupName `
-    --settings "evaluatedDataStorageContainerName=" + $evaluatedDataStorageContainerName
+    --settings "evaluatedDataStorageContainerName=$evaluatedDataStorageContainerName" 
 
 az functionapp config appsettings set `
     --name $frameworkFunctionAppName `
     --resource-group $frameworkResourceGroupName `
-    --settings "evaluatedJSONStorageContainerName=" + $evaluatedJSONStorageContainerName
+    --settings "evaluatedJSONStorageContainerName=$evaluatedJSONStorageContainerName"
 
 az functionapp config appsettings set `
     --name $frameworkFunctionAppName `
     --resource-group $frameworkResourceGroupName `
-    --settings "pendingSupervisionStorageContainerName=" + $pendingSupervisionStorageContainerName
+    --settings "pendingSupervisionStorageContainerName=$pendingSupervisionStorageContainerName"
 
 az functionapp config appsettings set `
   --name $frameworkFunctionAppName `
   --resource-group $frameworkResourceGroupName `
-  --settings "confidenceThreshold="$confidenceThreshold 
+  --settings "confidenceThreshold=$confidenceThreshold" 
 
 az functionapp config appsettings set `
   --name $frameworkFunctionAppName `
   --resource-group $frameworkResourceGroupName `
-  --settings "confidenceJSONPath=description.captions[0].confidence"
+  --settings "confidenceJSONPath=$confidenceJSONPath"
 
 az functionapp config appsettings set `
   --name $frameworkFunctionAppName `
   --resource-group $frameworkResourceGroupName `
-  --settings "modelServiceEndpoint=" + $modelServiceEndpoint
+  --settings "modelServiceEndpoint=$modelServiceEndpoint"
 
 az functionapp config appsettings set `
   --name $frameworkFunctionAppName `
   --resource-group $frameworkResourceGroupName `
-  --settings "modelAssetParameterName=" + $modelAssetParameterName
+  --settings "modelAssetParameterName=$modelAssetParameterName"
 
 #These environment variables are only used for trained models
 if ($modelType -eq "Trained")
@@ -195,20 +196,20 @@ if ($modelType -eq "Trained")
 az functionapp config appsettings set `
     --name $frameworkFunctionAppName `
     --resource-group $frameworkResourceGroupName `
-    --settings "labeledDataStorageContainerName=" + $labeledDataStorageContainerName
+    --settings "labeledDataStorageContainerName=$labeledDataStorageContainerName"
 
 az functionapp config appsettings set `
     --name $frameworkFunctionAppName `
     --resource-group $frameworkResourceGroupName `
-    --settings "modelValidationStorageContainerName=" + $modelValidationStorageContainerName
+    --settings "modelValidationStorageContainerName=$modelValidationStorageContainerName"
 
 az functionapp config appsettings set `
     --name $frameworkFunctionAppName `
     --resource-group $frameworkResourceGroupName `
-    --settings "pendingNewModelStorageContainerName=" + $pendingNewModelStorageContainerName
+    --settings "pendingNewModelStorageContainerName=$pendingNewModelStorageContainerName"
 
 az functionapp config appsettings set `
     --name $frameworkFunctionAppName `
     --resource-group $frameworkResourceGroupName `
-    --settings "modelVerificationPercentage=" + $modelVerificationPercent
+    --settings "modelVerificationPercentage=$modelVerificationPercent"
 }
