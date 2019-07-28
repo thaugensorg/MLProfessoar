@@ -53,7 +53,7 @@ $confidenceThreshold = Read-Host -Prompt 'Input the decimal value in the format 
 if ([string]::IsNullOrWhiteSpace($confidenceThreshold)) {$confidenceThreshold = .95}
 
 #These environment variables are only used for trained models
-if ($modelType == "Trained")
+if ($modelType -eq "Trained")
 {
   $labeledDataStorageContainerName = Read-Host -Prompt 'Input the name of the storage container for blobs that will store labeled data for training the model (default=labeleddata)'
   if ([string]::IsNullOrWhiteSpace($labeledDataStorageContainerName)) {$labeledDataStorageContainerName = "labeleddata"}
@@ -104,7 +104,7 @@ az storage container create `
   --fail-on-exist
 
 az storage container create `
-  --name $evaluateddata `
+  --name $evaluatedDataStorageContainerName `
   --account-name $frameworkStorageAccountName `
   --account-key $frameworkStorageAccountKey `
   --fail-on-exist
@@ -122,13 +122,14 @@ az storage container create `
   --fail-on-exist
 
 #These storage containers are only used for trained models
-if ($modelType == "Trained")
+if ($modelType -eq "Trained")
 {
   
   az storage container create `
     --name $labeledDataStorageContainerName `
     --account-name $frameworkStorageAccountName `
-    --account-key $frameworkStorageAccountKey 
+    --account-key $frameworkStorageAccountKey `
+    --fail-on-exist
 
   az storage container create `
     --name $modelValidationStorageContainerName `
@@ -189,7 +190,7 @@ az functionapp config appsettings set `
   --settings "modelAssetParameterName=" + $modelAssetParameterName
 
 #These environment variables are only used for trained models
-if ($modelType == "Trained")
+if ($modelType -eq "Trained")
 {
 az functionapp config appsettings set `
     --name $frameworkFunctionAppName `
