@@ -44,10 +44,10 @@ namespace semisupervisedFramework
                 string EvaluatedDataStorageContainerName = GetEnvironmentVariable("evaluatedDataStorageContainerName", log);
                 string EvaluatedJSONStorageContainerName = GetEnvironmentVariable("evaluatedJSONStorageContainerName", log);
                 string PendingSupervisionStorageContainerName = GetEnvironmentVariable("pendingSupervisionStorageContainerName", log);
+                string LabeledDataStorageContainerName = GetEnvironmentVariable("labeledDataStorageContainerName", log);
                 string ModelValidationStorageContainerName = GetEnvironmentVariable("modelValidationStorageContainerName", log);
                 string PendingNewModelStorageContainerName = GetEnvironmentVariable("pendingNewModelStorageContainerName", log);
                 string StorageConnection = GetEnvironmentVariable("AzureWebJobsStorage", log);
-                string SubscriptionKey = GetEnvironmentVariable("CognitiveServicesKey", log);
                 string ConfidenceJsonPath = GetEnvironmentVariable("confidenceJSONPath", log);
                 double ConfidenceThreshold = Convert.ToDouble(GetEnvironmentVariable("confidenceThreshold", log));
                 double ModelVerificationPercent = Convert.ToDouble(GetEnvironmentVariable("modelVerificationPercentage", log));
