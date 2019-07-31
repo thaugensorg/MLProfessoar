@@ -1,3 +1,5 @@
+# To Do: replace all azure CLI calls to PowerShell cmdlets such as get-azureRmStorageAccountKey
+
 # Instructions and comments on using this solution have been moved to the Read Me file in the solution.
 
 while([string]::IsNullOrWhiteSpace($subscription))
@@ -8,8 +10,8 @@ while([string]::IsNullOrWhiteSpace($subscription))
 $frameworkResourceGroupName = Read-Host -Prompt 'Input the name of the resource group that you want to create for installing this orchestration framework for managing semisupervised models.  The default value is semisupervisedFramework'
 if ([string]::IsNullOrWhiteSpace($frameworkResourceGroupName)) {$frameworkResourceGroupName = "semisupervisedFramework"}
 
-$frameworkStorageAccountName = Read-Host -Prompt 'Input the name of the azure storage account you want to create for this installation of the orchestration framework.  Note this needs to be all lowercase letters.  By default this value is semisupervisedstorage'
-if ([string]::IsNullOrWhiteSpace($frameworkStorageAccountName)) {$frameworkStorageAccountName = "semisupervisedstorage"}
+while([string]::IsNullOrWhiteSpace($frameworkStorageAccountName))
+  {$frameworkStorageAccountName = Read-Host -Prompt 'Input the name of the azure storage account you want to create for this installation of the orchestration framework.  Note this needs to be between 3 and 24 characters, globally unique in Azure, and contain all lowercase letters and or numbers.'}
 
 $frameworkFunctionAppName = Read-Host -Prompt 'Input the name for the azure function app you want to create for this installation of the orchestration framework.  By default this value is semisupervisedApp'
 if ([string]::IsNullOrWhiteSpace($frameworkFunctionAppName)) {$frameworkFunctionAppName = "semisupervisedApp"}
