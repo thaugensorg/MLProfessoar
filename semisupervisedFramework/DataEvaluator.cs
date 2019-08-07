@@ -304,7 +304,8 @@ namespace semisupervisedFramework
             }
         }
 
-        //Returns an environemtn variable matching the name parameter in the current app context
+        //Returns an environment variable matching the name parameter in the current app context
+        //Need to replace this with the Environment class calls
         public static string GetEnvironmentVariable(string name, ILogger log)
         {
             try
