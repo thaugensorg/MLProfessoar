@@ -143,6 +143,7 @@ namespace semisupervisedFramework
                         new JProperty("blobInfo",
                             new JObject(
                                 new JProperty("name", blobName),
+                                new JProperty("url", DataEvaluating.Uri.ToString()),
                                 new JProperty("modified", DataEvaluating.Properties.LastModified.ToString()),
                                 new JProperty("id", Guid.NewGuid().ToString()),
                                 new JProperty("hash", Checksum.ToString())

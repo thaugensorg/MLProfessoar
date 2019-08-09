@@ -27,7 +27,7 @@ namespace semisupervisedFramework
                 CloudStorageAccount StorageAccount = Environment.GetStorageAccount(log);
                 CloudBlobClient BlobClient = StorageAccount.CreateCloudBlobClient();
                 //CloudBlobContainer Container = BlobClient.GetContainerReference("labelsjson");
-                CloudBlockBlob JsonLabelsBlob = AzureStorage.GetBlob(StorageAccount, "labelsjson", "labels.json", log);
+                CloudBlockBlob JsonLabelsBlob = AzureStorage.GetBlob(StorageAccount, "json", "labels.json", log);
 
                 string LabelsJson = JsonLabelsBlob.DownloadTextAsync().ToString();
                 List<string> Labels = JsonConvert.DeserializeObject<List<string>>(LabelsJson);
