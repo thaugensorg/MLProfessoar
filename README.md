@@ -13,6 +13,8 @@ To get started, save the powershell, EnvironmentConfiguration.ps1, script to you
 
 The PowerShell script will prompt for a significant number of parameters about the environment.  As a result, it will help to plan your environment in advance.  See the Configuration Parameters below for the values the scripts require.
 
+Note: if the script errors simply run it again.  Enter the same name for the resource group and the script will clean up the previous attempt as the first step. When the script checks for the resource group if it does not find it the script will out put a red message resource group not found.  This is OK, it simply means that the script needs to create the resource group. 
+
 # Deploying to Azure
 This article shows how to upload and run powershell scripts in Azure:
 [PowerShell in Azure](https://www.ntweekly.com/2019/05/24/upload-and-run-powershell-script-from-azure-cloud-shell/)
