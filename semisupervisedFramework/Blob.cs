@@ -104,7 +104,12 @@ namespace semisupervisedFramework
             return sb.ToString();
         }
 
-        public static CloudBlockBlob GetBoundPair(string Binding)
+        public static CloudBlockBlob GetBoundData(string bindingHash)
+        {
+
+        }
+
+        public static CloudBlockBlob GetBoundJson(string bindingHash)
         {
 
         }

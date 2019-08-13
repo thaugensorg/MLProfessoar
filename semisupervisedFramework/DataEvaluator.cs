@@ -100,7 +100,7 @@ namespace semisupervisedFramework
                     throw (new MissingRequiredObject("\nNo confidence value at " + ConfidenceJsonPath + " from environment variable ConfidenceJSONPath."));
                 }
 
-                //--------------------------------This section processes the results of the analysis and transferes the blob to the container responsible for the nest appropriate stage of processing.-------------------------------
+                //--------------------------------This section processes the results of the analysis and transferes the blob to the container responsible for the next appropriate stage of processing.-------------------------------
 
                 //model successfully analyzed content
                 if (Confidence >= ConfidenceThreshold)
@@ -145,6 +145,7 @@ namespace semisupervisedFramework
 
                 JObject BlobAnalysis =
                     new JObject(
+                        new JProperty("softdelete", "true"),
                         new JProperty("blobInfo",
                             new JObject(
                                 new JProperty("name", blobName),
@@ -162,6 +163,7 @@ namespace semisupervisedFramework
                 BlobAnalysis.Add(BlobEnvironment);
                 BlobAnalysis.Merge(AnalysisJson);
 
+                //Note: all json files get writted to the same container as they are all accessed wither by discrete name or by azure search index either GUID or Hash.
                 CloudBlockBlob JsonBlob = GetBlob(StorageAccount, EvaluatedJSONStorageContainerName, (string)BlobAnalysis.SelectToken("blobInfo.id") + ".json", log);
                 JsonBlob.Properties.ContentType = "application/json";
                 string SerializedJson = JsonConvert.SerializeObject(BlobAnalysis, Newtonsoft.Json.Formatting.Indented, new JsonSerializerSettings { });

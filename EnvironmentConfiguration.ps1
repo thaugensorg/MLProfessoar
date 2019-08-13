@@ -39,8 +39,8 @@ if ([string]::IsNullOrWhiteSpace($pendingEvaluationStorageContainerName)) {$pend
 $evaluatedDataStorageContainerName = Read-Host -Prompt 'Input the name of the storage container for blobs after they are evaluated by the model (default=evaluateddata)'
 if ([string]::IsNullOrWhiteSpace($evaluatedDataStorageContainerName)) {$evaluatedDataStorageContainerName = "evaluateddata"}
 
-$evaluatedJSONStorageContainerName = Read-Host -Prompt 'Input the name of the storage container for JSON blobs containing data generated from the blobs evaluated by this model (default=evaluatedjson)'
-if ([string]::IsNullOrWhiteSpace($evaluatedJSONStorageContainerName)) {$evaluatedJSONStorageContainerName = "evaluatedjson"}
+$evaluatedJSONStorageContainerName = Read-Host -Prompt 'Input the name of the storage container for JSON blobs containing data generated from the blobs evaluated by this model (default=json)'
+if ([string]::IsNullOrWhiteSpace($evaluatedJSONStorageContainerName)) {$evaluatedJSONStorageContainerName = "json"}
 
 $pendingSupervisionStorageContainerName = Read-Host -Prompt 'Input the name of the storage container for blobs that require supervision after they have been evaluated by the model (default=pendingsupervision)'
 if ([string]::IsNullOrWhiteSpace($pendingSupervisionStorageContainerName)) {$pendingSupervisionStorageContainerName = "pendingsupervision"}
@@ -55,6 +55,12 @@ if ([string]::IsNullOrWhiteSpace($confidenceJSONPath)) {$confidenceJSONPath = "c
 
 $confidenceThreshold = Read-Host -Prompt 'Input the decimal value in the format of a C# Double that specifies the confidence threshold the model must return to indicate the model blob analysis is acceptable (default=.95)'
 if ([string]::IsNullOrWhiteSpace($confidenceThreshold)) {$confidenceThreshold = .95}
+
+$blobSearchEndpointUrl = Read-Host -Prompt 'Input the url that will be used to access the blob search service to locate JSON files bound to data (default=.semisupervisedblobsearch)'
+if ([string]::IsNullOrWhiteSpace($blobSearchEndpointUrl)) {$blobSearchEndpointUrl = ."semisupervisedblobsearch"}
+
+$blobSearchIndexName = Read-Host -Prompt 'Input the name of the index that will be used to access the blob binding hash. (default="bindinghash")'
+if ([string]::IsNullOrWhiteSpace($blobSearchIndexName)) {$blobSearchIndexName = ."bindinghash"}
 
 #These environment variables are only used for trained models
 if ($modelType -eq "Trained")
@@ -191,6 +197,21 @@ az functionapp config appsettings set `
   --name $frameworkFunctionAppName `
   --resource-group $frameworkResourceGroupName `
   --settings "modelAssetParameterName=$modelAssetParameterName"
+
+az functionapp config appsettings set `
+  --name $seachEndpoint `
+  --resource-group $frameworkResourceGroupName `
+  --settings "blobSearchEndpoint=$blobSearchEndpointUrl"
+
+az functionapp config appsettings set `
+  --name $searchKey `
+  --resource-group $frameworkResourceGroupName `
+  --settings "blobSearchKey=null"
+
+az functionapp config appsettings set `
+  --name $blobSearchIndexName `
+  --resource-group $frameworkResourceGroupName `
+  --settings "blobSearchIndexName=$blobSearchIndexName"
 
 #These environment variables are only used for trained models
 if ($modelType -eq "Trained")
