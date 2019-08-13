@@ -9,10 +9,11 @@ This project is dependent on an externalized model, the model must be invocable 
 # Getting started
 First, review the [architecture image](https://github.com/thaugensorg/semisupervisedFramework/blob/master/Architecture.jpg) included with the solution as it will help you understand the structure of the solution.
 
-To get started, save the powershell, ps1, script to your environment, see deployment below.  This is the script that will configure your azure environment for the semi-supervised framework.  Because this framework is dependent on having an analysis model to run, please deploy your analysis model before running this script, see the imageAnalysisModel.ps1 script in the brand detection project.  It will save you additional configuration steps after you complete deployment.
+To get started, save the powershell, EnvironmentConfiguration.ps1, script to your environment, see deployment below.  This is the script that will configure your azure environment for the semi-supervised framework.  Because this framework is dependent on having an analysis model to run, please deploy your analysis model before running this script, see the imageAnalysisModel.ps1 script in the brand detection project.  It will save you additional configuration steps after you complete deployment.
 
-The PowerShell script will prompt for a significant number of parameters about the environment.  As a result, it will help to 
-plan your environment in advance.  See the Configuration Parameters below for the values the scripts require.
+The PowerShell script will prompt for a significant number of parameters about the environment.  As a result, it will help to plan your environment in advance.  See the Configuration Parameters below for the values the scripts require.
+
+Note: if the script errors simply run it again.  Enter the same name for the resource group and the script will clean up the previous attempt as the first step. When the script checks for the resource group if it does not find it the script will out put a red message resource group not found.  This is OK, it simply means that the script needs to create the resource group. 
 
 # Deploying to Azure
 This article shows how to upload and run powershell scripts in Azure:
@@ -24,8 +25,8 @@ To deploy this project to the cloud after you have the PowerShell script open th
 Then collect all of these values:
 - the name of the subscription where this solution will be deployed
 - the name of the resource group that you want to create for installing this orchestration framework for managing semisupervised models (default = semisupervisedFramework)
-- the name of the azure storage account you want to create for this installation of the orchestration framework (default = semisupervisedstorage)
-- the name for the azure function app you want to create for this installation of the orchestration framework (default = semisupervisedApp)
+- the name of the azure storage account you want to create for this installation of the orchestration framework
+- the name for the azure function app you want to create for this installation of the orchestration framework
 - the Azure location, data center, where you want this solution deployed.  Note, if you will be using Python functions as part of your solution you must carefully choose your azure location, As of 8/1/19, Python functions are only available in eastasia, eastus, northcentralus, northeurope, westeurope, and westus.  If you deploy your solution in a different data center network transit time may affect your solution performance (default = westus)
 - the model type you want to deploy:
     'static', meaning the framework does not support a training loop in the model
