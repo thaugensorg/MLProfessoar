@@ -40,6 +40,7 @@ namespace semisupervisedFramework
         {
             try
             {
+                // need to add/fix json storage so there is only one container and need to 
                 string PendingEvaluationStorageContainerName = GetEnvironmentVariable("pendingEvaluationStorageContainerName", log);
                 string EvaluatedDataStorageContainerName = GetEnvironmentVariable("evaluatedDataStorageContainerName", log);
                 string EvaluatedJSONStorageContainerName = GetEnvironmentVariable("evaluatedJSONStorageContainerName", log);
@@ -67,10 +68,14 @@ namespace semisupervisedFramework
                 }
 
                 //compute the file hash as this will be added to the meta data to allow for file version validation
-                byte[] Checksum = await CalculateBlobHash(DataEvaluating, log);
-                if (Checksum == null)
+                string BlobMd5 = Blob.CalculateMD5Hash(DataEvaluating.ToString());
+                if (BlobMd5 == null)
                 {
                     log.LogInformation("\nWarning: Blob Hash calculation failed and will not be included in file information blob, continuing operation.");
+                }
+                else
+                {
+                    DataEvaluating.Properties.ContentMD5 = BlobMd5;
                 }
 
                 //****Currently only working with public access set on blob folders
@@ -146,27 +151,13 @@ namespace semisupervisedFramework
                                 new JProperty("url", DataEvaluating.Uri.ToString()),
                                 new JProperty("modified", DataEvaluating.Properties.LastModified.ToString()),
                                 new JProperty("id", Guid.NewGuid().ToString()),
-                                new JProperty("hash", Checksum.ToString())
+                                new JProperty("hash", BlobMd5)
                             )
                         )
                     );
 
                 //create environment JSON object
-                JProperty BlobEnvironment =
-                    new JProperty("environment",
-                        new JObject(
-                            new JProperty("endpoint", GetEnvironmentVariable("modelServiceEndpoint", log)),
-                            new JProperty("parameter", GetEnvironmentVariable("modelAssetParameterName", log)),
-                            new JProperty("pendingEvaluationStorage", PendingEvaluationStorageContainerName),
-                            new JProperty("evaluatedDataStorage", EvaluatedDataStorageContainerName),
-                            new JProperty("pendingSupervisionStorage", PendingSupervisionStorageContainerName),
-                            new JProperty("modelValidationStorage", ModelValidationStorageContainerName),
-                            new JProperty("pendingNewModelStorage", PendingNewModelStorageContainerName),
-                            new JProperty("confidenceJSONPath", ConfidenceJsonPath),
-                            new JProperty("confidenceThreshold", GetEnvironmentVariable("confidenceThreshold", log)),
-                            new JProperty("verificationPercent", GetEnvironmentVariable("modelVerificationPercentage", log))
-                        )
-                    );
+                JProperty BlobEnvironment = Environment.GetEnvironmentJson(log);
 
                 BlobAnalysis.Add(BlobEnvironment);
                 BlobAnalysis.Merge(AnalysisJson);
@@ -215,7 +206,7 @@ namespace semisupervisedFramework
         }
 
         //calculates a blob hash to join JSON to a specific version of a file.
-        private static async Task<byte[]> CalculateBlobHash(CloudBlockBlob blockBlob, ILogger log)
+        private static async Task<string> CalculateBlobHash(CloudBlockBlob blockBlob, ILogger log)
         {
             try
             {
@@ -225,9 +216,23 @@ namespace semisupervisedFramework
                 {
                     throw (new ZeroLengthFileException("\nCloud Block Blob: " + blockBlob.Name + " is zero length"));
                 }
-                SHA1Managed Sha = new SHA1Managed();
+                SHA1 Sha = new SHA1Managed();
                 byte[] Checksum = Sha.ComputeHash(MemStream);
-                return Checksum;
+
+                // ***** TODO ***** check if chunking the file download is necissary or if the azure blob movement namepace handles chunking for you.
+                // Download will re-populate the client MD5 value from the server
+                //byte[] retrievedBuffer = blockBlob.DownloadToByteArrayAsync();
+
+                // Validate MD5 Value
+                //var md5Check = System.Security.Cryptography.MD5.Create();
+                //md5Check.TransformBlock(retrievedBuffer, 0, retrievedBuffer.Length, null, 0);
+                //md5Check.TransformFinalBlock(new byte[0], 0, 0);
+
+                // Get Hash Value
+                //byte[] hashBytes = md5Check.Hash;
+                //string hashVal = Convert.ToBase64String(hashBytes);
+
+                return Convert.ToBase64String(Checksum);
             }
             catch (ZeroLengthFileException e)
             {
@@ -276,11 +281,11 @@ namespace semisupervisedFramework
             try
             {
                 //get environment variables used to construct the model request URL
-                string ModelServiceEndpoint = GetEnvironmentVariable("modelServiceEndpoint", log);
+                string ModelServiceEndpoint = GetEnvironmentVariable("EvaluationServiceEndpoint", log);
 
                 if (ModelServiceEndpoint == null || ModelServiceEndpoint == "") 
                 {
-                    throw (new EnvironmentVariableNotSetException("modelServiceEndpoint environment variable not set"));
+                    throw (new EnvironmentVariableNotSetException("EvaluationServiceEndpoint environment variable not set"));
                 }
                 string ModelAssetParameterName = GetEnvironmentVariable("modelAssetParameterName", log);
 
