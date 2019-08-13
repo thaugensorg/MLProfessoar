@@ -8,6 +8,10 @@ using Microsoft.Spatial;
 using Newtonsoft.Json;
 using Microsoft.Extensions.Logging;
 
+using Microsoft.Azure.Storage;
+using Microsoft.Azure.Storage.Blob;
+using Microsoft.Azure.Storage.DataMovement;
+
 // http://danielcoding.net/working-with-azure-search-in-c-net/
 // https://docs.microsoft.com/en-us/azure/search/search-howto-dotnet-sdk
 
@@ -100,6 +104,20 @@ namespace semisupervisedFramework
         private List<DataBlob> PrepareDocuments()
         {
             List<DataBlob> carDocuments = new List<DataBlob>();
+
+            // Create Reference to Azure Storage Account
+            CloudStorageAccount StorageAccount = Environment.GetStorageAccount(log);
+            CloudBlobClient BlobClient = StorageAccount.CreateCloudBlobClient();
+            CloudBlobContainer PendingEvaluationContainer = BlobClient.GetContainerReference("pendingevaluation");
+            string TargetBlobUrl;
+            foreach (IListBlobItem item in PendingEvaluationContainer.ListBlobs(null, false))
+            {
+                if (item.GetType() == typeof(CloudBlockBlob))
+                {
+                    CloudBlockBlob blob = (CloudBlockBlob)item;
+                    TargetBlobUrl = blob.Uri.ToString();
+                }
+            }
 
             DataBlob c1 = new DataBlob()
             {
