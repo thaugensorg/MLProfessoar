@@ -62,6 +62,9 @@ if ([string]::IsNullOrWhiteSpace($blobSearchEndpointUrl)) {$blobSearchEndpointUr
 $blobSearchIndexName = Read-Host -Prompt 'Input the name of the index that will be used to access the blob binding hash. (default="bindinghash")'
 if ([string]::IsNullOrWhiteSpace($blobSearchIndexName)) {$blobSearchIndexName = ."bindinghash"}
 
+$blobSearchServiceName = Read-Host -Prompt 'Input the name of the search service that will be used to access the blob binding hash. (default="semisupervisedblobsearch")'
+if ([string]::IsNullOrWhiteSpace($blobSearchServiceName)) {$blobSearchServiceName = ."semisupervisedblobsearch"}
+
 #These environment variables are only used for trained models
 if ($modelType -eq "Trained")
 {
@@ -119,10 +122,10 @@ az storage container create `
   --fail-on-exist
 
 az storage container create `
---name $pendingSupervisionStorageContainerName `
---account-name $frameworkStorageAccountName `
---account-key $frameworkStorageAccountKey `
---fail-on-exist
+  --name $pendingSupervisionStorageContainerName `
+  --account-name $frameworkStorageAccountName `
+  --account-key $frameworkStorageAccountKey `
+  --fail-on-exist
 
 az storage container create `
   --name $evaluatedJSONStorageContainerName `
@@ -199,19 +202,24 @@ az functionapp config appsettings set `
   --settings "modelAssetParameterName=$modelAssetParameterName"
 
 az functionapp config appsettings set `
-  --name $seachEndpoint `
+  --name $frameworkFunctionAppName `
   --resource-group $frameworkResourceGroupName `
   --settings "blobSearchEndpoint=$blobSearchEndpointUrl"
 
 az functionapp config appsettings set `
-  --name $searchKey `
+  --name $frameworkFunctionAppName `
   --resource-group $frameworkResourceGroupName `
   --settings "blobSearchKey=null"
 
 az functionapp config appsettings set `
-  --name $blobSearchIndexName `
+  --name $frameworkFunctionAppName `
   --resource-group $frameworkResourceGroupName `
   --settings "blobSearchIndexName=$blobSearchIndexName"
+
+az functionapp config appsettings set `
+  --name $frameworkFunctionAppName `
+  --resource-group $frameworkResourceGroupName `
+  --settings "blobSearchIndexName=$blobSearchServiceName"
 
 #These environment variables are only used for trained models
 if ($modelType -eq "Trained")

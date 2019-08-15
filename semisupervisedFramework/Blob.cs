@@ -11,6 +11,8 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Azure.Storage;
 using Microsoft.Azure.Storage.Blob;
 using Microsoft.Azure.Storage.DataMovement;
+using Microsoft.Azure.Search;
+using Microsoft.Azure.Search.Models;
 
 namespace semisupervisedFramework
 {
@@ -104,14 +106,38 @@ namespace semisupervisedFramework
             return sb.ToString();
         }
 
-        public static CloudBlockBlob GetBoundData(string bindingHash)
+        public static DocumentSearchResult<DataBlob> GetBlobByHash(SearchIndexClient indexClient, string hash, ILogger log)
         {
+            SearchParameters parameters;
+
+            parameters =    
+                new SearchParameters()
+                {
+                    //SearchFields = new[] { "hash" },
+                    Select = new[] { "value.blobInfo.id", "value.blobInfo.name", "value.blobInfo.url", "value.blobInfo.hash", "value.blobInfo.modified" }
+                };
+
+            return indexClient.Documents.Search<DataBlob>(hash, parameters);
 
         }
 
-        public static CloudBlockBlob GetBoundJson(string bindingHash)
+        public static CloudBlockBlob GetBoundData(string bindingHash, ILogger log)
         {
+            DataBlob BindingJson = GetBoundJson(bindingHash, log);
+            return new CloudBlockBlob(new Uri(BindingJson.Url));
 
+        }
+
+        public static DataBlob GetBoundJson(string bindingHash, ILogger log)
+        {
+            //SearchIndexClient IndexClient = Helper.CreateSearchIndexClient("blobindex", log);
+            SearchIndexClient IndexClient = Helper.CreateSearchIndexClient("azureblob-index", log);
+            DocumentSearchResult<DataBlob> documentSearchResult = GetBlobByHash(IndexClient, bindingHash, log);
+            if (documentSearchResult.Results.Count > 0)
+            {
+                return documentSearchResult.Results[0].Document;
+            }
+            return null;
         }
     }
 }

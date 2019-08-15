@@ -23,8 +23,10 @@ namespace semisupervisedFramework
     class Search
     {
         // This sample shows how to delete, create, upload documents and query an index
-        static void InitializeSearch(ILogger log)
+        public static void InitializeSearch()
         {
+            ILoggerFactory logger = (ILoggerFactory)new LoggerFactory();
+            ILogger log = logger.CreateLogger("Search");
             string SearchApiKey = Environment.GetEnvironmentVariable("blobSearchKey", log);
             string indexName = Environment.GetEnvironmentVariable("bindinghash", log);
 
@@ -33,8 +35,8 @@ namespace semisupervisedFramework
             DataSource JsonBlob = Helper.CreateBlobSearchDataSource(log);
             serviceClient.DataSources.CreateOrUpdateAsync(JsonBlob).Wait();
             Index BlobIndex = Helper.CreateIndex(serviceClient, "blobindex");
-            Task<Indexer> BlobIndexer = Helper.CreateBlobIndexer(serviceClient, BlobIndex, "json-blob");
-            serviceClient.Indexers.RunAsync(BlobIndexer)
+            Indexer BlobIndexer = Helper.CreateBlobIndexer(serviceClient, BlobIndex, "json-blob");
+            serviceClient.Indexers.RunAsync(BlobIndexer.Name).Wait();
 
         }
     }
@@ -42,7 +44,7 @@ namespace semisupervisedFramework
     {
         public string Id { get; set; }
         public string Name { get; set; }
-        public double Url { get; set; }
+        public string Url { get; set; }
         public string Hash { get; set; }
         public DateTimeOffset Modified { get; set; }
 
@@ -69,11 +71,11 @@ namespace semisupervisedFramework
                 Name = indexName,
                 Fields = new[]
                 {
-                    new Field("id", DataType.String)                  { IsKey = true},
-                    new Field("name", DataType.String)                { IsRetrievable = true},
-                    new Field("url", DataType.String)                 { IsRetrievable = true},
-                    new Field("hash", DataType.String)                { IsSearchable = true},
-                    new Field("modified", DataType.DateTimeOffset)    { IsRetrievable = true},
+                    new Field("value.blobinfo.id", DataType.String)                  { IsKey = true, IsRetrievable = true},
+                    new Field("value.blobInfo.name", DataType.String)                { IsRetrievable = true},
+                    new Field("value.blobInfo.url", DataType.String)                 { IsRetrievable = true},
+                    new Field("value.blobInfo.hash", DataType.String)                { IsRetrievable = true, IsSearchable = true},
+                    new Field("value.blobInfo.modified", DataType.DateTimeOffset)    { IsRetrievable = true},
                 }
             };
 
@@ -103,23 +105,33 @@ namespace semisupervisedFramework
             return dataSource;
         }
 
-        public static async Task<Indexer> CreateBlobIndexer(SearchServiceClient searchService, Index index, string dataSourceName)
+        public static Indexer CreateBlobIndexer(SearchServiceClient searchService, Index index, string dataSourceName)
         {
-            var indexer = new Indexer(
+            Indexer indexer = new Indexer(
                 name: "blob-indexer",
                 dataSourceName: dataSourceName,
                 targetIndexName: index.Name,
-                schedule: new IndexingSchedule(TimeSpan.FromMinutes(1)));
+                schedule: new IndexingSchedule(TimeSpan.FromMinutes(5)));
 
-            var exists = await searchService.Indexers.ExistsAsync(indexer.Name);
+            bool exists = searchService.Indexers.Exists(indexer.Name);
             if (exists)
             {
-                await searchService.Indexers.ResetAsync(indexer.Name);
+                searchService.Indexers.ResetAsync(indexer.Name);
             }
 
-            await searchService.Indexers.CreateOrUpdateAsync(indexer);
+            //searchService.Indexers.CreateOrUpdateAsync(indexer);
+            searchService.Indexers.CreateOrUpdate(indexer);
 
             return indexer;
+        }
+
+        public static SearchIndexClient CreateSearchIndexClient(string indexName, ILogger log)
+        {
+            string SearchApiKey = Environment.GetEnvironmentVariable("blobSearchKey", log);
+            string SearchServiceName = Environment.GetEnvironmentVariable("SearchServiceName", log);
+
+            SearchIndexClient indexClient = new SearchIndexClient(SearchServiceName, indexName, new SearchCredentials(SearchApiKey));
+            return indexClient;
         }
     }
 }
