@@ -69,14 +69,14 @@ namespace semisupervisedFramework
                             }
 
                         }
-                        DataBlob BoundJson = Blob.GetBoundJson(BindingHash, log);
-                        string DataTrainingLabels = BoundJson.ToString();
+                        Blob BoundJson = Blob.GetBoundJson(BindingHash, log);
+                        string DataTrainingLabels = JsonConvert.SerializeObject(BoundJson);
 
                         // string DataTrainingLabels = JsonLabelsBlob.DownloadTextAsync().ToString();
                         // List<string> Labels = JsonConvert.DeserializeObject<List<string>>(LabelsJson);
-                        JObject LabelsObject = JObject.Parse(DataTrainingLabels);
-                        string Labels = (string)LabelsObject.SelectToken("Labels");
-                        Labels = "{\"label\": \"Hemlock\"}";
+                        JObject LabelsJsonObject = JObject.Parse(DataTrainingLabels);
+                        JToken LabelsToken = LabelsJsonObject.SelectToken("Labels");
+                        string Labels = LabelsToken.ToString();
 
                         //construct and call model URL then fetch response
                         // the model always sends the label set in the message body with the name LabelsJson.  If your model needs other values in the URL then use {{environment variable name}}.
