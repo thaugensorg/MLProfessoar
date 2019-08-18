@@ -7,11 +7,16 @@ while([string]::IsNullOrWhiteSpace($subscription))
 
 
 #######      variables for framework
-$frameworkResourceGroupName = Read-Host -Prompt 'Input the name of the resource group that you want to create for installing this orchestration framework for managing semisupervised models.  The default value is semisupervisedFramework'
-if ([string]::IsNullOrWhiteSpace($frameworkResourceGroupName)) {$frameworkResourceGroupName = "semisupervisedFramework"}
+$frameworkResourceGroupName = Read-Host -Prompt 'Input the name of the resource group that you want to create for installing this orchestration framework for managing semisupervised models.  (default=semisupervisedOrchestrationFramework'
+if ([string]::IsNullOrWhiteSpace($frameworkResourceGroupName)) {$frameworkResourceGroupName = "semisupervisedOrchestrationFramework"}
 
 while([string]::IsNullOrWhiteSpace($frameworkStorageAccountName))
-  {$frameworkStorageAccountName = Read-Host -Prompt 'Input the name of the azure storage account you want to create for this installation of the orchestration framework.  Note this needs to be between 3 and 24 characters, globally unique in Azure, and contain all lowercase letters and or numbers.'}
+  {$frameworkStorageAccountName = Read-Host -Prompt 'Input the name of the azure storage account you want to create for this installation of the orchestration framework.  Note this needs to be between 3 and 24 characters, globally unique in Azure, and contain all lowercase letters and or numbers.'
+  if ($frameworkStorageAccountName.length -gt 24){$frameworkStorageAccountName=$null
+    Write-Host "Storage account name cannot be longer than 24 charaters." -ForegroundColor "Red"}
+  if ($frameworkStorageAccountName -cmatch '[A-Z]') {$frameworkStorageAccountName=$null
+    Write-Host "Storage account name must not have upper case letters." -ForegroundColor "Red"}
+  }
 
 $frameworkFunctionAppName = Read-Host -Prompt 'Input the name for the azure function app you want to create for this installation of the orchestration framework.  By default this value is semisupervisedApp'
 if ([string]::IsNullOrWhiteSpace($frameworkFunctionAppName)) {$frameworkFunctionAppName = "semisupervisedApp"}
@@ -57,13 +62,13 @@ $confidenceThreshold = Read-Host -Prompt 'Input the decimal value in the format 
 if ([string]::IsNullOrWhiteSpace($confidenceThreshold)) {$confidenceThreshold = .95}
 
 $blobSearchEndpointUrl = Read-Host -Prompt 'Input the url that will be used to access the blob search service to locate JSON files bound to data (default=.semisupervisedblobsearch)'
-if ([string]::IsNullOrWhiteSpace($blobSearchEndpointUrl)) {$blobSearchEndpointUrl = ."semisupervisedblobsearch"}
+if ([string]::IsNullOrWhiteSpace($blobSearchEndpointUrl)) {$blobSearchEndpointUrl = "semisupervisedblobsearch"}
 
 $blobSearchIndexName = Read-Host -Prompt 'Input the name of the index that will be used to access the blob binding hash. (default="bindinghash")'
-if ([string]::IsNullOrWhiteSpace($blobSearchIndexName)) {$blobSearchIndexName = ."bindinghash"}
+if ([string]::IsNullOrWhiteSpace($blobSearchIndexName)) {$blobSearchIndexName = "bindinghash"}
 
 $blobSearchServiceName = Read-Host -Prompt 'Input the name of the search service that will be used to access the blob binding hash. (default="semisupervisedblobsearch")'
-if ([string]::IsNullOrWhiteSpace($blobSearchServiceName)) {$blobSearchServiceName = ."semisupervisedblobsearch"}
+if ([string]::IsNullOrWhiteSpace($blobSearchServiceName)) {$blobSearchServiceName = "semisupervisedblobsearch"}
 
 #These environment variables are only used for trained models
 if ($modelType -eq "Trained")

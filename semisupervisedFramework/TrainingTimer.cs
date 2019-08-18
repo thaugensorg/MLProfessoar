@@ -82,12 +82,12 @@ namespace semisupervisedFramework
                         // the model always sends the label set in the message body with the name LabelsJson.  If your model needs other values in the URL then use {{environment variable name}}.
                         // So the example load labels function in the sameple model package would look like this:
                         // https://branddetectionapp.azurewebsites.net/api/loadimagetags/?projectID={{ProjectID}}
-                        // The orchestration engin appends the labels json file to the message body.
-                        //http://localhost:7071/api/LoadImageTags/?projectID=8d9d12d1-5d5c-4893-b915-4b5b3201f78e&labelsJson={%22Labels%22:[%22Hemlock%22,%22Japanese%20Cherry%22]}
+                        // The orchestration engine appends the labels json file to the message body.
+                        // http://localhost:7071/api/LoadImageTags/?projectID=8d9d12d1-5d5c-4893-b915-4b5b3201f78e&labelsJson={%22Labels%22:[%22Hemlock%22,%22Japanese%20Cherry%22]}
 
                         HttpClient Client = new HttpClient();
-                        string AddLabeledDataUrl = "";
-                        AddLabeledDataUrl = ConstructModelRequestUrl(TrainingDataUrl, DataTrainingLabels, log);
+                        string AddLabeledDataUrl = "https://imagedetectionapp.azurewebsites.net/api/AddLabeledDataClient";
+                        AddLabeledDataUrl = ConstructModelRequestUrl(AddLabeledDataUrl, DataTrainingLabels, log);
                         HttpRequestMessage Request = new HttpRequestMessage(HttpMethod.Post, new Uri(AddLabeledDataUrl));
                         Request.Content = new StringContent(DataTrainingLabels, Encoding.UTF8, "application/x-www-form-urlencoded");
                         HttpResponseMessage Response = Client.SendAsync(Request).Result;
@@ -140,7 +140,7 @@ namespace semisupervisedFramework
             {
                 //get environment variables used to construct the model request URL
                 string LabeledDataServiceEndpoint = Environment.GetEnvironmentVariable("LabeledDataServiceEndpoint", log);
-                LabeledDataServiceEndpoint = "https://branddetectionapp.azurewebsites.net/api/AddLabeledDataClient/";
+                LabeledDataServiceEndpoint = "https://imagedetectionapp.azurewebsites.net/api/AddLabeledDataClient/";
 
                 if (LabeledDataServiceEndpoint == null || LabeledDataServiceEndpoint == "")
                 {
@@ -163,6 +163,7 @@ namespace semisupervisedFramework
                     }
                 } while (StringReplaceStart != -1);
 
+                //http://localhost:7071/api/AddLabeledDataClient/?blobUrl=https://semisupervisedstorage.blob.core.windows.net/testimages/hemlock_2.jpg&imageLabels={%22Labels%22:[%22Hemlock%22]}
                 string ModelAssetParameterName = Environment.GetEnvironmentVariable("modelAssetParameterName", log);
                 ModelAssetParameterName = "blobUrl";
 
