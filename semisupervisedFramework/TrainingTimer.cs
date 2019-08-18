@@ -76,7 +76,7 @@ namespace semisupervisedFramework
                         // List<string> Labels = JsonConvert.DeserializeObject<List<string>>(LabelsJson);
                         JObject LabelsJsonObject = JObject.Parse(DataTrainingLabels);
                         JToken LabelsToken = LabelsJsonObject.SelectToken("Labels");
-                        string Labels = LabelsToken.ToString();
+                        string Labels = Uri.EscapeDataString(LabelsToken.ToString());
 
                         //construct and call model URL then fetch response
                         // the model always sends the label set in the message body with the name LabelsJson.  If your model needs other values in the URL then use {{environment variable name}}.
@@ -86,8 +86,8 @@ namespace semisupervisedFramework
                         // http://localhost:7071/api/LoadImageTags/?projectID=8d9d12d1-5d5c-4893-b915-4b5b3201f78e&labelsJson={%22Labels%22:[%22Hemlock%22,%22Japanese%20Cherry%22]}
 
                         HttpClient Client = new HttpClient();
-                        string AddLabeledDataUrl = "https://imagedetectionapp.azurewebsites.net/api/AddLabeledDataClient";
-                        AddLabeledDataUrl = ConstructModelRequestUrl(AddLabeledDataUrl, DataTrainingLabels, log);
+                        string AddLabeledDataUrl = BoundJson.blobInfo.Url;
+                        AddLabeledDataUrl = ConstructModelRequestUrl(AddLabeledDataUrl, Labels, log);
                         HttpRequestMessage Request = new HttpRequestMessage(HttpMethod.Post, new Uri(AddLabeledDataUrl));
                         Request.Content = new StringContent(DataTrainingLabels, Encoding.UTF8, "application/x-www-form-urlencoded");
                         HttpResponseMessage Response = Client.SendAsync(Request).Result;
