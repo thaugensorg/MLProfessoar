@@ -20,7 +20,7 @@ $frameworkStorageAccountKey = $null #the script retrieves this at run time and p
 #these values we should try and get automatically and write to environment variables.
 #string subscriptionKey = GetEnvironmentVariable("CognitiveServicesKey", log);
 
-$frameworkLocation = Read-Host -Prompt 'Input the Azure location, data center, where you want this solution deployed.  Note, if you will be using Python functions as part of your solution, As of 8/1/19, Python functions are only available in eastasia, eastus, northcentralus, northeurope, westeurope, and westus.  If you deploy your solution in a different data center network transit time may affect your solution performance.  By default the solution deploys to westus.'
+$frameworkLocation = Read-Host -Prompt 'Input the Azure location, data center, where you want this solution deployed.  Note, if you will be using Python functions as part of your solution, As of 8/1/19, Python functions are only available in eastasia, eastus, northcentralus, northeurope, westeurope, and westus.  If you deploy your solution in a different data center network transit time may affect your solution performance.  (default=westus)'
 if ([string]::IsNullOrWhiteSpace($frameworkLocation)) {$frameworkLocation = "westus"}
 
 $title = "Input Model Type?"
