@@ -1,3 +1,16 @@
+Welcome to ML Professoar
+*M*achine
+*L*earning
+*Pr*ocess
+*O*rchestration
+*F*or
+*E*nabling
+*S*emisupervised
+*S*ervices
+*O*n
+*A*zure
+*R*esources
+
 First, review the [architecture image](https://github.com/thaugensorg/semisupervisedFramework/blob/master/Architecture.jpg) included with the solution as it will help you understand the structure of the solution.
 
 # Semisupervised AI/ML Azure Framework
