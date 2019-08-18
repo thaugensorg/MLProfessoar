@@ -1,6 +1,20 @@
+Welcome to ML Professoar
+
+**M**achine
+**L**earning
+**Pr**ocess
+**O**rchestration
+**F**or
+**E**nabling
+**S**emisupervised
+**S**ervices
+**O**n
+**A**zure
+**R**esources
+
 First, review the [architecture image](https://github.com/thaugensorg/semisupervisedFramework/blob/master/Architecture.jpg) included with the solution as it will help you understand the structure of the solution.
 
-# Semisupervised AI/ML Azure Framework
+# ML Professoar
 This solution configures an Azure subscription to enable automated orchestation of semi-supervised AI/ML solutions.  There are two versions that can be deployed, static and trained.  Depending on the model the solution handels all of the invocation of the training and models as well as the management of the contant and its associated labeling.  Data Scientists using this model are required to have minimal knowledge of Azure and the code required to orchestrate a model on Azure.  Models simply have to be invocable via HTTP and respond with JSON.  The interface beyond that is fully configurable such that it often works with existing models with little or no changes to the existing model.  Please see the companion project [Brand Detection Model](https://github.com/thaugensorg/brandDetectionModel)
 
 # Dependencies
