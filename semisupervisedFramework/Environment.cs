@@ -11,6 +11,41 @@ namespace semisupervisedFramework
 {
     class Environment
     {
+        // loads valid tags for labeling training data
+        public static string LoadTrainingTags(ILogger log)
+        {
+
+        }
+
+        //Returns a response string for a given URL.
+        private static string GetEvaluationResponseString(string urlToInvoke, ILogger log)
+        {
+            //initialize variables
+            Stopwatch StopWatch = Stopwatch.StartNew();
+            string ResponseString = new string("");
+            string ModelRequestUrl = new string("");
+
+            try
+            {
+                //construct and call model URL then fetch response
+                HttpClient Client = new HttpClient();
+                ModelRequestUrl = ConstructModelRequestUrl(dataEvaluatingUrl, log);
+                HttpRequestMessage Request = new HttpRequestMessage(HttpMethod.Post, new Uri(ModelRequestUrl));
+                HttpResponseMessage Response = Client.SendAsync(Request).Result;
+                ResponseString = Response.Content.ReadAsStringAsync().Result;
+            }
+            catch (Exception e)
+            {
+                log.LogInformation("\nFailed HTTP request for URL" + dataEvaluatingUrl + " in application environment variables", e.Message);
+                return "";
+            }
+
+            //log the http elapsed time
+            StopWatch.Stop();
+            log.LogInformation("\nHTTP call to " + ModelRequestUrl + " completed in:" + StopWatch.Elapsed.TotalSeconds + " seconds.");
+            return ResponseString;
+        }
+
         //Returns an environemtn variable matching the name parameter in the current app context
         public static string GetEnvironmentVariable(string name, ILogger log)
         {

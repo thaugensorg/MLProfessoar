@@ -46,6 +46,42 @@ namespace semisupervisedFramework
                 CloudStorageAccount StorageAccount = Environment.GetStorageAccount(log);
                 CloudBlobClient BlobClient = StorageAccount.CreateCloudBlobClient();
                 CloudBlobContainer LabeledDataContainer = BlobClient.GetContainerReference("labeleddata");
+                if (LabeledDataContainer.ListBlobs(null, false) != null)
+                {
+                    CloudBlobClient LabelsBlobClient = StorageAccount.CreateCloudBlobClient();
+                    //get environment variables used to construct the model request URL
+                    string jsonDataContainerName = Environment.GetEnvironmentVariable("jsonStorageContainerName", log);
+
+                    if (jsonDataContainerName == null || jsonDataContainerName == "")
+                    {
+                        throw (new EnvironmentVariableNotSetException("jsonStorageContainerName environment variable not set"));
+                    }
+                    CloudBlobContainer Container = LabelsBlobClient.GetContainerReference(jsonDataContainerName);
+
+                    //get environment variables used to construct the model request URL
+                    string DataTagsBlobName = Environment.GetEnvironmentVariable("dataTagsBlobName", log);
+
+                    if (DataTagsBlobName == null || DataTagsBlobName == "")
+                    {
+                        throw (new EnvironmentVariableNotSetException("dataTagsBlobName environment variable not set"));
+                    }
+                    CloudBlockBlob DataTagsBlob = Container.GetBlockBlobReference(DataTagsBlobName);
+
+                    //get the environment variable specifying the MD5 hash of the last run tags file
+                    string LkgDataTagsFileHash = Environment.GetEnvironmentVariable("dataTagsFileHash", log);
+
+                    if (LkgDataTagsFileHash == null || LkgDataTagsFileHash == "")
+                    {
+                        throw (new EnvironmentVariableNotSetException("dataTagsFileHash environment variable not set"));
+                    }
+
+                    //Check if there is a new version of the tags json file and if so load them into the environment
+                    if (DataTagsBlob.Properties.ContentMD5 != LkgDataTagsFileHash)
+                    {
+
+                    }
+
+                }
                 string TrainingDataUrl;
                 foreach (IListBlobItem item in LabeledDataContainer.ListBlobs(null, false))
                 {
@@ -132,6 +168,58 @@ namespace semisupervisedFramework
             return ResponseString;
         }
 
+        //Builds a URL to call the blob analysis model.
+        private static string ConstructTagUploadRequestUrl(string trainingTags, ILogger log)
+        {
+            try
+            {
+
+                //get environment variables used to construct the model request URL
+                string TagUploadServiceEndpoint = Environment.GetEnvironmentVariable("TagsUploadServiceEndpoint", log);
+
+                if (TagUploadServiceEndpoint == null || TagUploadServiceEndpoint == "")
+                {
+                    throw (new EnvironmentVariableNotSetException("TagsUploadServiceEndpoint environment variable not set"));
+                }
+
+                // *****TODO***** enable string replacement for endpoint URLs.  THis will allow calling functions to be able to controle parameters that are passed.
+                // use the following order blob attributes, environment variables, URL parameters.
+                int StringReplaceStart = 0;
+                int StringReplaceEnd = 0;
+                do
+                {
+                    StringReplaceStart = TagUploadServiceEndpoint.IndexOf("{{", StringReplaceEnd);
+                    if (StringReplaceStart != -1)
+                    {
+                        StringReplaceEnd = TagUploadServiceEndpoint.IndexOf("}}", StringReplaceStart);
+                        string StringToReplace = TagUploadServiceEndpoint.Substring(StringReplaceStart, StringReplaceEnd - StringReplaceStart);
+                        string ReplacementString = Environment.GetEnvironmentVariable(StringToReplace.Substring(2, StringToReplace.Length - 2), log);
+                        TagUploadServiceEndpoint = TagUploadServiceEndpoint.Replace(StringToReplace, ReplacementString);
+                    }
+                } while (StringReplaceStart != -1);
+
+                //http://localhost:7071/api/AddLabeledDataClient/?blobUrl=https://semisupervisedstorage.blob.core.windows.net/testimages/hemlock_2.jpg&imageLabels={%22Labels%22:[%22Hemlock%22]}
+                string TagDataParameterName = Environment.GetEnvironmentVariable("tagDataParameterName", log);
+
+                string ModelRequestUrl = TagUploadServiceEndpoint;
+                if (TagDataParameterName != null & TagDataParameterName != "")
+                {
+                    ModelRequestUrl = ModelRequestUrl + "?" + TagDataParameterName + "=";
+                    ModelRequestUrl = ModelRequestUrl + trainingTags;
+                }
+                else
+                {
+                    throw (new EnvironmentVariableNotSetException("tagDataParameterName environment variable not set"));
+                }
+
+                return ModelRequestUrl;
+            }
+            catch (EnvironmentVariableNotSetException e)
+            {
+                log.LogInformation(e.Message);
+                return null;
+            }
+        }
 
         //Builds a URL to call the blob analysis model.
         private static string ConstructModelRequestUrl(string trainingDataUrl, string dataTrainingLabels, ILogger log)

@@ -43,13 +43,14 @@ namespace semisupervisedFramework
                 // need to add/fix json storage so there is only one container and need to 
                 string PendingEvaluationStorageContainerName = GetEnvironmentVariable("pendingEvaluationStorageContainerName", log);
                 string EvaluatedDataStorageContainerName = GetEnvironmentVariable("evaluatedDataStorageContainerName", log);
-                string EvaluatedJSONStorageContainerName = GetEnvironmentVariable("evaluatedJSONStorageContainerName", log);
+                string JsonStorageContainerName = GetEnvironmentVariable("jsonStorageContainerName", log);
                 string PendingSupervisionStorageContainerName = GetEnvironmentVariable("pendingSupervisionStorageContainerName", log);
                 string LabeledDataStorageContainerName = GetEnvironmentVariable("labeledDataStorageContainerName", log);
                 string ModelValidationStorageContainerName = GetEnvironmentVariable("modelValidationStorageContainerName", log);
                 string PendingNewModelStorageContainerName = GetEnvironmentVariable("pendingNewModelStorageContainerName", log);
                 string StorageConnection = GetEnvironmentVariable("AzureWebJobsStorage", log);
                 string ConfidenceJsonPath = GetEnvironmentVariable("confidenceJSONPath", log);
+                string DataTagsBlobName = GetEnvironmentVariable("dataTagsBlobName", log);
                 double ConfidenceThreshold = Convert.ToDouble(GetEnvironmentVariable("confidenceThreshold", log));
                 double ModelVerificationPercent = Convert.ToDouble(GetEnvironmentVariable("modelVerificationPercentage", log));
 
@@ -58,17 +59,19 @@ namespace semisupervisedFramework
                 // Create Reference to Azure Storage Account
                 CloudStorageAccount StorageAccount = CloudStorageAccount.Parse(StorageConnection);
                 CloudBlobClient BlobClient = StorageAccount.CreateCloudBlobClient();
-                CloudBlobContainer Container = BlobClient.GetContainerReference("pendingevaluation");
+                CloudBlobContainer Container = BlobClient.GetContainerReference(PendingEvaluationStorageContainerName);
 
                 //Get a reference to a container, if the container does not exist create one then get the reference to the blob you want to evaluate."
-                CloudBlockBlob DataEvaluating = GetBlob(StorageAccount, PendingEvaluationStorageContainerName, blobName, log);
+                CloudBlockBlob RawDataBlob = GetBlob(StorageAccount, JsonStorageContainerName, blobName, log);
+                DataBlob DataEvaluating = new DataBlob(RawDataBlob.Uri);
+                //CloudBlockBlob DataEvaluating = GetBlob(StorageAccount, PendingEvaluationStorageContainerName, blobName, log);
                 if (DataEvaluating == null)
                 {
                     throw (new MissingRequiredObject("\nMissing dataEvaluating blob object."));
                 }
 
                 //compute the file hash as this will be added to the meta data to allow for file version validation
-                string BlobMd5 = Blob.CalculateMD5Hash(DataEvaluating.ToString());
+                string BlobMd5 = DataEvaluating.CalculateMD5Hash(DataEvaluating.ToString());
                 if (BlobMd5 == null)
                 {
                     log.LogInformation("\nWarning: Blob Hash calculation failed and will not be included in file information blob, continuing operation.");
@@ -162,8 +165,8 @@ namespace semisupervisedFramework
                 BlobAnalysis.Add(BlobEnvironment);
                 BlobAnalysis.Merge(AnalysisJson);
 
-                //Note: all json files get writted to the same container as they are all accessed wither by discrete name or by azure search index either GUID or Hash.
-                CloudBlockBlob JsonBlob = GetBlob(StorageAccount, EvaluatedJSONStorageContainerName, (string)BlobAnalysis.SelectToken("blobInfo.id") + ".json", log);
+                //Note: all json files get writted to the same container as they are all accessed either by discrete name or by azure search index either GUID or Hash.
+                CloudBlockBlob JsonBlob = GetBlob(StorageAccount, JsonStorageContainerName, (string)BlobAnalysis.SelectToken("blobInfo.id") + ".json", log);
                 JsonBlob.Properties.ContentType = "application/json";
                 string SerializedJson = JsonConvert.SerializeObject(BlobAnalysis, Newtonsoft.Json.Formatting.Indented, new JsonSerializerSettings { });
                 Stream MemStream = new MemoryStream(Encoding.UTF8.GetBytes(SerializedJson));
@@ -186,64 +189,6 @@ namespace semisupervisedFramework
             catch (Exception e)
             {
                 log.LogInformation("\n" + blobName + " could not be analyzed with message: " + e.Message);
-            }
-        }
-
-        static string Hash(string input)
-        {
-            using (SHA1Managed sha1 = new SHA1Managed())
-            {
-                var hash = sha1.ComputeHash(Encoding.UTF8.GetBytes(input));
-                var sb = new StringBuilder(hash.Length * 2);
-
-                foreach (byte b in hash)
-                {
-                    // can be "x2" if you want lowercase
-                    sb.Append(b.ToString("X2"));
-                }
-
-                return sb.ToString();
-            }
-        }
-
-        //calculates a blob hash to join JSON to a specific version of a file.
-        private static async Task<string> CalculateBlobHash(CloudBlockBlob blockBlob, ILogger log)
-        {
-            try
-            {
-                MemoryStream MemStream = new MemoryStream();
-                await blockBlob.DownloadToStreamAsync(MemStream);
-                if (MemStream.Length == 0)
-                {
-                    throw (new ZeroLengthFileException("\nCloud Block Blob: " + blockBlob.Name + " is zero length"));
-                }
-                SHA1 Sha = new SHA1Managed();
-                byte[] Checksum = Sha.ComputeHash(MemStream);
-
-                // ***** TODO ***** check if chunking the file download is necissary or if the azure blob movement namepace handles chunking for you.
-                // Download will re-populate the client MD5 value from the server
-                //byte[] retrievedBuffer = blockBlob.DownloadToByteArrayAsync();
-
-                // Validate MD5 Value
-                //var md5Check = System.Security.Cryptography.MD5.Create();
-                //md5Check.TransformBlock(retrievedBuffer, 0, retrievedBuffer.Length, null, 0);
-                //md5Check.TransformFinalBlock(new byte[0], 0, 0);
-
-                // Get Hash Value
-                //byte[] hashBytes = md5Check.Hash;
-                //string hashVal = Convert.ToBase64String(hashBytes);
-
-                return Convert.ToBase64String(Checksum);
-            }
-            catch (ZeroLengthFileException e)
-            {
-                log.LogInformation("\n" +blockBlob.Name + " is zero length.  CalculateBlobFileHash failed with error: " + e.Message);
-                return null;
-            }
-            catch (Exception e)
-            {
-                log.LogInformation("\ncalculatingBlobFileHash for " + blockBlob.Name + " failed with: " + e.Message);
-                return null;
             }
         }
 

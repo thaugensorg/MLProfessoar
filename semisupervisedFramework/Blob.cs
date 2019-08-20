@@ -31,15 +31,12 @@ namespace semisupervisedFramework
         }
     }
 
-    class Blob
+    public class FrameworkBlob : CloudBlockBlob
     {
-        [System.ComponentModel.DataAnnotations.Key]
-        public string Id { get; set; }
-        public BlobInfo blobInfo;
-        public IList<string> Labels { get; set; }
+        public FrameworkBlob(Uri blobUri) : base(blobUri) { }
 
         //calculates a blob hash to join JSON to a specific version of a file.
-        private static async Task<string> CalculateBlobHash(CloudBlockBlob blockBlob, ILogger log)
+        private async Task<string> CalculateBlobHash(CloudBlockBlob blockBlob, ILogger log)
         {
             try
             {
@@ -78,6 +75,36 @@ namespace semisupervisedFramework
                 return null;
             }
         }
+        public string CalculateMD5Hash(string input)
+        {
+            // step 1, calculate MD5 hash from input
+            MD5 md5 = MD5.Create();
+            byte[] inputBytes = Encoding.ASCII.GetBytes(input);
+            byte[] hash = md5.ComputeHash(inputBytes);
+
+            // step 2, convert byte array to hex string
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < hash.Length; i++)
+            {
+                sb.Append(hash[i].ToString("X2"));
+            }
+            return sb.ToString();
+        }
+    }
+    public class DataBlob : FrameworkBlob
+    {
+        public DataBlob(Uri dataBlobUri) : base(dataBlobUri){ }
+    }
+    public class JsonBlob : FrameworkBlob
+    {
+        [System.ComponentModel.DataAnnotations.Key]
+        public string Id { get; set; }
+        public BlobInfo blobInfo;
+        public IList<string> Labels { get; set; }
+
+        public JsonBlob(Uri jsonBlobUri) : base(jsonBlobUri) { }
+
+
 
         private static async Task<string> CalculateMD5Async(CloudBlockBlob blockBlob, ILogger log)
         {
@@ -109,24 +136,8 @@ namespace semisupervisedFramework
                 ArrayPool<byte>.Shared.Return(block);
             }
         }
-	
-        public static string CalculateMD5Hash(string input)
-        {
-            // step 1, calculate MD5 hash from input
-            MD5 md5 = MD5.Create();
-            byte[] inputBytes = Encoding.ASCII.GetBytes(input);
-            byte[] hash = md5.ComputeHash(inputBytes);
 
-            // step 2, convert byte array to hex string
-            StringBuilder sb = new StringBuilder();
-            for (int i = 0; i < hash.Length; i++)
-            {
-                sb.Append(hash[i].ToString("X2"));
-            }
-            return sb.ToString();
-        }
-
-        public static DocumentSearchResult<Blob> GetBlobByHash(SearchIndexClient indexClient, string hash, ILogger log)
+        public static DocumentSearchResult<JsonBlob> GetBlobByHash(SearchIndexClient indexClient, string hash, ILogger log)
         {
             SearchParameters parameters;
 
@@ -138,23 +149,23 @@ namespace semisupervisedFramework
                 };
 
             //return indexClient.Documents.Search<BlobInfo>(hash, parameters);
-            DocumentSearchResult<Blob> result = indexClient.Documents.Search<Blob>(hash);
+            DocumentSearchResult<JsonBlob> result = indexClient.Documents.Search<JsonBlob>(hash);
             return result;
 
         }
 
         public static CloudBlockBlob GetBoundData(string bindingHash, ILogger log)
         {
-            Blob BindingJson = GetBoundJson(bindingHash, log);
+            JsonBlob BindingJson = GetBoundJson(bindingHash, log);
             return new CloudBlockBlob(new Uri(BindingJson.blobInfo.Url));
 
         }
 
-        public static Blob GetBoundJson(string bindingHash, ILogger log)
+        public static JsonBlob GetBoundJson(string bindingHash, ILogger log)
         {
             //SearchIndexClient IndexClient = Helper.CreateSearchIndexClient("blobindex", log);
             SearchIndexClient IndexClient = Helper.CreateSearchIndexClient("data-labels-index", log);
-            DocumentSearchResult<Blob> documentSearchResult = GetBlobByHash(IndexClient, bindingHash, log);
+            DocumentSearchResult<JsonBlob> documentSearchResult = GetBlobByHash(IndexClient, bindingHash, log);
             if (documentSearchResult.Results.Count > 0)
             {
                 return documentSearchResult.Results[0].Document;

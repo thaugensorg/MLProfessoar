@@ -44,8 +44,8 @@ if ([string]::IsNullOrWhiteSpace($pendingEvaluationStorageContainerName)) {$pend
 $evaluatedDataStorageContainerName = Read-Host -Prompt 'Input the name of the storage container for blobs after they are evaluated by the model (default=evaluateddata)'
 if ([string]::IsNullOrWhiteSpace($evaluatedDataStorageContainerName)) {$evaluatedDataStorageContainerName = "evaluateddata"}
 
-$evaluatedJSONStorageContainerName = Read-Host -Prompt 'Input the name of the storage container for JSON blobs containing data generated from the blobs evaluated by this model (default=json)'
-if ([string]::IsNullOrWhiteSpace($evaluatedJSONStorageContainerName)) {$evaluatedJSONStorageContainerName = "json"}
+$jsonStorageContainerName = Read-Host -Prompt 'Input the name of the storage container for JSON blobs containing data generated from the blobs evaluated by this model (default=json)'
+if ([string]::IsNullOrWhiteSpace($jsonStorageContainerName)) {$jsonStorageContainerName = "json"}
 
 $pendingSupervisionStorageContainerName = Read-Host -Prompt 'Input the name of the storage container for blobs that require supervision after they have been evaluated by the model (default=pendingsupervision)'
 if ([string]::IsNullOrWhiteSpace($pendingSupervisionStorageContainerName)) {$pendingSupervisionStorageContainerName = "pendingsupervision"}
@@ -133,7 +133,7 @@ az storage container create `
   --fail-on-exist
 
 az storage container create `
-  --name $evaluatedJSONStorageContainerName `
+  --name $jsonStorageContainerName `
   --account-name $frameworkStorageAccountName `
   --account-key $frameworkStorageAccountKey `
   --fail-on-exist
@@ -179,7 +179,7 @@ az functionapp config appsettings set `
 az functionapp config appsettings set `
     --name $frameworkFunctionAppName `
     --resource-group $frameworkResourceGroupName `
-    --settings "evaluatedJSONStorageContainerName=$evaluatedJSONStorageContainerName"
+    --settings "jsonStorageContainerName=$jsonStorageContainerName"
 
 az functionapp config appsettings set `
     --name $frameworkFunctionAppName `
@@ -248,4 +248,14 @@ az functionapp config appsettings set `
     --name $frameworkFunctionAppName `
     --resource-group $frameworkResourceGroupName `
     --settings "modelVerificationPercentage=$modelVerificationPercent"
+
+az functionapp config appsettings set `
+    --name $frameworkFunctionAppName `
+    --resource-group $frameworkResourceGroupName `
+    --settings "dataTagsBlobName=labels.json"
+
+az functionapp config appsettings set `
+    --name $frameworkFunctionAppName `
+    --resource-group $frameworkResourceGroupName `
+    --settings "dataTagsFileHash=null"
 }
