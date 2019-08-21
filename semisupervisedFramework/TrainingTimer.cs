@@ -46,66 +46,37 @@ namespace semisupervisedFramework
                 CloudStorageAccount StorageAccount = Environment.GetStorageAccount(log);
                 CloudBlobClient BlobClient = StorageAccount.CreateCloudBlobClient();
                 CloudBlobContainer LabeledDataContainer = BlobClient.GetContainerReference("labeleddata");
+
+                // with a container load training tags
                 if (LabeledDataContainer.ListBlobs(null, false) != null)
                 {
-                    CloudBlobClient LabelsBlobClient = StorageAccount.CreateCloudBlobClient();
-                    //get environment variables used to construct the model request URL
-                    string jsonDataContainerName = Environment.GetEnvironmentVariable("jsonStorageContainerName", log);
-
-                    if (jsonDataContainerName == null || jsonDataContainerName == "")
-                    {
-                        throw (new EnvironmentVariableNotSetException("jsonStorageContainerName environment variable not set"));
-                    }
-                    CloudBlobContainer Container = LabelsBlobClient.GetContainerReference(jsonDataContainerName);
-
-                    //get environment variables used to construct the model request URL
-                    string DataTagsBlobName = Environment.GetEnvironmentVariable("dataTagsBlobName", log);
-
-                    if (DataTagsBlobName == null || DataTagsBlobName == "")
-                    {
-                        throw (new EnvironmentVariableNotSetException("dataTagsBlobName environment variable not set"));
-                    }
-                    CloudBlockBlob DataTagsBlob = Container.GetBlockBlobReference(DataTagsBlobName);
-
-                    //get the environment variable specifying the MD5 hash of the last run tags file
-                    string LkgDataTagsFileHash = Environment.GetEnvironmentVariable("dataTagsFileHash", log);
-
-                    if (LkgDataTagsFileHash == null || LkgDataTagsFileHash == "")
-                    {
-                        throw (new EnvironmentVariableNotSetException("dataTagsFileHash environment variable not set"));
-                    }
-
-                    //Check if there is a new version of the tags json file and if so load them into the environment
-                    if (DataTagsBlob.Properties.ContentMD5 != LkgDataTagsFileHash)
-                    {
-
-                    }
-
+                    LoadTrainingTags(log, StorageAccount);
                 }
+
                 string TrainingDataUrl;
                 foreach (IListBlobItem item in LabeledDataContainer.ListBlobs(null, false))
                 {
                     if (item.GetType() == typeof(CloudBlockBlob))
                     {
-                        CloudBlockBlob blob = (CloudBlockBlob)item;
-                        TrainingDataUrl = blob.Uri.ToString();
-                        string BindingHash = blob.Properties.ContentMD5.ToString();
+                        DataBlob dataBlob = (DataBlob)item;
+                        TrainingDataUrl = dataBlob.Uri.ToString();
+                        string BindingHash = dataBlob.Properties.ContentMD5.ToString();
                         BindingHash = BindingHash.Substring(0, BindingHash.Length - 2);
                         if (BindingHash == null)
                         {
                             //compute the file hash as this will be added to the meta data to allow for file version validation
-                            string BlobMd5 = Blob.CalculateMD5Hash(blob.ToString());
+                            string BlobMd5 = dataBlob.CalculateMD5Hash(dataBlob.ToString());
                             if (BlobMd5 == null)
                             {
                                 log.LogInformation("\nWarning: Blob Hash calculation failed and will not be included in file information blob, continuing operation.");
                             }
                             else
                             {
-                                blob.Properties.ContentMD5 = BlobMd5;
+                                dataBlob.Properties.ContentMD5 = BlobMd5;
                             }
 
                         }
-                        Blob BoundJson = Blob.GetBoundJson(BindingHash, log);
+                        JsonBlob BoundJson = dataBlob.GetBoundJson(log);
                         string DataTrainingLabels = JsonConvert.SerializeObject(BoundJson);
 
                         // string DataTrainingLabels = JsonLabelsBlob.DownloadTextAsync().ToString();
@@ -136,6 +107,52 @@ namespace semisupervisedFramework
             catch (Exception e)
             {
                 log.LogInformation("\nError processing training timer: ", e.Message);
+            }
+        }
+
+        private static void LoadTrainingTags(ILogger log, CloudStorageAccount StorageAccount)
+        {
+            //Construct a blob client to marshall the storage Functionality
+            CloudBlobClient LabelsBlobClient = StorageAccount.CreateCloudBlobClient();
+
+            //Construct a blob storage container given a name string and a storage account
+            string jsonDataContainerName = Environment.GetEnvironmentVariable("jsonStorageContainerName", log);
+            if (jsonDataContainerName == null || jsonDataContainerName == "")
+            {
+                throw (new EnvironmentVariableNotSetException("jsonStorageContainerName environment variable not set"));
+            }
+            CloudBlobContainer Container = LabelsBlobClient.GetContainerReference(jsonDataContainerName);
+
+            //get the training tags json blob from teh container
+            string DataTagsBlobName = Environment.GetEnvironmentVariable("dataTagsBlobName", log);
+            if (DataTagsBlobName == null || DataTagsBlobName == "")
+            {
+                throw (new EnvironmentVariableNotSetException("dataTagsBlobName environment variable not set"));
+            }
+            CloudBlockBlob DataTagsBlob = Container.GetBlockBlobReference(DataTagsBlobName);
+
+            //get the environment variable specifying the MD5 hash of the last run tags file
+            string LkgDataTagsFileHash = Environment.GetEnvironmentVariable("dataTagsFileHash", log);
+            if (LkgDataTagsFileHash == null || LkgDataTagsFileHash == "")
+            {
+                throw (new EnvironmentVariableNotSetException("dataTagsFileHash environment variable not set"));
+            }
+
+            //Check if there is a new version of the tags json file and if so load them into the environment
+            if (DataTagsBlob.Properties.ContentMD5 != LkgDataTagsFileHash)
+            {
+                //****Currently only working with public access set on blob folders
+                //Generate a URL with SAS token to submit to analyze image API
+                //string dataEvaluatingSas = GetBlobSharedAccessSignature(dataEvaluating);
+                string DataTagsUrl = DataTagsBlob.Uri.ToString(); //+ dataEvaluatingSas;
+
+                //Make a request to the model service passing the file URL
+                string ResponseString = Helper.GetEvaluationResponseString(DataTagsUrl, log);
+                if (ResponseString == "")
+                {
+                    throw (new MissingRequiredObject("\nresponseString not generated from URL: " + DataTagsUrl));
+                }
+                log.LogInformation(ResponseString);
             }
         }
 

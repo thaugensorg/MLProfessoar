@@ -90,11 +90,44 @@ namespace semisupervisedFramework
             }
             return sb.ToString();
         }
+
+        public static DocumentSearchResult<JsonBlob> GetBlobByHash(SearchIndexClient indexClient, string hash, ILogger log)
+        {
+            SearchParameters parameters;
+
+            parameters =
+                new SearchParameters()
+                {
+                    //SearchFields = new[] { "hash" },
+                    Select = new[] { "id", "blobInfo/name", "blobInfo/url", "blobInfo/hash", "blobInfo/modified" }
+                };
+
+            //return indexClient.Documents.Search<BlobInfo>(hash, parameters);
+            DocumentSearchResult<JsonBlob> result = indexClient.Documents.Search<JsonBlob>(hash);
+            return result;
+
+        }
     }
+
+    //This class encapsulates the fucntionality for the data blob files that will be used to train the semisupervised model.
     public class DataBlob : FrameworkBlob
     {
         public DataBlob(Uri dataBlobUri) : base(dataBlobUri){ }
+
+        public JsonBlob GetBoundJson(ILogger log)
+        {
+            Search BindingSearch = new Search();
+            SearchIndexClient IndexClient = Search.CreateSearchIndexClient("data-labels-index", log);
+            DocumentSearchResult<JsonBlob> documentSearchResult = GetBlobByHash(IndexClient, this.Properties.ContentMD5, log);
+            if (documentSearchResult.Results.Count > 0)
+            {
+                return documentSearchResult.Results[0].Document;
+            }
+            return null;
+        }
     }
+
+    //This class encapsulates the functionality for the json blob files that are bound to the data files.  These json files contain all of the meta data, labeling data, and results of every evaluation against the model
     public class JsonBlob : FrameworkBlob
     {
         [System.ComponentModel.DataAnnotations.Key]
@@ -137,40 +170,28 @@ namespace semisupervisedFramework
             }
         }
 
-        public static DocumentSearchResult<JsonBlob> GetBlobByHash(SearchIndexClient indexClient, string hash, ILogger log)
+        public CloudBlockBlob GetBoundData(CloudBlobContainer Container, ILogger log)
         {
-            SearchParameters parameters;
 
-            parameters =    
-                new SearchParameters()
-                {
-                    //SearchFields = new[] { "hash" },
-                    Select = new[] { "id", "blobInfo/name", "blobInfo/url", "blobInfo/hash", "blobInfo/modified" }
-                };
-
-            //return indexClient.Documents.Search<BlobInfo>(hash, parameters);
-            DocumentSearchResult<JsonBlob> result = indexClient.Documents.Search<JsonBlob>(hash);
-            return result;
-
-        }
-
-        public static CloudBlockBlob GetBoundData(string bindingHash, ILogger log)
-        {
-            JsonBlob BindingJson = GetBoundJson(bindingHash, log);
-            return new CloudBlockBlob(new Uri(BindingJson.blobInfo.Url));
-
-        }
-
-        public static JsonBlob GetBoundJson(string bindingHash, ILogger log)
-        {
-            //SearchIndexClient IndexClient = Helper.CreateSearchIndexClient("blobindex", log);
-            SearchIndexClient IndexClient = Helper.CreateSearchIndexClient("data-labels-index", log);
-            DocumentSearchResult<JsonBlob> documentSearchResult = GetBlobByHash(IndexClient, bindingHash, log);
-            if (documentSearchResult.Results.Count > 0)
+            //get the environment variable specifying the MD5 hash of the last run tags file
+            string LkgDataTagsFileHash = Environment.GetEnvironmentVariable("dataTagsFileHash", log);
+            if (LkgDataTagsFileHash == null || LkgDataTagsFileHash == "")
             {
-                return documentSearchResult.Results[0].Document;
+                throw (new EnvironmentVariableNotSetException("dataTagsFileHash environment variable not set"));
             }
-            return null;
+
+            //Get a reference to a container, if the container does not exist create one then get the reference to the blob you want to evaluate."
+            CloudBlockBlob RawDataBlob = Container.GetBlockBlobReference(this.blobInfo.Name);
+            DataBlob TrainingDataBlob = new DataBlob(RawDataBlob.Uri);
+            //CloudBlockBlob DataEvaluating = GetBlob(StorageAccount, PendingEvaluationStorageContainerName, blobName, log);
+            if (TrainingDataBlob == null)
+            {
+                throw (new MissingRequiredObject("\nMissing dataEvaluating blob object."));
+            }
+
+
+            return TrainingDataBlob;
+
         }
     }
 }

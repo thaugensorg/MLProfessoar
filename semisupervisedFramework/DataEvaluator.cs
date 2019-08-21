@@ -88,7 +88,7 @@ namespace semisupervisedFramework
                 //string dataEvaluatingUrl = "test";
 
                 //Make a request to the model service passing the file URL
-                string ResponseString = GetEvaluationResponseString(DataEvaluatingUrl, log);
+                string ResponseString = Helper.GetEvaluationResponseString(DataEvaluatingUrl, log);
                 if (ResponseString == "")
                 {
                     throw (new MissingRequiredObject("\nresponseString not generated from URL: " + DataEvaluatingUrl));
@@ -190,35 +190,6 @@ namespace semisupervisedFramework
             {
                 log.LogInformation("\n" + blobName + " could not be analyzed with message: " + e.Message);
             }
-        }
-
-        //Returns a response string for a given URL.
-        private static string GetEvaluationResponseString(string dataEvaluatingUrl, ILogger log)
-        {
-            //initialize variables
-            Stopwatch StopWatch = Stopwatch.StartNew();
-            string ResponseString = new string("");
-            string ModelRequestUrl = new string("");
-
-            try
-            {
-                //construct and call model URL then fetch response
-                HttpClient Client = new HttpClient();
-                ModelRequestUrl = ConstructModelRequestUrl(dataEvaluatingUrl, log);
-                HttpRequestMessage Request = new HttpRequestMessage(HttpMethod.Post, new Uri(ModelRequestUrl));
-                HttpResponseMessage Response = Client.SendAsync(Request).Result;
-                ResponseString = Response.Content.ReadAsStringAsync().Result;
-            }
-            catch (Exception e)
-            {
-                log.LogInformation("\nFailed HTTP request for URL" + dataEvaluatingUrl + " in application environment variables", e.Message);
-                return "";
-            }
-
-            //log the http elapsed time
-            StopWatch.Stop();
-            log.LogInformation("\nHTTP call to " + ModelRequestUrl + " completed in:" + StopWatch.Elapsed.TotalSeconds + " seconds.");
-            return ResponseString;
         }
 
         //Builds a URL to call the blob analysis model.

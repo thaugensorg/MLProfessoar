@@ -22,6 +22,7 @@ namespace semisupervisedFramework
 {
     class Search
     {
+        // *****TODO***** should search be static or instanciable?
         // This sample shows how to delete, create, upload documents and query an index
         public static void InitializeSearch()
         {
@@ -31,18 +32,15 @@ namespace semisupervisedFramework
             string indexName = Environment.GetEnvironmentVariable("bindinghash", log);
 
             //instanciates a serch client and creates the index.
-            SearchServiceClient serviceClient = Helper.Initialize("semisupervisedblobsearch", "blobindex", SearchApiKey);
-            DataSource JsonBlob = Helper.CreateBlobSearchDataSource(log);
+            SearchServiceClient serviceClient = Initialize("semisupervisedblobsearch", "blobindex", SearchApiKey);
+            DataSource JsonBlob = CreateBlobSearchDataSource(log);
             serviceClient.DataSources.CreateOrUpdateAsync(JsonBlob).Wait();
-            Index BlobIndex = Helper.CreateIndex(serviceClient, "blobindex");
-            Indexer BlobIndexer = Helper.CreateBlobIndexer(serviceClient, BlobIndex, "json-blob");
+            Index BlobIndex = CreateIndex(serviceClient, "blobindex");
+            Indexer BlobIndexer = CreateBlobIndexer(serviceClient, BlobIndex, "json-blob");
             serviceClient.Indexers.RunAsync(BlobIndexer.Name).Wait();
 
         }
-    }
 
-    public static class Helper
-    {
         // https://cmatskas.com/indexing-and-searching-sql-server-data-with-azure-search/
         public static SearchServiceClient Initialize(string serviceName, string indexName, string apiKey)
         {
@@ -59,19 +57,19 @@ namespace semisupervisedFramework
             {
                 Name = indexName,
 
-                Fields = FieldBuilder.BuildForType<Blob>()
+                Fields = FieldBuilder.BuildForType<JsonBlob>()
             };
-                    
-                    //new Field("blobInfo", DataType.Complex),
-                    //Fields = new []
-                    //{
-                    //    new Field("id", DataType.String)                  { IsKey = true, IsRetrievable = true},
-                    //},
-                    //new Field("name", DataType.String)                { IsRetrievable = true},
-                    //new Field("url", DataType.String)                 { IsRetrievable = true},
-                    //new Field("hash", DataType.String)                { IsRetrievable = true, IsSearchable = true},
-                    //new Field("modified", DataType.DateTimeOffset)    { IsRetrievable = true},
-                //}
+
+            //new Field("blobInfo", DataType.Complex),
+            //Fields = new []
+            //{
+            //    new Field("id", DataType.String)                  { IsKey = true, IsRetrievable = true},
+            //},
+            //new Field("name", DataType.String)                { IsRetrievable = true},
+            //new Field("url", DataType.String)                 { IsRetrievable = true},
+            //new Field("hash", DataType.String)                { IsRetrievable = true, IsSearchable = true},
+            //new Field("modified", DataType.DateTimeOffset)    { IsRetrievable = true},
+            //}
             //};
 
             indexDefinition.Validate();
