@@ -117,22 +117,18 @@ namespace semisupervisedFramework
 
             //Construct a blob storage container given a name string and a storage account
             string jsonDataContainerName = Engine.GetEnvironmentVariable("jsonStorageContainerName", log);
-            if (jsonDataContainerName == null || jsonDataContainerName == "")
-            {
-                throw (new EnvironmentVariableNotSetException("jsonStorageContainerName environment variable not set"));
-            }
-            //CloudBlobContainer Container = LabelsBlobClient.GetContainerReference(jsonDataContainerName);
-            CloudBlobContainer Container = LabelsBlobClient.GetContainerReference("json");
+            if (string.IsNullOrEmpty(jsonDataContainerName)) throw (new EnvironmentVariableNotSetException("jsonStorageContainerName environment variable not set"));
+        
+            CloudBlobContainer Container = LabelsBlobClient.GetContainerReference(jsonDataContainerName);
 
             //get the training tags json blob from the container
             string DataTagsBlobName = Engine.GetEnvironmentVariable("dataTagsBlobName", log);
-            if (DataTagsBlobName == null || DataTagsBlobName == "")
-            {
-                throw (new EnvironmentVariableNotSetException("dataTagsBlobName environment variable not set"));
-            }
-            //CloudBlockBlob DataTagsBlob = Container.GetBlockBlobReference(DataTagsBlobName);
-            CloudBlockBlob DataTagsBlob = Container.GetBlockBlobReference("LabelingTags.json");
-            if (DataTagsBlob.Exists())
+            if (string.IsNullOrEmpty(DataTagsBlobName)) throw (new EnvironmentVariableNotSetException("dataTagsBlobName environment variable not set"));
+            
+            CloudBlockBlob DataTagsBlob = Container.GetBlockBlobReference(DataTagsBlobName);
+
+            //the blob has to be "touched" or the properties will all be null
+            if (DataTagsBlob.Exists() != true)
             {
                 log.LogInformation("The labeling tags blob exists");
             };
@@ -143,16 +139,23 @@ namespace semisupervisedFramework
             //Check if there is a new version of the tags json file and if so load them into the environment
             if (DataTagsBlob.Properties.ContentMD5 != LkgDataTagsFileHash)
             {
+                //format the add labeling tags url
+                string AddLabelingTagsEndpoint = Engine.GetEnvironmentVariable("TagsUploadServiceEndpoint", log);
+                if (string.IsNullOrEmpty(AddLabelingTagsEndpoint)) throw (new EnvironmentVariableNotSetException("TagsUploadServiceEndpoint environment variable not set"));
+                string LabelingTagsParamatersName = Engine.GetEnvironmentVariable("tagDataParameterName", log);
+                string LabelingTags = LabelingTagsParamatersName + "=" + DataTagsBlob.DownloadText(Encoding.UTF8);
+                //AddLabelingTagsUrl = Uri.EscapeUriString(AddLabelingTagsUrl);
+
                 //****Currently only working with public access set on blob folders
                 //Generate a URL with SAS token to submit to analyze image API
                 //string dataEvaluatingSas = GetBlobSharedAccessSignature(dataEvaluating);
-                string DataTagsUrl = DataTagsBlob.Uri.ToString(); //+ dataEvaluatingSas;
+                //string DataTagsUrl = DataTagsBlob.Uri.ToString(); //+ dataEvaluatingSas;
 
                 //Make a request to the model service passing the file URL
-                string ResponseString = Helper.GetEvaluationResponseString(DataTagsUrl, log);
+                string ResponseString = Helper.GetEvaluationResponseString(AddLabelingTagsEndpoint, LabelingTags, log);
                 if (ResponseString == "")
                 {
-                    throw (new MissingRequiredObject("\nresponseString not generated from URL: " + DataTagsUrl));
+                    throw (new MissingRequiredObject("\nresponseString not generated from URL: " + AddLabelingTagsUrl));
                 }
                 System.Environment.SetEnvironmentVariable("dataTagsFileHash", DataTagsBlob.Properties.ContentMD5);
                 log.LogInformation(ResponseString);

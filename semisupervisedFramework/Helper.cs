@@ -31,7 +31,7 @@ namespace semisupervisedFramework
     public static class Helper
     {
         //Returns a response string for a given URL.
-        public static string GetEvaluationResponseString(string targetUrl, ILogger log)
+        public static string GetEvaluationResponseString(string targetUrl, MultipartFormDataContent postData, ILogger log)
         {
             //initialize variables
             Stopwatch StopWatch = Stopwatch.StartNew();
@@ -42,6 +42,7 @@ namespace semisupervisedFramework
                 //construct and call model URL then fetch response
                 HttpClient Client = new HttpClient();
                 HttpRequestMessage Request = new HttpRequestMessage(HttpMethod.Post, new Uri(targetUrl));
+                Request.Content = new StringContent(postData, Encoding.UTF8, "application/json");
                 HttpResponseMessage Response = Client.SendAsync(Request).Result;
                 ResponseString = Response.Content.ReadAsStringAsync().Result;
             }
