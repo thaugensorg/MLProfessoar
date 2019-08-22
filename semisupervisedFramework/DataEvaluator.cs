@@ -160,7 +160,7 @@ namespace semisupervisedFramework
                     );
 
                 //create environment JSON object
-                JProperty BlobEnvironment = Environment.GetEnvironmentJson(log);
+                JProperty BlobEnvironment = Engine.GetEnvironmentJson(log);
 
                 BlobAnalysis.Add(BlobEnvironment);
                 BlobAnalysis.Merge(AnalysisJson);

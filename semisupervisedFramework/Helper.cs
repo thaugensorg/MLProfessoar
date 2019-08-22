@@ -31,31 +31,29 @@ namespace semisupervisedFramework
     public static class Helper
     {
         //Returns a response string for a given URL.
-        public static string GetEvaluationResponseString(string dataEvaluatingUrl, ILogger log)
+        public static string GetEvaluationResponseString(string targetUrl, ILogger log)
         {
             //initialize variables
             Stopwatch StopWatch = Stopwatch.StartNew();
             string ResponseString = new string("");
-            string ModelRequestUrl = new string("");
 
             try
             {
                 //construct and call model URL then fetch response
                 HttpClient Client = new HttpClient();
-                ModelRequestUrl = ConstructModelRequestUrl(dataEvaluatingUrl, log);
-                HttpRequestMessage Request = new HttpRequestMessage(HttpMethod.Post, new Uri(ModelRequestUrl));
+                HttpRequestMessage Request = new HttpRequestMessage(HttpMethod.Post, new Uri(targetUrl));
                 HttpResponseMessage Response = Client.SendAsync(Request).Result;
                 ResponseString = Response.Content.ReadAsStringAsync().Result;
             }
             catch (Exception e)
             {
-                log.LogInformation("\nFailed HTTP request for URL" + dataEvaluatingUrl + " in application environment variables", e.Message);
+                log.LogInformation("\nFailed HTTP request for URL" + targetUrl + " in application environment variables", e.Message);
                 return "";
             }
 
             //log the http elapsed time
             StopWatch.Stop();
-            log.LogInformation("\nHTTP call to " + ModelRequestUrl + " completed in:" + StopWatch.Elapsed.TotalSeconds + " seconds.");
+            log.LogInformation("\nHTTP call to " + targetUrl + " completed in:" + StopWatch.Elapsed.TotalSeconds + " seconds.");
             return ResponseString;
         }
     }

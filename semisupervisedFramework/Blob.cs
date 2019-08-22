@@ -174,7 +174,7 @@ namespace semisupervisedFramework
         {
 
             //get the environment variable specifying the MD5 hash of the last run tags file
-            string LkgDataTagsFileHash = Environment.GetEnvironmentVariable("dataTagsFileHash", log);
+            string LkgDataTagsFileHash = Engine.GetEnvironmentVariable("dataTagsFileHash", log);
             if (LkgDataTagsFileHash == null || LkgDataTagsFileHash == "")
             {
                 throw (new EnvironmentVariableNotSetException("dataTagsFileHash environment variable not set"));

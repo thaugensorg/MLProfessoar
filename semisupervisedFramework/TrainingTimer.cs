@@ -43,7 +43,7 @@ namespace semisupervisedFramework
                 //Search.InitializeSearch();
 
                 // Create Reference to Azure Storage Account
-                CloudStorageAccount StorageAccount = Environment.GetStorageAccount(log);
+                CloudStorageAccount StorageAccount = Engine.GetStorageAccount(log);
                 CloudBlobClient BlobClient = StorageAccount.CreateCloudBlobClient();
                 CloudBlobContainer LabeledDataContainer = BlobClient.GetContainerReference("labeleddata");
 
@@ -116,27 +116,29 @@ namespace semisupervisedFramework
             CloudBlobClient LabelsBlobClient = StorageAccount.CreateCloudBlobClient();
 
             //Construct a blob storage container given a name string and a storage account
-            string jsonDataContainerName = Environment.GetEnvironmentVariable("jsonStorageContainerName", log);
+            string jsonDataContainerName = Engine.GetEnvironmentVariable("jsonStorageContainerName", log);
             if (jsonDataContainerName == null || jsonDataContainerName == "")
             {
                 throw (new EnvironmentVariableNotSetException("jsonStorageContainerName environment variable not set"));
             }
-            CloudBlobContainer Container = LabelsBlobClient.GetContainerReference(jsonDataContainerName);
+            //CloudBlobContainer Container = LabelsBlobClient.GetContainerReference(jsonDataContainerName);
+            CloudBlobContainer Container = LabelsBlobClient.GetContainerReference("json");
 
-            //get the training tags json blob from teh container
-            string DataTagsBlobName = Environment.GetEnvironmentVariable("dataTagsBlobName", log);
+            //get the training tags json blob from the container
+            string DataTagsBlobName = Engine.GetEnvironmentVariable("dataTagsBlobName", log);
             if (DataTagsBlobName == null || DataTagsBlobName == "")
             {
                 throw (new EnvironmentVariableNotSetException("dataTagsBlobName environment variable not set"));
             }
-            CloudBlockBlob DataTagsBlob = Container.GetBlockBlobReference(DataTagsBlobName);
+            //CloudBlockBlob DataTagsBlob = Container.GetBlockBlobReference(DataTagsBlobName);
+            CloudBlockBlob DataTagsBlob = Container.GetBlockBlobReference("LabelingTags.json");
+            if (DataTagsBlob.Exists())
+            {
+                log.LogInformation("The labeling tags blob exists");
+            };
 
             //get the environment variable specifying the MD5 hash of the last run tags file
-            string LkgDataTagsFileHash = Environment.GetEnvironmentVariable("dataTagsFileHash", log);
-            if (LkgDataTagsFileHash == null || LkgDataTagsFileHash == "")
-            {
-                throw (new EnvironmentVariableNotSetException("dataTagsFileHash environment variable not set"));
-            }
+            string LkgDataTagsFileHash = Engine.GetEnvironmentVariable("dataTagsFileHash", log);
 
             //Check if there is a new version of the tags json file and if so load them into the environment
             if (DataTagsBlob.Properties.ContentMD5 != LkgDataTagsFileHash)
@@ -152,6 +154,7 @@ namespace semisupervisedFramework
                 {
                     throw (new MissingRequiredObject("\nresponseString not generated from URL: " + DataTagsUrl));
                 }
+                System.Environment.SetEnvironmentVariable("dataTagsFileHash", DataTagsBlob.Properties.ContentMD5);
                 log.LogInformation(ResponseString);
             }
         }
@@ -192,7 +195,7 @@ namespace semisupervisedFramework
             {
 
                 //get environment variables used to construct the model request URL
-                string TagUploadServiceEndpoint = Environment.GetEnvironmentVariable("TagsUploadServiceEndpoint", log);
+                string TagUploadServiceEndpoint = Engine.GetEnvironmentVariable("TagsUploadServiceEndpoint", log);
 
                 if (TagUploadServiceEndpoint == null || TagUploadServiceEndpoint == "")
                 {
@@ -210,13 +213,13 @@ namespace semisupervisedFramework
                     {
                         StringReplaceEnd = TagUploadServiceEndpoint.IndexOf("}}", StringReplaceStart);
                         string StringToReplace = TagUploadServiceEndpoint.Substring(StringReplaceStart, StringReplaceEnd - StringReplaceStart);
-                        string ReplacementString = Environment.GetEnvironmentVariable(StringToReplace.Substring(2, StringToReplace.Length - 2), log);
+                        string ReplacementString = Engine.GetEnvironmentVariable(StringToReplace.Substring(2, StringToReplace.Length - 2), log);
                         TagUploadServiceEndpoint = TagUploadServiceEndpoint.Replace(StringToReplace, ReplacementString);
                     }
                 } while (StringReplaceStart != -1);
 
                 //http://localhost:7071/api/AddLabeledDataClient/?blobUrl=https://semisupervisedstorage.blob.core.windows.net/testimages/hemlock_2.jpg&imageLabels={%22Labels%22:[%22Hemlock%22]}
-                string TagDataParameterName = Environment.GetEnvironmentVariable("tagDataParameterName", log);
+                string TagDataParameterName = Engine.GetEnvironmentVariable("tagDataParameterName", log);
 
                 string ModelRequestUrl = TagUploadServiceEndpoint;
                 if (TagDataParameterName != null & TagDataParameterName != "")
@@ -244,7 +247,7 @@ namespace semisupervisedFramework
             try
             {
                 //get environment variables used to construct the model request URL
-                string LabeledDataServiceEndpoint = Environment.GetEnvironmentVariable("LabeledDataServiceEndpoint", log);
+                string LabeledDataServiceEndpoint = Engine.GetEnvironmentVariable("LabeledDataServiceEndpoint", log);
                 LabeledDataServiceEndpoint = "https://imagedetectionapp.azurewebsites.net/api/AddLabeledDataClient/";
 
                 if (LabeledDataServiceEndpoint == null || LabeledDataServiceEndpoint == "")
@@ -263,13 +266,13 @@ namespace semisupervisedFramework
                     {
                         StringReplaceEnd = LabeledDataServiceEndpoint.IndexOf("}}", StringReplaceStart);
                         string StringToReplace = LabeledDataServiceEndpoint.Substring(StringReplaceStart, StringReplaceEnd - StringReplaceStart);
-                        string ReplacementString = Environment.GetEnvironmentVariable(StringToReplace.Substring(2, StringToReplace.Length - 2), log);
+                        string ReplacementString = Engine.GetEnvironmentVariable(StringToReplace.Substring(2, StringToReplace.Length - 2), log);
                         LabeledDataServiceEndpoint = LabeledDataServiceEndpoint.Replace(StringToReplace, ReplacementString);
                     }
                 } while (StringReplaceStart != -1);
 
                 //http://localhost:7071/api/AddLabeledDataClient/?blobUrl=https://semisupervisedstorage.blob.core.windows.net/testimages/hemlock_2.jpg&imageLabels={%22Labels%22:[%22Hemlock%22]}
-                string ModelAssetParameterName = Environment.GetEnvironmentVariable("modelAssetParameterName", log);
+                string ModelAssetParameterName = Engine.GetEnvironmentVariable("modelAssetParameterName", log);
                 ModelAssetParameterName = "blobUrl";
 
                 string ModelRequestUrl = LabeledDataServiceEndpoint;

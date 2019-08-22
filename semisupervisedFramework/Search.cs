@@ -28,8 +28,8 @@ namespace semisupervisedFramework
         {
             ILoggerFactory logger = (ILoggerFactory)new LoggerFactory();
             ILogger log = logger.CreateLogger("Search");
-            string SearchApiKey = Environment.GetEnvironmentVariable("blobSearchKey", log);
-            string indexName = Environment.GetEnvironmentVariable("bindinghash", log);
+            string SearchApiKey = Engine.GetEnvironmentVariable("blobSearchKey", log);
+            string indexName = Engine.GetEnvironmentVariable("bindinghash", log);
 
             //instanciates a serch client and creates the index.
             SearchServiceClient serviceClient = Initialize("semisupervisedblobsearch", "blobindex", SearchApiKey);
@@ -91,7 +91,7 @@ namespace semisupervisedFramework
 
         public static DataSource CreateBlobSearchDataSource(ILogger log)
         {
-            string StorageConnection = Environment.GetEnvironmentVariable("AzureWebJobsStorage", log);
+            string StorageConnection = Engine.GetEnvironmentVariable("AzureWebJobsStorage", log);
 
             DataSource dataSource = DataSource.AzureBlobStorage(
                 name: "json-blob",
@@ -125,8 +125,8 @@ namespace semisupervisedFramework
 
         public static SearchIndexClient CreateSearchIndexClient(string indexName, ILogger log)
         {
-            string SearchApiKey = Environment.GetEnvironmentVariable("blobSearchKey", log);
-            string SearchServiceName = Environment.GetEnvironmentVariable("SearchServiceName", log);
+            string SearchApiKey = Engine.GetEnvironmentVariable("blobSearchKey", log);
+            string SearchServiceName = Engine.GetEnvironmentVariable("SearchServiceName", log);
 
             SearchIndexClient indexClient = new SearchIndexClient(SearchServiceName, indexName, new SearchCredentials(SearchApiKey));
             return indexClient;
