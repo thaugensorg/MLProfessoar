@@ -82,7 +82,7 @@ namespace semisupervisedFramework
                         // string DataTrainingLabels = JsonLabelsBlob.DownloadTextAsync().ToString();
                         // List<string> Labels = JsonConvert.DeserializeObject<List<string>>(LabelsJson);
                         JObject LabelsJsonObject = JObject.Parse(DataTrainingLabels);
-                        JToken LabelsToken = LabelsJsonObject.SelectToken("Labels");
+                        JToken LabelsToken = LabelsJsonObject.SelectToken("LabelingTags");
                         string Labels = Uri.EscapeDataString(LabelsToken.ToString());
 
                         //construct and call model URL then fetch response
@@ -149,7 +149,7 @@ namespace semisupervisedFramework
 
                 HttpContent LabelingTagsContent = new StringContent(LabelingTags);
                 var content = new MultipartFormDataContent();
-                content.Add(LabelingTagsContent, "name");
+                content.Add(LabelingTagsContent, "LabelsJson");
 
                 //****Currently only working with public access set on blob folders
                 //Generate a URL with SAS token to submit to analyze image API
