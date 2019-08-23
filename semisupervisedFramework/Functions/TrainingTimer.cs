@@ -18,7 +18,7 @@ using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
-namespace semisupervisedFramework
+namespace semisupervisedFramework.Functions
 {
     public class Startup : IExtensionConfigProvider
     {

@@ -30,7 +30,7 @@ using Microsoft.AspNetCore.Http;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
-namespace semisupervisedFramework
+namespace semisupervisedFramework.Functions
 {
     public static class DataEvaluator
     {
