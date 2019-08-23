@@ -1,0 +1,26 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "DefaultEndpointsProtocol=https;AccountName=semisupervisedstorage;AccountKey=8YqJKmrBqJCMauu/ejO1nvGXda+W3a8oVuAVHkcdh11IZM6CyHTcAuACX8zZdQYJasKru7mj4pZpOE0sq85Y4Q==;EndpointSuffix=core.windows.net",
+    "CognitiveServicesKey": "03570f44f1184958b462e75519621c72",
+    "FUNCTIONS_WORKER_RUNTIME": "dotnet",
+    "modelType": "static",
+    "pendingEvaluationStorageContainerName": "pendingevaluation",
+    "evaluatedDataStorageContainerName": "evaluateddata",
+    "jsonStorageContainerName": "json",
+    "pendingSupervisionStorageContainerName": "pendingsupervision",
+    "labeledDataStorageContainerName": "labeleddata",
+    "modelValidationStorageContainerName": "modelvalidation",
+    "pendingNewModelStorageContainerName": "pendingnewmodelevaluation",
+    "confidenceJSONPath": "description.captions[0].confidence",
+    "confidenceThreshold": "0.95",
+    "modelVerificationPercentage": ".05",
+    "EvaluationServiceEndpoint": "https://branddetectionapp.azurewebsites.net/api/detectBrand/",
+    "TagsUploadServiceEndpoint": "https://branddetectionapp.azurewebsites.net/api/LoadImageTags/",
+    "LabeledDataServiceEndpoint": "https://branddetectionapp.azurewebsites.net/api/AddLabeledData/",
+    "modelAssetParameterName": "name",
+    "tagDataParameterName": "labelsJson",
+    "blobSearchKey": "5B05AD05419BEE2D39369F4DFB8CC11B",
+    "SearchServiceName": "semisupervisedblobsearch"
+  }
+}

@@ -87,17 +87,15 @@ namespace semisupervisedFramework
                 string DataEvaluatingUrl = DataEvaluating.Uri.ToString(); //+ dataEvaluatingSas;
                 //string dataEvaluatingUrl = "test";
 
+                //package the file contents to send as http request content
                 MemoryStream DataEvaluatingContent = new MemoryStream();
                 await DataEvaluating.DownloadToStreamAsync(DataEvaluatingContent);
                 HttpContent DataEvaluatingStream = new StreamContent(DataEvaluatingContent);
-
                 var content = new MultipartFormDataContent();
-                content.Add(DataEvaluatingStream, Encoding.UTF8, "application/json");
-
-                HttpRequestMessage Request = new HttpRequestMessage(HttpMethod.Post, new Uri(targetUrl));
+                content.Add(DataEvaluatingStream, "name");
 
                 //Make a request to the model service passing the file URL
-                string ResponseString = Helper.GetEvaluationResponseString(DataEvaluatingUrl, log);
+                string ResponseString = Helper.GetEvaluationResponseString(DataEvaluatingUrl, content, log);
                 if (ResponseString == "")
                 {
                     throw (new MissingRequiredObject("\nresponseString not generated from URL: " + DataEvaluatingUrl));

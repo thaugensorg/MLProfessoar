@@ -143,8 +143,13 @@ namespace semisupervisedFramework
                 string AddLabelingTagsEndpoint = Engine.GetEnvironmentVariable("TagsUploadServiceEndpoint", log);
                 if (string.IsNullOrEmpty(AddLabelingTagsEndpoint)) throw (new EnvironmentVariableNotSetException("TagsUploadServiceEndpoint environment variable not set"));
                 string LabelingTagsParamatersName = Engine.GetEnvironmentVariable("tagDataParameterName", log);
-                string LabelingTags = LabelingTagsParamatersName + "=" + DataTagsBlob.DownloadText(Encoding.UTF8);
+                //string LabelingTags = LabelingTagsParamatersName + "=" + DataTagsBlob.DownloadText(Encoding.UTF8);
+                string LabelingTags = DataTagsBlob.DownloadText(Encoding.UTF8);
                 //AddLabelingTagsUrl = Uri.EscapeUriString(AddLabelingTagsUrl);
+
+                HttpContent LabelingTagsContent = new StringContent(LabelingTags);
+                var content = new MultipartFormDataContent();
+                content.Add(LabelingTagsContent, "name");
 
                 //****Currently only working with public access set on blob folders
                 //Generate a URL with SAS token to submit to analyze image API
@@ -152,10 +157,10 @@ namespace semisupervisedFramework
                 //string DataTagsUrl = DataTagsBlob.Uri.ToString(); //+ dataEvaluatingSas;
 
                 //Make a request to the model service passing the file URL
-                string ResponseString = Helper.GetEvaluationResponseString(AddLabelingTagsEndpoint, LabelingTags, log);
+                string ResponseString = Helper.GetEvaluationResponseString(AddLabelingTagsEndpoint, content, log);
                 if (ResponseString == "")
                 {
-                    throw (new MissingRequiredObject("\nresponseString not generated from URL: " + AddLabelingTagsUrl));
+                    throw (new MissingRequiredObject("\nresponseString not generated from URL: " + AddLabelingTagsEndpoint));
                 }
                 System.Environment.SetEnvironmentVariable("dataTagsFileHash", DataTagsBlob.Properties.ContentMD5);
                 log.LogInformation(ResponseString);

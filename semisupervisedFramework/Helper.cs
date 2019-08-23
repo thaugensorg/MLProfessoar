@@ -22,7 +22,8 @@ using Microsoft.Azure.Storage;
 using Microsoft.Azure.Storage.Blob;
 using Microsoft.Azure.Storage.DataMovement;
 using Microsoft.Azure.Storage.Auth;
-using Microsoft.AspNetCore.Http;
+//using Microsoft.AspNetCore.Http;
+//using Microsoft.Net.Http;
 using Newtonsoft.Json;
 
 
@@ -41,9 +42,8 @@ namespace semisupervisedFramework
             {
                 //construct and call model URL then fetch response
                 HttpClient Client = new HttpClient();
-                HttpRequestMessage Request = new HttpRequestMessage(HttpMethod.Post, new Uri(targetUrl));
-                Request.Content = new StringContent(postData, Encoding.UTF8, "application/json");
-                HttpResponseMessage Response = Client.SendAsync(Request).Result;
+                Uri TargetUri = new Uri(targetUrl);
+                HttpResponseMessage Response = Client.PostAsync(TargetUri, postData).Result;
                 ResponseString = Response.Content.ReadAsStringAsync().Result;
             }
             catch (Exception e)
