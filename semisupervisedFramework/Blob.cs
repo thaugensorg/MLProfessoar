@@ -6,13 +6,18 @@ using System.Security.Cryptography;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.Extensions.Logging;
+using System.Globalization;
 
+using Microsoft.Extensions.Logging;
 using Microsoft.Azure.Storage;
 using Microsoft.Azure.Storage.Blob;
 using Microsoft.Azure.Storage.DataMovement;
 using Microsoft.Azure.Search;
 using Microsoft.Azure.Search.Models;
+
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+
 
 namespace semisupervisedFramework
 {
@@ -33,6 +38,7 @@ namespace semisupervisedFramework
 
     public class FrameworkBlob : CloudBlockBlob
     {
+        // encapsulates the GetBlobByHash behavior which is reused between both DataBlob and JsonBlob subclasses.
         public FrameworkBlob(Uri blobUri) : base(blobUri) { }
 
         //calculates a blob hash to join JSON to a specific version of a file.
@@ -75,7 +81,7 @@ namespace semisupervisedFramework
                 return null;
             }
         }
-        public string CalculateMD5Hash(string input)
+        public static string CalculateMD5Hash(string input)
         {
             // step 1, calculate MD5 hash from input
             MD5 md5 = MD5.Create();
@@ -114,7 +120,24 @@ namespace semisupervisedFramework
     {
         public DataBlob(Uri dataBlobUri) : base(dataBlobUri){ }
 
-        public JsonBlob GetBoundJson(ILogger log)
+        public DataBlob(Uri dataBlobUri, CloudBlockBlob dataBlob) : base(dataBlobUri)
+        {
+            BaseClass bc = JsonConvert.DeserializeObject<BaseClass>(JsonConvert.SerializeObject(B));
+            this.BlobType = dataBlob.BlobType;
+            this.Container = dataBlob.Container;
+            this.CopyState = dataBlob.CopyState;
+            this.IsDeleted = dataBlob.IsDeleted;
+            this.IsSnapshot = dataBlob.IsSnapshot;
+            this.Metadata = dataBlob.Metadata;
+            this.Name = dataBlob.Name;
+            this.Properties = dataBlob.Properties;
+            this.ServiceClient = dataBlob.ServiceClient;
+            this.StorageUri = dataBlob.StorageUri;
+
+        }
+
+        //*****TODO***** I believe this should be deprecated but saving the functionality until positive.
+        private JsonBlob GetBoundJson(ILogger log)
         {
             Search BindingSearch = new Search();
             SearchIndexClient IndexClient = Search.CreateSearchIndexClient("data-labels-index", log);
@@ -135,12 +158,44 @@ namespace semisupervisedFramework
         public BlobInfo blobInfo;
         public IList<string> Labels { get; set; }
 
-        public JsonBlob(Uri jsonBlobUri) : base(jsonBlobUri) { }
+        public JsonBlob(Uri jsonBlobUri, string md5Hash, ILogger log) : base(jsonBlobUri)
+        {
+            Search BindingSearch = new Search();
+            SearchIndexClient IndexClient = Search.CreateSearchIndexClient("data-labels-index", log);
+            DocumentSearchResult<JsonBlob> documentSearchResult = GetBlobByHash(IndexClient, this.Properties.ContentMD5, log);
+            if (documentSearchResult.Results.Count > 0)
+            {
+                //JsonBlob BoundJson = dataBlob.GetBoundJson(log);
+                //*****TODO***** get the url to the actual blob and down load the JOSON full JSON content not just what was indexed
+                string DataTrainingLabels = JsonConvert.SerializeObject(documentSearchResult);
+                JObject LabelsJsonObject = JObject.Parse(DataTrainingLabels);
+                JToken LabelsToken = LabelsJsonObject.SelectToken("labels");
+                string labels = Uri.EscapeDataString(LabelsToken.ToString());
 
+                JToken idToken = LabelsJsonObject.SelectToken("id");
+                Id = idToken.ToString();
 
+                JToken labelsToken = LabelsJsonObject.SelectToken("labels");
+                string labelsJson = labelsToken.ToString();
+                Labels = JsonConvert.DeserializeObject<IList<string>>(labelsJson);
+
+                JToken hashToken = LabelsJsonObject.SelectToken("blobInfo/hash");
+                blobInfo.Hash = hashToken.ToString();
+
+                JToken modifiedToken = LabelsJsonObject.SelectToken("blobInfo/modified");
+                blobInfo.Modified = DateTime.ParseExact(modifiedToken.ToString(), "MMM dd YYYY H:mmtt", CultureInfo.InvariantCulture);
+
+                JToken nameToken = LabelsJsonObject.SelectToken("blobInfo/name");
+                blobInfo.Name = nameToken.ToString();
+
+                JToken urlToken = LabelsJsonObject.SelectToken("blobInfo/url");
+                blobInfo.Url = urlToken.ToString();
+            }
+        }
 
         private static async Task<string> CalculateMD5Async(CloudBlockBlob blockBlob, ILogger log)
         {
+            //*****TODO***** it is not clear if the standard api for calculating the MD5 hash in Azure pages the hash calculation or if I have to do it manually.
             // https://stackoverflow.com/questions/2124468/possible-to-calculate-md5-or-other-hash-with-buffered-reads
             // http://www.infinitec.de/post/2007/06/09/Displaying-progress-updates-when-hashing-large-files.aspx
             // https://stackoverflow.com/questions/24312527/azure-blob-storage-downloadtobytearray-vs-downloadtostream
@@ -170,25 +225,16 @@ namespace semisupervisedFramework
             }
         }
 
-        public CloudBlockBlob GetBoundData(CloudBlobContainer Container, ILogger log)
+        public DataBlob GetBoundData(CloudBlobContainer Container, ILogger log)
         {
-
-            //get the environment variable specifying the MD5 hash of the last run tags file
-            string LkgDataTagsFileHash = Engine.GetEnvironmentVariable("dataTagsFileHash", log);
-            if (LkgDataTagsFileHash == null || LkgDataTagsFileHash == "")
-            {
-                throw (new EnvironmentVariableNotSetException("dataTagsFileHash environment variable not set"));
-            }
-
             //Get a reference to a container, if the container does not exist create one then get the reference to the blob you want to evaluate."
+            //*****TODO***** This uses the file name as the searcdh mechanism.  I expect if the file name changes so does the hash but this has not been verified.  If the name does not change the hash then I need to locate the file using the has which will mean creating a search index over the blob file properties.
             CloudBlockBlob RawDataBlob = Container.GetBlockBlobReference(this.blobInfo.Name);
             DataBlob TrainingDataBlob = new DataBlob(RawDataBlob.Uri);
-            //CloudBlockBlob DataEvaluating = GetBlob(StorageAccount, PendingEvaluationStorageContainerName, blobName, log);
             if (TrainingDataBlob == null)
             {
                 throw (new MissingRequiredObject("\nMissing dataEvaluating blob object."));
             }
-
 
             return TrainingDataBlob;
 

@@ -71,7 +71,7 @@ namespace semisupervisedFramework
                 }
 
                 //compute the file hash as this will be added to the meta data to allow for file version validation
-                string BlobMd5 = DataEvaluating.CalculateMD5Hash(DataEvaluating.ToString());
+                string BlobMd5 = FrameworkBlob.CalculateMD5Hash(DataEvaluating.ToString());
                 if (BlobMd5 == null)
                 {
                     log.LogInformation("\nWarning: Blob Hash calculation failed and will not be included in file information blob, continuing operation.");

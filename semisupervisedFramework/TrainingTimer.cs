@@ -58,35 +58,36 @@ namespace semisupervisedFramework
                 {
                     if (item.GetType() == typeof(CloudBlockBlob))
                     {
-                        DataBlob dataBlob = (DataBlob)item;
-                        TrainingDataUrl = dataBlob.Uri.ToString();
-                        string BindingHash = dataBlob.Properties.ContentMD5.ToString();
+                        CloudBlockBlob dataCloudBlockBlob = (CloudBlockBlob)item;
+                        TrainingDataUrl = dataCloudBlockBlob.Uri.ToString();
+                        string BindingHash = dataCloudBlockBlob.Properties.ContentMD5.ToString();
                         BindingHash = BindingHash.Substring(0, BindingHash.Length - 2);
                         if (BindingHash == null)
                         {
                             //compute the file hash as this will be added to the meta data to allow for file version validation
-                            string BlobMd5 = dataBlob.CalculateMD5Hash(dataBlob.ToString());
+                            string BlobMd5 = FrameworkBlob.CalculateMD5Hash(dataCloudBlockBlob.ToString());
                             if (BlobMd5 == null)
                             {
                                 log.LogInformation("\nWarning: Blob Hash calculation failed and will not be included in file information blob, continuing operation.");
                             }
                             else
                             {
-                                dataBlob.Properties.ContentMD5 = BlobMd5;
+                                dataCloudBlockBlob.Properties.ContentMD5 = BlobMd5;
                             }
 
                         }
-                        JsonBlob BoundJson = dataBlob.GetBoundJson(log);
-                        string DataTrainingLabels = JsonConvert.SerializeObject(BoundJson);
-
-                        // string DataTrainingLabels = JsonLabelsBlob.DownloadTextAsync().ToString();
-                        // List<string> Labels = JsonConvert.DeserializeObject<List<string>>(LabelsJson);
-                        JObject LabelsJsonObject = JObject.Parse(DataTrainingLabels);
-                        JToken LabelsToken = LabelsJsonObject.SelectToken("LabelingTags");
-                        string Labels = Uri.EscapeDataString(LabelsToken.ToString());
+                        //Get the content from the bound JSON file and instanciate a JsonBlob class then retrieve the labels collection from the Json to add to the image.
+                        dataCloudBlockBlob
+                        Uri emptyJsonBlobUri = new Uri("");
+                        JsonBlob BoundJson = new JsonBlob(emptyJsonBlobUri, dataCloudBlockBlob.Properties.ContentMD5, log);
+                        //string DataTrainingLabels = JsonConvert.SerializeObject(BoundJson);
+                        //JObject LabelsJsonObject = JObject.Parse(DataTrainingLabels);
+                        //JToken LabelsToken = LabelsJsonObject.SelectToken("labels");
+                        string trainingDataLabels = Uri.EscapeDataString(JsonConvert.SerializeObject(BoundJson.Labels));
 
                         //construct and call model URL then fetch response
-                        // the model always sends the label set in the message body with the name LabelsJson.  If your model needs other values in the URL then use {{environment variable name}}.
+                        // the model always sends the label set in the message body with the name LabelsJson.  If your model needs other values in the URL then use
+                        //{ {environment variable name}}.
                         // So the example load labels function in the sameple model package would look like this:
                         // https://branddetectionapp.azurewebsites.net/api/loadimagetags/?projectID={{ProjectID}}
                         // The orchestration engine appends the labels json file to the message body.
@@ -94,11 +95,27 @@ namespace semisupervisedFramework
 
                         HttpClient Client = new HttpClient();
                         string AddLabeledDataUrl = BoundJson.blobInfo.Url;
-                        AddLabeledDataUrl = ConstructModelRequestUrl(AddLabeledDataUrl, Labels, log);
+                        AddLabeledDataUrl = ConstructModelRequestUrl(AddLabeledDataUrl, trainingDataLabels, log);
+
+                        //Format the Data Labels content
                         HttpRequestMessage Request = new HttpRequestMessage(HttpMethod.Post, new Uri(AddLabeledDataUrl));
-                        Request.Content = new StringContent(DataTrainingLabels, Encoding.UTF8, "application/x-www-form-urlencoded");
-                        HttpResponseMessage Response = Client.SendAsync(Request).Result;
-                        string ResponseString = Response.Content.ReadAsStringAsync().Result;
+                        HttpContent DataLabelsStringContent = new StringContent(trainingDataLabels, Encoding.UTF8, "application/x-www-form-urlencoded");
+                        MultipartFormDataContent LabeledDataContent = new MultipartFormDataContent();
+                        LabeledDataContent.Add(DataLabelsStringContent, "LabeledData");
+
+                        //Format the data cotent
+                        //*****TODO***** move to an async architecture
+                        //*****TODO***** need to decide if there is value in sending the data as a binary stream in the post or if requireing the model data scienctist to accept URLs is sufficient.  If accessing the data blob with a SAS url requires Azure classes then create a configuration to pass the data as a stream in the post.
+                        //MemoryStream dataBlobMemStream = new MemoryStream();
+                        //dataBlob.DownloadToStream(dataBlobMemStream);
+                        //HttpContent LabeledDataHttpContent = new StreamContent(dataBlobMemStream);
+                        //LabeledDataContent.Add(LabeledDataContent, "LabeledData");
+
+                        //Make the http call and get a response
+                        string AddLabelingTagsEndpoint = Engine.GetEnvironmentVariable("LabeledDataServiceEndpoint", log);
+                        if (string.IsNullOrEmpty(AddLabelingTagsEndpoint)) throw (new EnvironmentVariableNotSetException("LabeledDataServiceEndpoint environment variable not set"));
+                        string ResponseString = Helper.GetEvaluationResponseString(AddLabelingTagsEndpoint, LabeledDataContent, log);
+                        if (string.IsNullOrEmpty(ResponseString)) throw (new MissingRequiredObject("\nresponseString not generated from URL: " + AddLabelingTagsEndpoint));
 
                         log.LogInformation($"C# Timer trigger function executed at: {DateTime.Now}");
                     }
@@ -139,14 +156,11 @@ namespace semisupervisedFramework
             //Check if there is a new version of the tags json file and if so load them into the environment
             if (DataTagsBlob.Properties.ContentMD5 != LkgDataTagsFileHash)
             {
-                //format the add labeling tags url
+                //format the http call to load labeling tags
                 string AddLabelingTagsEndpoint = Engine.GetEnvironmentVariable("TagsUploadServiceEndpoint", log);
                 if (string.IsNullOrEmpty(AddLabelingTagsEndpoint)) throw (new EnvironmentVariableNotSetException("TagsUploadServiceEndpoint environment variable not set"));
                 string LabelingTagsParamatersName = Engine.GetEnvironmentVariable("tagDataParameterName", log);
-                //string LabelingTags = LabelingTagsParamatersName + "=" + DataTagsBlob.DownloadText(Encoding.UTF8);
                 string LabelingTags = DataTagsBlob.DownloadText(Encoding.UTF8);
-                //AddLabelingTagsUrl = Uri.EscapeUriString(AddLabelingTagsUrl);
-
                 HttpContent LabelingTagsContent = new StringContent(LabelingTags);
                 var content = new MultipartFormDataContent();
                 content.Add(LabelingTagsContent, "LabelsJson");
@@ -156,44 +170,14 @@ namespace semisupervisedFramework
                 //string dataEvaluatingSas = GetBlobSharedAccessSignature(dataEvaluating);
                 //string DataTagsUrl = DataTagsBlob.Uri.ToString(); //+ dataEvaluatingSas;
 
-                //Make a request to the model service passing the file URL
+                //Make a request to the model service load labeling tags function passing the tags.
                 string ResponseString = Helper.GetEvaluationResponseString(AddLabelingTagsEndpoint, content, log);
-                if (ResponseString == "")
-                {
-                    throw (new MissingRequiredObject("\nresponseString not generated from URL: " + AddLabelingTagsEndpoint));
-                }
+                if (string.IsNullOrEmpty(ResponseString)) throw (new MissingRequiredObject("\nresponseString not generated from URL: " + AddLabelingTagsEndpoint));
+                
+                //save the hash of this version of the labeling tags file so that we can avoid running load labeling tags if the file has not changed.
                 System.Environment.SetEnvironmentVariable("dataTagsFileHash", DataTagsBlob.Properties.ContentMD5);
                 log.LogInformation(ResponseString);
             }
-        }
-
-        //Returns a response string for a given URL.
-        private static string GetEvaluationResponseString(string trainingDataUrl, string dataTrainingLabels, ILogger log)
-        {
-            //initialize variables
-            Stopwatch StopWatch = Stopwatch.StartNew();
-            string ResponseString = new string("");
-            string ModelRequestUrl = new string("");
-
-            try
-            {
-                //construct and call model URL then fetch response
-                HttpClient Client = new HttpClient();
-                ModelRequestUrl = ConstructModelRequestUrl(trainingDataUrl, dataTrainingLabels, log);
-                HttpRequestMessage Request = new HttpRequestMessage(HttpMethod.Post, new Uri(ModelRequestUrl));
-                HttpResponseMessage Response = Client.SendAsync(Request).Result;
-                ResponseString = Response.Content.ReadAsStringAsync().Result;
-            }
-            catch (Exception e)
-            {
-                log.LogInformation("\nFailed HTTP request for URL" + trainingDataUrl + " in application environment variables", e.Message);
-                return "";
-            }
-
-            //log the http elapsed time
-            StopWatch.Stop();
-            log.LogInformation("\nHTTP call to " + ModelRequestUrl + " completed in:" + StopWatch.Elapsed.TotalSeconds + " seconds.");
-            return ResponseString;
         }
 
         //Builds a URL to call the blob analysis model.
