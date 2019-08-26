@@ -62,9 +62,8 @@ namespace semisupervisedFramework
                 CloudBlobContainer Container = BlobClient.GetContainerReference(PendingEvaluationStorageContainerName);
 
                 //Get a reference to a container, if the container does not exist create one then get the reference to the blob you want to evaluate."
-                CloudBlockBlob RawDataBlob = GetBlob(StorageAccount, JsonStorageContainerName, blobName, log);
-                DataBlob DataEvaluating = new DataBlob(RawDataBlob.Uri);
-                //CloudBlockBlob DataEvaluating = GetBlob(StorageAccount, PendingEvaluationStorageContainerName, blobName, log);
+                CloudBlockBlob RawDataBlob = Search.GetBlob(StorageAccount, JsonStorageContainerName, blobName, log);
+                DataBlob DataEvaluating = new DataBlob(RawDataBlob.Properties.ContentMD5, log);
                 if (DataEvaluating == null)
                 {
                     throw (new MissingRequiredObject("\nMissing dataEvaluating blob object."));
@@ -78,18 +77,18 @@ namespace semisupervisedFramework
                 }
                 else
                 {
-                    DataEvaluating.Properties.ContentMD5 = BlobMd5;
+                    DataEvaluating.AzureBlob.Properties.ContentMD5 = BlobMd5;
                 }
 
                 //****Currently only working with public access set on blob folders
                 //Generate a URL with SAS token to submit to analyze image API
                 //string dataEvaluatingSas = GetBlobSharedAccessSignature(dataEvaluating);
-                string DataEvaluatingUrl = DataEvaluating.Uri.ToString(); //+ dataEvaluatingSas;
+                string DataEvaluatingUrl = DataEvaluating.AzureBlob.Uri.ToString(); //+ dataEvaluatingSas;
                 //string dataEvaluatingUrl = "test";
 
                 //package the file contents to send as http request content
                 MemoryStream DataEvaluatingContent = new MemoryStream();
-                await DataEvaluating.DownloadToStreamAsync(DataEvaluatingContent);
+                await DataEvaluating.AzureBlob.DownloadToStreamAsync(DataEvaluatingContent);
                 HttpContent DataEvaluatingStream = new StreamContent(DataEvaluatingContent);
                 var content = new MultipartFormDataContent();
                 content.Add(DataEvaluatingStream, "name");
@@ -115,40 +114,40 @@ namespace semisupervisedFramework
                 //model successfully analyzed content
                 if (Confidence >= ConfidenceThreshold)
                 {
-                    CloudBlockBlob EvaluatedData = GetBlob(StorageAccount, EvaluatedDataStorageContainerName, blobName, log);
+                    CloudBlockBlob EvaluatedData = Search.GetBlob(StorageAccount, EvaluatedDataStorageContainerName, blobName, log);
                     if (EvaluatedData == null)
                     {
                         throw (new MissingRequiredObject("\nMissing evaluatedData " + blobName + " destination blob in container " + EvaluatedDataStorageContainerName));
                     }
-                    CopyAzureBlobToAzureBlob(StorageAccount, DataEvaluating, EvaluatedData, log).Wait();
+                    CopyAzureBlobToAzureBlob(StorageAccount, DataEvaluating.AzureBlob, EvaluatedData, log).Wait();
 
                     //pick a random number of successfully analyzed content blobs and submit them for supervision verification.
                     Random Rnd = new Random();
                     if (Math.Round(Rnd.NextDouble(),2) <= ModelVerificationPercent)
                     {
-                        CloudBlockBlob ModelValidation = GetBlob(StorageAccount, ModelValidationStorageContainerName, blobName, log);
+                        CloudBlockBlob ModelValidation = Search.GetBlob(StorageAccount, ModelValidationStorageContainerName, blobName, log);
                         if (ModelValidation == null)
                         {
                             log.LogInformation("\nWarning: Model validation skipped for " + blobName + " because of missing evaluatedData " + blobName + " destination blob in container " + ModelValidationStorageContainerName);
                         }
                         else
                         {
-                            MoveAzureBlobToAzureBlob(StorageAccount, DataEvaluating, ModelValidation, log).Wait();
+                            MoveAzureBlobToAzureBlob(StorageAccount, DataEvaluating.AzureBlob, ModelValidation, log).Wait();
                         }
                     }
-                    await DataEvaluating.DeleteIfExistsAsync();
+                    await DataEvaluating.AzureBlob.DeleteIfExistsAsync();
                 }
 
                 //model was not sufficiently confident in its analysis
                 else
                 {
-                    CloudBlockBlob PendingSupervision = GetBlob(StorageAccount, PendingSupervisionStorageContainerName, blobName, log);
+                    CloudBlockBlob PendingSupervision = Search.GetBlob(StorageAccount, PendingSupervisionStorageContainerName, blobName, log);
                     if (PendingSupervision == null)
                     {
                         throw (new MissingRequiredObject("\nMissing pendingSupervision " + blobName + " destination blob in container " + PendingSupervisionStorageContainerName));
                     }
 
-                    MoveAzureBlobToAzureBlob(StorageAccount, DataEvaluating, PendingSupervision, log).Wait();
+                    MoveAzureBlobToAzureBlob(StorageAccount, DataEvaluating.AzureBlob, PendingSupervision, log).Wait();
                 }
 
                 //----------------------------This section collects information about the blob being analyzied and packages it in JSON that is then written to blob storage for later processing-----------------------------------
@@ -159,8 +158,8 @@ namespace semisupervisedFramework
                         new JProperty("blobInfo",
                             new JObject(
                                 new JProperty("name", blobName),
-                                new JProperty("url", DataEvaluating.Uri.ToString()),
-                                new JProperty("modified", DataEvaluating.Properties.LastModified.ToString()),
+                                new JProperty("url", DataEvaluating.AzureBlob.Uri.ToString()),
+                                new JProperty("modified", DataEvaluating.AzureBlob.Properties.LastModified.ToString()),
                                 new JProperty("hash", BlobMd5)
                             )
                         )
@@ -173,7 +172,7 @@ namespace semisupervisedFramework
                 BlobAnalysis.Merge(AnalysisJson);
 
                 //Note: all json files get writted to the same container as they are all accessed either by discrete name or by azure search index either GUID or Hash.
-                CloudBlockBlob JsonBlob = GetBlob(StorageAccount, JsonStorageContainerName, (string)BlobAnalysis.SelectToken("blobInfo.id") + ".json", log);
+                CloudBlockBlob JsonBlob = Search.GetBlob(StorageAccount, JsonStorageContainerName, (string)BlobAnalysis.SelectToken("blobInfo.id") + ".json", log);
                 JsonBlob.Properties.ContentType = "application/json";
                 string SerializedJson = JsonConvert.SerializeObject(BlobAnalysis, Newtonsoft.Json.Formatting.Indented, new JsonSerializerSettings { });
                 Stream MemStream = new MemoryStream(Encoding.UTF8.GetBytes(SerializedJson));
@@ -303,27 +302,6 @@ namespace semisupervisedFramework
             
             StopWatch.Stop();
             log.LogInformation("The Azure Blob " + sourceBlob + " transfer to " + destinationBlob + " completed in:" + StopWatch.Elapsed.TotalSeconds + " seconds.");
-        }
-
-
-        //Gets a reference to a specific blob using container and blob names as strings
-        public static CloudBlockBlob GetBlob(CloudStorageAccount account, string containerName, string blobName, ILogger log)
-        {
-            try
-            {
-                CloudBlobClient BlobClient = account.CreateCloudBlobClient();
-                CloudBlobContainer Container = BlobClient.GetContainerReference(containerName);
-                Container.CreateIfNotExistsAsync().Wait();
-
-                CloudBlockBlob Blob = Container.GetBlockBlobReference(blobName);
-
-                return Blob;
-            }
-            catch (Exception e)
-            {
-                log.LogInformation("\nNo blob " + blobName + " found in " + containerName + " ", e.Message);
-                return null;
-            }
         }
 
         //returns an Azure file transfer context for making a single file transfer.

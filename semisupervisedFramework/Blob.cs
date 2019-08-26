@@ -21,25 +21,31 @@ using Newtonsoft.Json.Linq;
 
 namespace semisupervisedFramework
 {
-    public partial class BlobInfo
+    public class BlobInfo
     {
         public string Name { get; set; }
         public string Url { get; set; }
 
         [IsSearchable]
-        public string Hash { get; set; }
+        public string Md5Hash { get; set; }
         public DateTimeOffset Modified { get; set; }
 
         public override string ToString()
         {
-            return $"Name: {Name}\tURL: {Url}\tHash: {Hash}\tModified: {Modified}";
+            return $"Name: {Name}\tURL: {Url}\tHash: {Md5Hash}\tModified: {Modified}";
         }
     }
 
-    public class FrameworkBlob : CloudBlockBlob
+    public class FrameworkBlob
     {
+        //we have to use has a relationship here as oposed to is a because using CloudBlockBlob as a base class requires
+        //the constructor to pass a URI and the primary behavior of the blob class is navigating between data and json blob types
+        //using the hash value to retrieve the URL.
+        public CloudBlockBlob AzureBlob { get; set; }
+        public ILogger Log { get; set; }
+
         // encapsulates the GetBlobByHash behavior which is reused between both DataBlob and JsonBlob subclasses.
-        public FrameworkBlob(Uri blobUri) : base(blobUri) { }
+        public FrameworkBlob() { }
 
         //calculates a blob hash to join JSON to a specific version of a file.
         private async Task<string> CalculateBlobHash(CloudBlockBlob blockBlob, ILogger log)
@@ -86,18 +92,18 @@ namespace semisupervisedFramework
             // step 1, calculate MD5 hash from input
             MD5 md5 = MD5.Create();
             byte[] inputBytes = Encoding.ASCII.GetBytes(input);
-            byte[] hash = md5.ComputeHash(inputBytes);
+            byte[] md5Hash = md5.ComputeHash(inputBytes);
 
             // step 2, convert byte array to hex string
             StringBuilder sb = new StringBuilder();
-            for (int i = 0; i < hash.Length; i++)
+            for (int i = 0; i < md5Hash.Length; i++)
             {
-                sb.Append(hash[i].ToString("X2"));
+                sb.Append(md5Hash[i].ToString("X2"));
             }
             return sb.ToString();
         }
 
-        public static DocumentSearchResult<JsonBlob> GetBlobByHash(SearchIndexClient indexClient, string hash, ILogger log)
+        public static DocumentSearchResult<JObject> GetBlobByHash(SearchIndexClient indexClient, string md5Hash, ILogger log)
         {
             SearchParameters parameters;
 
@@ -109,44 +115,85 @@ namespace semisupervisedFramework
                 };
 
             //return indexClient.Documents.Search<BlobInfo>(hash, parameters);
-            DocumentSearchResult<JsonBlob> result = indexClient.Documents.Search<JsonBlob>(hash);
+            DocumentSearchResult<JObject> result = indexClient.Documents.Search<JObject>(md5Hash);
             return result;
 
+        }
+
+        public Uri GetDataBlobUriFromJson(string md5Hash)
+        {
+            SearchIndexClient indexClient = GetJsonBindingSearchIndex();
+            JObject searchResult = JsonBindingSearchResult(indexClient, md5Hash);
+            JToken urlToken = searchResult.SelectToken("blobInfo.url");
+            if (urlToken != null)
+            {
+                return new Uri(urlToken.ToString());
+            }
+            else
+            {
+                throw (new MissingRequiredObject($"\nBound JSON for {md5Hash} does not contain a blobInfo.url name."));
+            }
+        }
+
+        public JObject GetJsonBlobJson(string md5Hash)
+        {
+            SearchIndexClient indexClient = GetJsonBindingSearchIndex();
+            return JsonBindingSearchResult(indexClient, md5Hash);
+        }
+
+        public SearchIndexClient GetJsonBindingSearchIndex()
+        {
+            Search BindingSearch = new Search();
+            return Search.CreateSearchIndexClient("data-labels-index", Log);
+        }
+
+        public JObject JsonBindingSearchResult(SearchIndexClient indexClient, string md5Hash)
+        {
+            DocumentSearchResult<JObject> documentSearchResult = GetBlobByHash(indexClient, md5Hash, Log);
+            if (documentSearchResult.Results.Count > 0)
+            {
+                JObject firstSearchResult = documentSearchResult.Results[0].Document;
+                return firstSearchResult;
+            }
+            throw (new MissingRequiredObject("\nNo search results returned from index using {md5Hash}."));
         }
     }
 
     //This class encapsulates the fucntionality for the data blob files that will be used to train the semisupervised model.
     public class DataBlob : FrameworkBlob
     {
-        public DataBlob(Uri dataBlobUri) : base(dataBlobUri){ }
-
-        public DataBlob(Uri dataBlobUri, CloudBlockBlob dataBlob) : base(dataBlobUri)
+        private JsonBlob _jsonBlob;
+        public JsonBlob BoundJsonBlob
         {
-            BaseClass bc = JsonConvert.DeserializeObject<BaseClass>(JsonConvert.SerializeObject(B));
-            this.BlobType = dataBlob.BlobType;
-            this.Container = dataBlob.Container;
-            this.CopyState = dataBlob.CopyState;
-            this.IsDeleted = dataBlob.IsDeleted;
-            this.IsSnapshot = dataBlob.IsSnapshot;
-            this.Metadata = dataBlob.Metadata;
-            this.Name = dataBlob.Name;
-            this.Properties = dataBlob.Properties;
-            this.ServiceClient = dataBlob.ServiceClient;
-            this.StorageUri = dataBlob.StorageUri;
-
+            get
+            {
+                if (_jsonBlob == null)
+                {
+                    _jsonBlob = new JsonBlob(AzureBlob.Properties.ContentMD5, Log);
+                    return _jsonBlob;
+                }
+                else
+                {
+                    return _jsonBlob;
+                }
+                //add json blob object logic if json blob is null
+            }
+            set => BoundJsonBlob = value;
         }
 
-        //*****TODO***** I believe this should be deprecated but saving the functionality until positive.
-        private JsonBlob GetBoundJson(ILogger log)
+        public DataBlob(string md5Hash, ILogger log)
         {
-            Search BindingSearch = new Search();
-            SearchIndexClient IndexClient = Search.CreateSearchIndexClient("data-labels-index", log);
-            DocumentSearchResult<JsonBlob> documentSearchResult = GetBlobByHash(IndexClient, this.Properties.ContentMD5, log);
-            if (documentSearchResult.Results.Count > 0)
-            {
-                return documentSearchResult.Results[0].Document;
-            }
-            return null;
+            Log = log;
+            Uri dataBlobUri = GetDataBlobUriFromJson(md5Hash);
+            CloudStorageAccount storageAccount = Engine.GetStorageAccount(log);
+            CloudBlobClient blobClient = storageAccount.CreateCloudBlobClient();
+            AzureBlob = new CloudBlockBlob(dataBlobUri, blobClient);
+        }
+
+        public DataBlob(CloudBlockBlob azureBlob, ILogger log)
+        {
+            Log = log;
+            AzureBlob = azureBlob;
         }
     }
 
@@ -155,41 +202,104 @@ namespace semisupervisedFramework
     {
         [System.ComponentModel.DataAnnotations.Key]
         public string Id { get; set; }
-        public BlobInfo blobInfo;
+        //private BlobInfo _blobInfo;
+        public BlobInfo BlobInfo;
         public IList<string> Labels { get; set; }
-
-        public JsonBlob(Uri jsonBlobUri, string md5Hash, ILogger log) : base(jsonBlobUri)
+        private DataBlob _DataBlob;
+        public DataBlob BoundDataBlob
         {
-            Search BindingSearch = new Search();
-            SearchIndexClient IndexClient = Search.CreateSearchIndexClient("data-labels-index", log);
-            DocumentSearchResult<JsonBlob> documentSearchResult = GetBlobByHash(IndexClient, this.Properties.ContentMD5, log);
-            if (documentSearchResult.Results.Count > 0)
+            get
             {
-                //JsonBlob BoundJson = dataBlob.GetBoundJson(log);
-                //*****TODO***** get the url to the actual blob and down load the JOSON full JSON content not just what was indexed
-                string DataTrainingLabels = JsonConvert.SerializeObject(documentSearchResult);
-                JObject LabelsJsonObject = JObject.Parse(DataTrainingLabels);
-                JToken LabelsToken = LabelsJsonObject.SelectToken("labels");
-                string labels = Uri.EscapeDataString(LabelsToken.ToString());
+                if (_DataBlob == null)
+                {
+                    _DataBlob = new DataBlob(BlobInfo.Md5Hash, Log);
+                    return _DataBlob;
+                }
+                else
+                {
+                    return _DataBlob;
+                }
+            }
+            set => BoundDataBlob = value;
+        }
 
-                JToken idToken = LabelsJsonObject.SelectToken("id");
+        public JsonBlob(string md5Hash, ILogger log)
+        {
+            BlobInfo = new BlobInfo();
+            Log = log;
+            JObject jsonBlobJson = GetJsonBlobJson(md5Hash);
+            //JsonBlob BoundJson = dataBlob.GetBoundJson(log);
+            //*****TODO***** get the url to the actual blob and down load the JOSON full JSON content not just what was indexed
+            JToken idToken = jsonBlobJson.SelectToken("id");
+            if (idToken != null)
+            {
                 Id = idToken.ToString();
+            }
+            else
+            {
+                throw (new MissingRequiredObject($"\nBound JSON for {md5Hash} does not contain an id name."));
+            }
 
-                JToken labelsToken = LabelsJsonObject.SelectToken("labels");
+            JToken labelsToken = jsonBlobJson.SelectToken("labels");
+            if (idToken != null)
+            {
                 string labelsJson = labelsToken.ToString();
                 Labels = JsonConvert.DeserializeObject<IList<string>>(labelsJson);
+            }
+            else
+            {
+                throw (new MissingRequiredObject($"\nBound JSON for {md5Hash} does not contain an labels name."));
+            }
 
-                JToken hashToken = LabelsJsonObject.SelectToken("blobInfo/hash");
-                blobInfo.Hash = hashToken.ToString();
+            JToken md5HashToken = jsonBlobJson.SelectToken("blobInfo.hash");
+            if (idToken != null)
+            {
+                BlobInfo.Md5Hash = md5HashToken.ToString();
+            }
+            else
+            {
+                throw (new MissingRequiredObject($"\nBound JSON for {md5Hash} does not contain an blobInfo.hash name."));
+            }
 
-                JToken modifiedToken = LabelsJsonObject.SelectToken("blobInfo/modified");
-                blobInfo.Modified = DateTime.ParseExact(modifiedToken.ToString(), "MMM dd YYYY H:mmtt", CultureInfo.InvariantCulture);
+            JToken modifiedToken = jsonBlobJson.SelectToken("blobInfo.modified");
+            if (idToken != null)
+            {
+               string dateTimeFormat = "MM'/'dd'/'yyyy hh':'mm':'ss tt zzzz";
+               string dateJsonToken = modifiedToken.ToString();
+               try
+                {
+                    //*****TODO***** update the format string to come from an environment variable that forces this date time format to align with the date time format used to create the value when the json is built.
+                    //*****TODO***** add culture handling using IFormatProvider so that this adjusts date time format in a single configuration location.
+                    BlobInfo.Modified = DateTime.Parse(dateJsonToken, CultureInfo.InvariantCulture);
+                }
+                catch (FormatException)
+                {
+                    throw (new FormatException($"\nThe following date: {dateJsonToken} does not match the format: {dateTimeFormat}."));
+                }
+            }
+            else
+            {
+                throw (new MissingRequiredObject($"\nBound JSON for {md5Hash} does not contain an blobInfo.modified name."));
+            }
 
-                JToken nameToken = LabelsJsonObject.SelectToken("blobInfo/name");
-                blobInfo.Name = nameToken.ToString();
+            JToken nameToken = jsonBlobJson.SelectToken("blobInfo.name");
+            if (idToken != null)
+            {
+                BlobInfo.Name = nameToken.ToString();
+            }
+            else
+            {
+                throw (new MissingRequiredObject($"\nBound JSON for {md5Hash} does not contain an blobInfo.name name."));
+            }
 
-                JToken urlToken = LabelsJsonObject.SelectToken("blobInfo/url");
-                blobInfo.Url = urlToken.ToString();
+            JToken urlToken = jsonBlobJson.SelectToken("blobInfo.url");
+            if (idToken != null)
+            {
+                BlobInfo.Url = urlToken.ToString();
+            }
+            else
+            {
+                throw (new MissingRequiredObject($"\nBound JSON for {md5Hash} does not contain an blobInfo.url name."));
             }
         }
 
@@ -215,8 +325,8 @@ namespace semisupervisedFramework
                         }
                         md5.TransformFinalBlock(block, 0, 0);
                     }
-                    var hash = md5.Hash;
-                    return Convert.ToBase64String(hash);
+                    var md5Hash = md5.Hash;
+                    return Convert.ToBase64String(md5Hash);
                 }
             }
             finally
@@ -225,12 +335,12 @@ namespace semisupervisedFramework
             }
         }
 
-        public DataBlob GetBoundData(CloudBlobContainer Container, ILogger log)
+        public DataBlob GetBoundData(CloudBlobContainer Container)
         {
             //Get a reference to a container, if the container does not exist create one then get the reference to the blob you want to evaluate."
             //*****TODO***** This uses the file name as the searcdh mechanism.  I expect if the file name changes so does the hash but this has not been verified.  If the name does not change the hash then I need to locate the file using the has which will mean creating a search index over the blob file properties.
-            CloudBlockBlob RawDataBlob = Container.GetBlockBlobReference(this.blobInfo.Name);
-            DataBlob TrainingDataBlob = new DataBlob(RawDataBlob.Uri);
+            CloudBlockBlob RawDataBlob = Container.GetBlockBlobReference(BlobInfo.Name);
+            DataBlob TrainingDataBlob = new DataBlob(BlobInfo.Md5Hash, Log);
             if (TrainingDataBlob == null)
             {
                 throw (new MissingRequiredObject("\nMissing dataEvaluating blob object."));

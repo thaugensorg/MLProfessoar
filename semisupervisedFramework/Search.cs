@@ -1,19 +1,22 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Text;
+using System.Threading.Tasks;
 
 using Microsoft.Azure.Search;
 using Microsoft.Azure.Search.Models;
 using Microsoft.Spatial;
-using Newtonsoft.Json;
 using Microsoft.Extensions.Logging;
-using System.Threading.Tasks;
-
 
 using Microsoft.Azure.Storage;
 using Microsoft.Azure.Storage.Blob;
 using Microsoft.Azure.Storage.DataMovement;
 
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+
+
+// This sample shows how to delete, create, upload documents and query an index
 // http://danielcoding.net/working-with-azure-search-in-c-net/
 // https://docs.microsoft.com/en-us/azure/search/search-howto-dotnet-sdk
 // https://cmatskas.com/indexing-and-searching-sql-server-data-with-azure-search/
@@ -23,7 +26,52 @@ namespace semisupervisedFramework
     class Search
     {
         // *****TODO***** should search be static or instanciable?
-        // This sample shows how to delete, create, upload documents and query an index
+        public static FrameworkBlob GetBlob(string Type, string dataBlobMD5, ILogger log)
+        {
+            //Search BindingSearch = new Search();
+            //SearchIndexClient IndexClient = Search.CreateSearchIndexClient("data-labels-index", log);
+            //DocumentSearchResult<JObject> documentSearchResult = FrameworkBlob.GetBlobByHash(IndexClient, ContentMD5, log);
+            //JObject linkingBlob = documentSearchResult.Results[0].Document;
+            //if (documentSearchResult.Results.Count == 0)
+            //{
+            //    throw (new MissingRequiredObject("\ndata-labels-index did not return a document using: " + ContentMD5));
+            //}
+            //string md5Hash = linkingBlob.SelectToken("blobInfo/hash").ToString();
+            switch (Type)
+            {
+                case "data":
+                    return new DataBlob(dataBlobMD5, log);
+
+                case "json":
+                    return new JsonBlob(dataBlobMD5, log);
+
+                default:
+                    throw (new MissingRequiredObject("\nInvalid blob type: " + Type));
+
+            }
+        }
+
+        //Gets a reference to a specific blob using container and blob names as strings
+        public static CloudBlockBlob GetBlob(CloudStorageAccount account, string containerName, string blobName, ILogger log)
+        {
+            try
+            {
+                CloudBlobClient BlobClient = account.CreateCloudBlobClient();
+                CloudBlobContainer Container = BlobClient.GetContainerReference(containerName);
+                Container.CreateIfNotExistsAsync().Wait();
+
+                CloudBlockBlob Blob = Container.GetBlockBlobReference(blobName);
+
+                return Blob;
+            }
+            catch (Exception e)
+            {
+                log.LogInformation("\nNo blob " + blobName + " found in " + containerName + " ", e.Message);
+                return null;
+            }
+        }
+
+
         public static void InitializeSearch()
         {
             ILoggerFactory logger = (ILoggerFactory)new LoggerFactory();

@@ -61,7 +61,6 @@ namespace semisupervisedFramework
                         CloudBlockBlob dataCloudBlockBlob = (CloudBlockBlob)item;
                         TrainingDataUrl = dataCloudBlockBlob.Uri.ToString();
                         string BindingHash = dataCloudBlockBlob.Properties.ContentMD5.ToString();
-                        BindingHash = BindingHash.Substring(0, BindingHash.Length - 2);
                         if (BindingHash == null)
                         {
                             //compute the file hash as this will be added to the meta data to allow for file version validation
@@ -76,14 +75,12 @@ namespace semisupervisedFramework
                             }
 
                         }
+                        //trim the 2 "equals" off the trailing end of the hash or the http send will fail either using the client or raw http calls.
+                        BindingHash = BindingHash.Substring(0, BindingHash.Length - 2);
+
                         //Get the content from the bound JSON file and instanciate a JsonBlob class then retrieve the labels collection from the Json to add to the image.
-                        dataCloudBlockBlob
-                        Uri emptyJsonBlobUri = new Uri("");
-                        JsonBlob BoundJson = new JsonBlob(emptyJsonBlobUri, dataCloudBlockBlob.Properties.ContentMD5, log);
-                        //string DataTrainingLabels = JsonConvert.SerializeObject(BoundJson);
-                        //JObject LabelsJsonObject = JObject.Parse(DataTrainingLabels);
-                        //JToken LabelsToken = LabelsJsonObject.SelectToken("labels");
-                        string trainingDataLabels = Uri.EscapeDataString(JsonConvert.SerializeObject(BoundJson.Labels));
+                        JsonBlob boundJson = (JsonBlob)Search.GetBlob("json", BindingHash, log);
+                        string trainingDataLabels = Uri.EscapeDataString(JsonConvert.SerializeObject(boundJson.Labels));
 
                         //construct and call model URL then fetch response
                         // the model always sends the label set in the message body with the name LabelsJson.  If your model needs other values in the URL then use
@@ -94,32 +91,37 @@ namespace semisupervisedFramework
                         // http://localhost:7071/api/LoadImageTags/?projectID=8d9d12d1-5d5c-4893-b915-4b5b3201f78e&labelsJson={%22Labels%22:[%22Hemlock%22,%22Japanese%20Cherry%22]}
 
                         HttpClient Client = new HttpClient();
-                        string AddLabeledDataUrl = BoundJson.blobInfo.Url;
+                        string AddLabeledDataUrl = boundJson.BlobInfo.Url;
                         AddLabeledDataUrl = ConstructModelRequestUrl(AddLabeledDataUrl, trainingDataLabels, log);
+                        HttpResponseMessage Response = Client.GetAsync(AddLabeledDataUrl).Result;
+                        string ResponseString = Response.Content.ReadAsStringAsync().Result;
+                        if (string.IsNullOrEmpty(ResponseString)) throw (new MissingRequiredObject($"\nresponseString not generated from URL: {AddLabeledDataUrl}"));
 
+                        //the code below is for passing labels and conent as http content and not on the URL string.
                         //Format the Data Labels content
-                        HttpRequestMessage Request = new HttpRequestMessage(HttpMethod.Post, new Uri(AddLabeledDataUrl));
-                        HttpContent DataLabelsStringContent = new StringContent(trainingDataLabels, Encoding.UTF8, "application/x-www-form-urlencoded");
-                        MultipartFormDataContent LabeledDataContent = new MultipartFormDataContent();
-                        LabeledDataContent.Add(DataLabelsStringContent, "LabeledData");
+                        //HttpRequestMessage Request = new HttpRequestMessage(HttpMethod.Post, new Uri(AddLabeledDataUrl));
+                        //HttpContent DataLabelsStringContent = new StringContent(trainingDataLabels, Encoding.UTF8, "application/x-www-form-urlencoded");
+                        //MultipartFormDataContent LabeledDataContent = new MultipartFormDataContent();
+                        //LabeledDataContent.Add(DataLabelsStringContent, "LabeledData");
 
                         //Format the data cotent
                         //*****TODO***** move to an async architecture
-                        //*****TODO***** need to decide if there is value in sending the data as a binary stream in the post or if requireing the model data scienctist to accept URLs is sufficient.  If accessing the data blob with a SAS url requires Azure classes then create a configuration to pass the data as a stream in the post.
+                        //*****TODO***** need to decide if there is value in sending the data as a binary stream in the post or if requireing the model data scienctist to accept URLs is sufficient.  If accessing the data blob with a SAS url requires Azure classes then create a configuration to pass the data as a stream in the post.  If there is then this should be a configurable option.
                         //MemoryStream dataBlobMemStream = new MemoryStream();
                         //dataBlob.DownloadToStream(dataBlobMemStream);
                         //HttpContent LabeledDataHttpContent = new StreamContent(dataBlobMemStream);
                         //LabeledDataContent.Add(LabeledDataContent, "LabeledData");
 
                         //Make the http call and get a response
-                        string AddLabelingTagsEndpoint = Engine.GetEnvironmentVariable("LabeledDataServiceEndpoint", log);
-                        if (string.IsNullOrEmpty(AddLabelingTagsEndpoint)) throw (new EnvironmentVariableNotSetException("LabeledDataServiceEndpoint environment variable not set"));
-                        string ResponseString = Helper.GetEvaluationResponseString(AddLabelingTagsEndpoint, LabeledDataContent, log);
-                        if (string.IsNullOrEmpty(ResponseString)) throw (new MissingRequiredObject("\nresponseString not generated from URL: " + AddLabelingTagsEndpoint));
+                        //string AddLabelingTagsEndpoint = Engine.GetEnvironmentVariable("LabeledDataServiceEndpoint", log);
+                        //if (string.IsNullOrEmpty(AddLabelingTagsEndpoint)) throw (new EnvironmentVariableNotSetException("LabeledDataServiceEndpoint environment variable not set"));
+                        //string ResponseString = Helper.GetEvaluationResponseString(AddLabelingTagsEndpoint, LabeledDataContent, log);
+                        //if (string.IsNullOrEmpty(ResponseString)) throw (new MissingRequiredObject("\nresponseString not generated from URL: " + AddLabelingTagsEndpoint));
 
-                        log.LogInformation($"C# Timer trigger function executed at: {DateTime.Now}");
+                        log.LogInformation($"Successfully added blob: {dataCloudBlockBlob.Name} with labels: {JsonConvert.SerializeObject(boundJson.Labels)}");
                     }
                 }
+                log.LogInformation($"C# Timer trigger function executed at: {DateTime.Now}");
             }
             catch (Exception e)
             {
