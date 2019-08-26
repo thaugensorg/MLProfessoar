@@ -23,15 +23,13 @@ namespace semisupervisedFramework.Functions
     {
         //*****TODO***** Externalize timer frequency.
         [FunctionName("TrainingTimer")]
-        public static void Run(
-                [TimerTrigger("0 */1 * * * *"
 
             //This setting causes the timer job to immediately run when you press F5 rather than having to wait for the timer to fire after n minutes.
 #if DEBUG
-            , RunOnStartup = true
+        public static void Run([TimerTrigger("0 */1 * * * *", RunOnStartup = true)]TimerInfo myTimer, ILogger log)
+#else
+        public static void Run([TimerTrigger("0 */1 * * * *", RunOnStartup = false)]TimerInfo myTimer, ILogger log)
 #endif            
-
-            )]TimerInfo myTimer, ILogger log)
         {
             Engine engine = new Engine(log);
             try
