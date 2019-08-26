@@ -17,7 +17,7 @@ using Microsoft.Azure.Search.Models;
 
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-
+using semisupervisedFramework.Exceptions;
 
 namespace semisupervisedFramework
 {

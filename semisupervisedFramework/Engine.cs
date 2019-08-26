@@ -8,7 +8,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Azure.Storage;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-
+using semisupervisedFramework.Exceptions;
 
 namespace semisupervisedFramework
 {

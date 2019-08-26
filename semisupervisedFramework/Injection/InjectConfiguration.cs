@@ -1,6 +1,5 @@
 ﻿using Microsoft.Azure.WebJobs.Host.Config;
 using Microsoft.Extensions.DependencyInjection;
-using semisupervisedFramework.Settings;
 using System;
 
 namespace semisupervisedFramework.Injection
