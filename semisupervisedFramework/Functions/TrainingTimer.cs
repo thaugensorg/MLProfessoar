@@ -12,19 +12,13 @@ using Microsoft.Azure.Storage.DataMovement;
 
 using Microsoft.Azure.WebJobs;
 using Microsoft.Azure.WebJobs.Host;
-using Microsoft.Azure.WebJobs.Host.Config;
 using Microsoft.Extensions.Logging;
 
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
-namespace semisupervisedFramework
+namespace semisupervisedFramework.Functions
 {
-    public class Startup : IExtensionConfigProvider
-    {
-        // *****todo***** why doesn't this run???
-        public void Initialize(ExtensionConfigContext context) => Search.InitializeSearch();
-    }
     public static class TrainingTimer
     {
         [FunctionName("TrainingTimer")]
@@ -43,12 +37,12 @@ namespace semisupervisedFramework
                 //Search.InitializeSearch();
 
                 // Create Reference to Azure Storage Account
-                CloudStorageAccount StorageAccount = Engine.GetStorageAccount(log);
-                CloudBlobClient BlobClient = StorageAccount.CreateCloudBlobClient();
-                CloudBlobContainer LabeledDataContainer = BlobClient.GetContainerReference("labeleddata");
-                HttpClient Client = new HttpClient();
-                HttpResponseMessage Response = new HttpResponseMessage();
-                string ResponseString = "";
+                var StorageAccount = Engine.GetStorageAccount(log);
+                var BlobClient = StorageAccount.CreateCloudBlobClient();
+                var LabeledDataContainer = BlobClient.GetContainerReference("labeleddata");
+                var Client = new HttpClient();
+                var Response = new HttpResponseMessage();
+                var ResponseString = "";
 
 
                 // with a container load training tags
@@ -58,17 +52,17 @@ namespace semisupervisedFramework
                 }
 
                 string TrainingDataUrl;
-                foreach (IListBlobItem item in LabeledDataContainer.ListBlobs(null, false))
+                foreach (var item in LabeledDataContainer.ListBlobs(null, false))
                 {
                     if (item.GetType() == typeof(CloudBlockBlob))
                     {
-                        CloudBlockBlob dataCloudBlockBlob = (CloudBlockBlob)item;
+                        var dataCloudBlockBlob = (CloudBlockBlob)item;
                         TrainingDataUrl = dataCloudBlockBlob.Uri.ToString();
-                        string BindingHash = dataCloudBlockBlob.Properties.ContentMD5.ToString();
+                        var BindingHash = dataCloudBlockBlob.Properties.ContentMD5.ToString();
                         if (BindingHash == null)
                         {
                             //compute the file hash as this will be added to the meta data to allow for file version validation
-                            string BlobMd5 = FrameworkBlob.CalculateMD5Hash(dataCloudBlockBlob.ToString());
+                            var BlobMd5 = FrameworkBlob.CalculateMD5Hash(dataCloudBlockBlob.ToString());
                             if (BlobMd5 == null)
                             {
                                 log.LogInformation("\nWarning: Blob Hash calculation failed and will not be included in file information blob, continuing operation.");
@@ -83,8 +77,8 @@ namespace semisupervisedFramework
                         BindingHash = BindingHash.Substring(0, BindingHash.Length - 2);
 
                         //Get the content from the bound JSON file and instanciate a JsonBlob class then retrieve the labels collection from the Json to add to the image.
-                        JsonBlob boundJson = (JsonBlob)Search.GetBlob("json", BindingHash, log);
-                        string trainingDataLabels = Uri.EscapeDataString(JsonConvert.SerializeObject(boundJson.Labels));
+                        var boundJson = (JsonBlob)Search.GetBlob("json", BindingHash, log);
+                        var trainingDataLabels = Uri.EscapeDataString(JsonConvert.SerializeObject(boundJson.Labels));
 
                         //construct and call model URL then fetch response
                         // the model always sends the label set in the message body with the name LabelsJson.  If your model needs other values in the URL then use
@@ -94,11 +88,11 @@ namespace semisupervisedFramework
                         // The orchestration engine appends the labels json file to the message body.
                         // http://localhost:7071/api/LoadImageTags/?projectID=8d9d12d1-5d5c-4893-b915-4b5b3201f78e&labelsJson={%22Labels%22:[%22Hemlock%22,%22Japanese%20Cherry%22]}
 
-                        string AddLabeledDataUrl = boundJson.BlobInfo.Url;
+                        var AddLabeledDataUrl = boundJson.BlobInfo.Url;
                         AddLabeledDataUrl = ConstructModelRequestUrl(AddLabeledDataUrl, trainingDataLabels, log);
                         Response = Client.GetAsync(AddLabeledDataUrl).Result;
                         ResponseString = Response.Content.ReadAsStringAsync().Result;
-                        if (string.IsNullOrEmpty(ResponseString)) throw (new MissingRequiredObject($"\nresponseString not generated from URL: {AddLabeledDataUrl}"));
+                        if (string.IsNullOrEmpty(ResponseString)) throw new MissingRequiredObjectException($"\nresponseString not generated from URL: {AddLabeledDataUrl}");
 
                         //the code below is for passing labels and conent as http content and not on the URL string.
                         //Format the Data Labels content
@@ -125,12 +119,12 @@ namespace semisupervisedFramework
                     }
                 }
                 //Invoke the train model web service call
-                string trainModelUrl = Engine.GetEnvironmentVariable("TrainModelServiceEndpoint", log);
-                if (string.IsNullOrEmpty(trainModelUrl)) throw (new EnvironmentVariableNotSetException("TrainModelServiceEndpoint environment variable not set"));
+                var trainModelUrl = Engine.GetEnvironmentVariable("TrainModelServiceEndpoint", log);
+                if (string.IsNullOrEmpty(trainModelUrl)) throw new EnvironmentVariableNotSetException("TrainModelServiceEndpoint environment variable not set");
                 Client = new HttpClient();
                 Response = Client.GetAsync(trainModelUrl).Result;
                 ResponseString = Response.Content.ReadAsStringAsync().Result;
-                if (string.IsNullOrEmpty(ResponseString)) throw (new MissingRequiredObject($"\nresponseString not generated from URL: {trainModelUrl}"));
+                if (string.IsNullOrEmpty(ResponseString)) throw new MissingRequiredObjectException($"\nresponseString not generated from URL: {trainModelUrl}");
 
                 log.LogInformation($"C# Timer trigger function executed at: {DateTime.Now}");
             }
@@ -143,19 +137,19 @@ namespace semisupervisedFramework
         private static void LoadTrainingTags(ILogger log, CloudStorageAccount StorageAccount)
         {
             //Construct a blob client to marshall the storage Functionality
-            CloudBlobClient LabelsBlobClient = StorageAccount.CreateCloudBlobClient();
+            var LabelsBlobClient = StorageAccount.CreateCloudBlobClient();
 
             //Construct a blob storage container given a name string and a storage account
-            string jsonDataContainerName = Engine.GetEnvironmentVariable("jsonStorageContainerName", log);
-            if (string.IsNullOrEmpty(jsonDataContainerName)) throw (new EnvironmentVariableNotSetException("jsonStorageContainerName environment variable not set"));
-        
-            CloudBlobContainer Container = LabelsBlobClient.GetContainerReference(jsonDataContainerName);
+            var jsonDataContainerName = Engine.GetEnvironmentVariable("jsonStorageContainerName", log);
+            if (string.IsNullOrEmpty(jsonDataContainerName)) throw new EnvironmentVariableNotSetException("jsonStorageContainerName environment variable not set");
+
+            var Container = LabelsBlobClient.GetContainerReference(jsonDataContainerName);
 
             //get the training tags json blob from the container
-            string DataTagsBlobName = Engine.GetEnvironmentVariable("dataTagsBlobName", log);
-            if (string.IsNullOrEmpty(DataTagsBlobName)) throw (new EnvironmentVariableNotSetException("dataTagsBlobName environment variable not set"));
-            
-            CloudBlockBlob DataTagsBlob = Container.GetBlockBlobReference(DataTagsBlobName);
+            var DataTagsBlobName = Engine.GetEnvironmentVariable("dataTagsBlobName", log);
+            if (string.IsNullOrEmpty(DataTagsBlobName)) throw new EnvironmentVariableNotSetException("dataTagsBlobName environment variable not set");
+
+            var DataTagsBlob = Container.GetBlockBlobReference(DataTagsBlobName);
 
             //the blob has to be "touched" or the properties will all be null
             if (DataTagsBlob.Exists() != true)
@@ -164,16 +158,16 @@ namespace semisupervisedFramework
             };
 
             //get the environment variable specifying the MD5 hash of the last run tags file
-            string LkgDataTagsFileHash = Engine.GetEnvironmentVariable("dataTagsFileHash", log);
+            var LkgDataTagsFileHash = Engine.GetEnvironmentVariable("dataTagsFileHash", log);
 
             //Check if there is a new version of the tags json file and if so load them into the environment
             if (DataTagsBlob.Properties.ContentMD5 != LkgDataTagsFileHash)
             {
                 //format the http call to load labeling tags
-                string AddLabelingTagsEndpoint = Engine.GetEnvironmentVariable("TagsUploadServiceEndpoint", log);
-                if (string.IsNullOrEmpty(AddLabelingTagsEndpoint)) throw (new EnvironmentVariableNotSetException("TagsUploadServiceEndpoint environment variable not set"));
-                string LabelingTagsParamatersName = Engine.GetEnvironmentVariable("tagDataParameterName", log);
-                string LabelingTags = DataTagsBlob.DownloadText(Encoding.UTF8);
+                var AddLabelingTagsEndpoint = Engine.GetEnvironmentVariable("TagsUploadServiceEndpoint", log);
+                if (string.IsNullOrEmpty(AddLabelingTagsEndpoint)) throw new EnvironmentVariableNotSetException("TagsUploadServiceEndpoint environment variable not set");
+                var LabelingTagsParamatersName = Engine.GetEnvironmentVariable("tagDataParameterName", log);
+                var LabelingTags = DataTagsBlob.DownloadText(Encoding.UTF8);
                 HttpContent LabelingTagsContent = new StringContent(LabelingTags);
                 var content = new MultipartFormDataContent();
                 content.Add(LabelingTagsContent, "LabelsJson");
@@ -184,11 +178,11 @@ namespace semisupervisedFramework
                 //string DataTagsUrl = DataTagsBlob.Uri.ToString(); //+ dataEvaluatingSas;
 
                 //Make a request to the model service load labeling tags function passing the tags.
-                string ResponseString = Helper.GetEvaluationResponseString(AddLabelingTagsEndpoint, content, log);
-                if (string.IsNullOrEmpty(ResponseString)) throw (new MissingRequiredObject("\nresponseString not generated from URL: " + AddLabelingTagsEndpoint));
-                
+                var ResponseString = Helper.GetEvaluationResponseString(AddLabelingTagsEndpoint, content, log);
+                if (string.IsNullOrEmpty(ResponseString)) throw new MissingRequiredObjectException("\nresponseString not generated from URL: " + AddLabelingTagsEndpoint);
+
                 //save the hash of this version of the labeling tags file so that we can avoid running load labeling tags if the file has not changed.
-                System.Environment.SetEnvironmentVariable("dataTagsFileHash", DataTagsBlob.Properties.ContentMD5);
+                Environment.SetEnvironmentVariable("dataTagsFileHash", DataTagsBlob.Properties.ContentMD5);
                 log.LogInformation(ResponseString);
             }
         }
@@ -200,33 +194,33 @@ namespace semisupervisedFramework
             {
 
                 //get environment variables used to construct the model request URL
-                string TagUploadServiceEndpoint = Engine.GetEnvironmentVariable("TagsUploadServiceEndpoint", log);
+                var TagUploadServiceEndpoint = Engine.GetEnvironmentVariable("TagsUploadServiceEndpoint", log);
 
                 if (TagUploadServiceEndpoint == null || TagUploadServiceEndpoint == "")
                 {
-                    throw (new EnvironmentVariableNotSetException("TagsUploadServiceEndpoint environment variable not set"));
+                    throw new EnvironmentVariableNotSetException("TagsUploadServiceEndpoint environment variable not set");
                 }
 
                 // *****TODO***** enable string replacement for endpoint URLs.  THis will allow calling functions to be able to controle parameters that are passed.
                 // use the following order blob attributes, environment variables, URL parameters.
-                int StringReplaceStart = 0;
-                int StringReplaceEnd = 0;
+                var StringReplaceStart = 0;
+                var StringReplaceEnd = 0;
                 do
                 {
                     StringReplaceStart = TagUploadServiceEndpoint.IndexOf("{{", StringReplaceEnd);
                     if (StringReplaceStart != -1)
                     {
                         StringReplaceEnd = TagUploadServiceEndpoint.IndexOf("}}", StringReplaceStart);
-                        string StringToReplace = TagUploadServiceEndpoint.Substring(StringReplaceStart, StringReplaceEnd - StringReplaceStart);
-                        string ReplacementString = Engine.GetEnvironmentVariable(StringToReplace.Substring(2, StringToReplace.Length - 2), log);
+                        var StringToReplace = TagUploadServiceEndpoint.Substring(StringReplaceStart, StringReplaceEnd - StringReplaceStart);
+                        var ReplacementString = Engine.GetEnvironmentVariable(StringToReplace.Substring(2, StringToReplace.Length - 2), log);
                         TagUploadServiceEndpoint = TagUploadServiceEndpoint.Replace(StringToReplace, ReplacementString);
                     }
                 } while (StringReplaceStart != -1);
 
                 //http://localhost:7071/api/AddLabeledDataClient/?blobUrl=https://semisupervisedstorage.blob.core.windows.net/testimages/hemlock_2.jpg&imageLabels={%22Labels%22:[%22Hemlock%22]}
-                string TagDataParameterName = Engine.GetEnvironmentVariable("tagDataParameterName", log);
+                var TagDataParameterName = Engine.GetEnvironmentVariable("tagDataParameterName", log);
 
-                string ModelRequestUrl = TagUploadServiceEndpoint;
+                var ModelRequestUrl = TagUploadServiceEndpoint;
                 if (TagDataParameterName != null & TagDataParameterName != "")
                 {
                     ModelRequestUrl = ModelRequestUrl + "?" + TagDataParameterName + "=";
@@ -234,7 +228,7 @@ namespace semisupervisedFramework
                 }
                 else
                 {
-                    throw (new EnvironmentVariableNotSetException("tagDataParameterName environment variable not set"));
+                    throw new EnvironmentVariableNotSetException("tagDataParameterName environment variable not set");
                 }
 
                 return ModelRequestUrl;
@@ -252,35 +246,35 @@ namespace semisupervisedFramework
             try
             {
                 //get environment variables used to construct the model request URL
-                string LabeledDataServiceEndpoint = Engine.GetEnvironmentVariable("LabeledDataServiceEndpoint", log);
+                var LabeledDataServiceEndpoint = Engine.GetEnvironmentVariable("LabeledDataServiceEndpoint", log);
                 LabeledDataServiceEndpoint = "https://imagedetectionapp.azurewebsites.net/api/AddLabeledDataClient/";
 
                 if (LabeledDataServiceEndpoint == null || LabeledDataServiceEndpoint == "")
                 {
-                    throw (new EnvironmentVariableNotSetException("LabeledDataServiceEndpoint environment variable not set"));
+                    throw new EnvironmentVariableNotSetException("LabeledDataServiceEndpoint environment variable not set");
                 }
 
                 // *****TODO***** enable string replacement for endpoint URLs.  THis will allow calling functions to be able to controle parameters that are passed.
                 // use the following order blob attributes, environment variables, URL parameters.
-                int StringReplaceStart = 0;
-                int StringReplaceEnd = 0;
+                var StringReplaceStart = 0;
+                var StringReplaceEnd = 0;
                 do
                 {
                     StringReplaceStart = LabeledDataServiceEndpoint.IndexOf("{{", StringReplaceEnd);
                     if (StringReplaceStart != -1)
                     {
                         StringReplaceEnd = LabeledDataServiceEndpoint.IndexOf("}}", StringReplaceStart);
-                        string StringToReplace = LabeledDataServiceEndpoint.Substring(StringReplaceStart, StringReplaceEnd - StringReplaceStart);
-                        string ReplacementString = Engine.GetEnvironmentVariable(StringToReplace.Substring(2, StringToReplace.Length - 2), log);
+                        var StringToReplace = LabeledDataServiceEndpoint.Substring(StringReplaceStart, StringReplaceEnd - StringReplaceStart);
+                        var ReplacementString = Engine.GetEnvironmentVariable(StringToReplace.Substring(2, StringToReplace.Length - 2), log);
                         LabeledDataServiceEndpoint = LabeledDataServiceEndpoint.Replace(StringToReplace, ReplacementString);
                     }
                 } while (StringReplaceStart != -1);
 
                 //http://localhost:7071/api/AddLabeledDataClient/?blobUrl=https://semisupervisedstorage.blob.core.windows.net/testimages/hemlock_2.jpg&imageLabels={%22Labels%22:[%22Hemlock%22]}
-                string ModelAssetParameterName = Engine.GetEnvironmentVariable("modelAssetParameterName", log);
+                var ModelAssetParameterName = Engine.GetEnvironmentVariable("modelAssetParameterName", log);
                 ModelAssetParameterName = "blobUrl";
 
-                string ModelRequestUrl = LabeledDataServiceEndpoint;
+                var ModelRequestUrl = LabeledDataServiceEndpoint;
                 if (ModelAssetParameterName != null & ModelAssetParameterName != "")
                 {
                     ModelRequestUrl = ModelRequestUrl + "?" + ModelAssetParameterName + "=";
@@ -289,7 +283,7 @@ namespace semisupervisedFramework
                 }
                 else
                 {
-                    throw (new EnvironmentVariableNotSetException("modelAssetParameterName environment variable not set"));
+                    throw new EnvironmentVariableNotSetException("modelAssetParameterName environment variable not set");
                 }
 
                 return ModelRequestUrl;

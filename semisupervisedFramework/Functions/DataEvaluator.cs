@@ -29,8 +29,9 @@ using Microsoft.Azure.CognitiveServices.Vision.ComputerVision.Models;
 using Microsoft.AspNetCore.Http;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using semisupervisedFramework.Exceptions;
 
-namespace semisupervisedFramework
+namespace semisupervisedFramework.Functions
 {
     public static class DataEvaluator
     {
@@ -41,36 +42,36 @@ namespace semisupervisedFramework
             try
             {
                 // need to add/fix json storage so there is only one container and need to 
-                string PendingEvaluationStorageContainerName = GetEnvironmentVariable("pendingEvaluationStorageContainerName", log);
-                string EvaluatedDataStorageContainerName = GetEnvironmentVariable("evaluatedDataStorageContainerName", log);
-                string JsonStorageContainerName = GetEnvironmentVariable("jsonStorageContainerName", log);
-                string PendingSupervisionStorageContainerName = GetEnvironmentVariable("pendingSupervisionStorageContainerName", log);
-                string LabeledDataStorageContainerName = GetEnvironmentVariable("labeledDataStorageContainerName", log);
-                string ModelValidationStorageContainerName = GetEnvironmentVariable("modelValidationStorageContainerName", log);
-                string PendingNewModelStorageContainerName = GetEnvironmentVariable("pendingNewModelStorageContainerName", log);
-                string StorageConnection = GetEnvironmentVariable("AzureWebJobsStorage", log);
-                string ConfidenceJsonPath = GetEnvironmentVariable("confidenceJSONPath", log);
-                string DataTagsBlobName = GetEnvironmentVariable("dataTagsBlobName", log);
-                double ConfidenceThreshold = Convert.ToDouble(GetEnvironmentVariable("confidenceThreshold", log));
-                double ModelVerificationPercent = Convert.ToDouble(GetEnvironmentVariable("modelVerificationPercentage", log));
+                var PendingEvaluationStorageContainerName = GetEnvironmentVariable("pendingEvaluationStorageContainerName", log);
+                var EvaluatedDataStorageContainerName = GetEnvironmentVariable("evaluatedDataStorageContainerName", log);
+                var JsonStorageContainerName = GetEnvironmentVariable("jsonStorageContainerName", log);
+                var PendingSupervisionStorageContainerName = GetEnvironmentVariable("pendingSupervisionStorageContainerName", log);
+                var LabeledDataStorageContainerName = GetEnvironmentVariable("labeledDataStorageContainerName", log);
+                var ModelValidationStorageContainerName = GetEnvironmentVariable("modelValidationStorageContainerName", log);
+                var PendingNewModelStorageContainerName = GetEnvironmentVariable("pendingNewModelStorageContainerName", log);
+                var StorageConnection = GetEnvironmentVariable("AzureWebJobsStorage", log);
+                var ConfidenceJsonPath = GetEnvironmentVariable("confidenceJSONPath", log);
+                var DataTagsBlobName = GetEnvironmentVariable("dataTagsBlobName", log);
+                var ConfidenceThreshold = Convert.ToDouble(GetEnvironmentVariable("confidenceThreshold", log));
+                var ModelVerificationPercent = Convert.ToDouble(GetEnvironmentVariable("modelVerificationPercentage", log));
 
                 //------------------------This section retrieves the blob needing evaluation and calls the evaluation service for processing.-----------------------
 
                 // Create Reference to Azure Storage Account
-                CloudStorageAccount StorageAccount = CloudStorageAccount.Parse(StorageConnection);
-                CloudBlobClient BlobClient = StorageAccount.CreateCloudBlobClient();
-                CloudBlobContainer Container = BlobClient.GetContainerReference(PendingEvaluationStorageContainerName);
+                var StorageAccount = CloudStorageAccount.Parse(StorageConnection);
+                var BlobClient = StorageAccount.CreateCloudBlobClient();
+                var Container = BlobClient.GetContainerReference(PendingEvaluationStorageContainerName);
 
                 //Get a reference to a container, if the container does not exist create one then get the reference to the blob you want to evaluate."
-                CloudBlockBlob RawDataBlob = Search.GetBlob(StorageAccount, JsonStorageContainerName, blobName, log);
-                DataBlob DataEvaluating = new DataBlob(RawDataBlob.Properties.ContentMD5, log);
+                var RawDataBlob = Search.GetBlob(StorageAccount, JsonStorageContainerName, blobName, log);
+                var DataEvaluating = new DataBlob(RawDataBlob.Properties.ContentMD5, log);
                 if (DataEvaluating == null)
                 {
-                    throw (new MissingRequiredObject("\nMissing dataEvaluating blob object."));
+                    throw new MissingRequiredObjectException("\nMissing dataEvaluating blob object.");
                 }
 
                 //compute the file hash as this will be added to the meta data to allow for file version validation
-                string BlobMd5 = FrameworkBlob.CalculateMD5Hash(DataEvaluating.ToString());
+                var BlobMd5 = FrameworkBlob.CalculateMD5Hash(DataEvaluating.ToString());
                 if (BlobMd5 == null)
                 {
                     log.LogInformation("\nWarning: Blob Hash calculation failed and will not be included in file information blob, continuing operation.");
@@ -83,30 +84,30 @@ namespace semisupervisedFramework
                 //****Currently only working with public access set on blob folders
                 //Generate a URL with SAS token to submit to analyze image API
                 //string dataEvaluatingSas = GetBlobSharedAccessSignature(dataEvaluating);
-                string DataEvaluatingUrl = DataEvaluating.AzureBlob.Uri.ToString(); //+ dataEvaluatingSas;
+                var DataEvaluatingUrl = DataEvaluating.AzureBlob.Uri.ToString(); //+ dataEvaluatingSas;
                 //string dataEvaluatingUrl = "test";
 
                 //package the file contents to send as http request content
-                MemoryStream DataEvaluatingContent = new MemoryStream();
+                var DataEvaluatingContent = new MemoryStream();
                 await DataEvaluating.AzureBlob.DownloadToStreamAsync(DataEvaluatingContent);
                 HttpContent DataEvaluatingStream = new StreamContent(DataEvaluatingContent);
                 var content = new MultipartFormDataContent();
                 content.Add(DataEvaluatingStream, "name");
 
                 //Make a request to the model service passing the file URL
-                string ResponseString = Helper.GetEvaluationResponseString(DataEvaluatingUrl, content, log);
+                var ResponseString = Helper.GetEvaluationResponseString(DataEvaluatingUrl, content, log);
                 if (ResponseString == "")
                 {
-                    throw (new MissingRequiredObject("\nresponseString not generated from URL: " + DataEvaluatingUrl));
+                    throw new MissingRequiredObjectException("\nresponseString not generated from URL: " + DataEvaluatingUrl);
                 }
 
                 //deserialize response JSON, get confidence score and compare with confidence threshold
-                JObject AnalysisJson = JObject.Parse(ResponseString);
-                string StrConfidence = (string)AnalysisJson.SelectToken(ConfidenceJsonPath);
-                double Confidence = (double)AnalysisJson.SelectToken(ConfidenceJsonPath);
+                var AnalysisJson = JObject.Parse(ResponseString);
+                var StrConfidence = (string)AnalysisJson.SelectToken(ConfidenceJsonPath);
+                var Confidence = (double)AnalysisJson.SelectToken(ConfidenceJsonPath);
                 if (StrConfidence == null)
                 {
-                    throw (new MissingRequiredObject("\nNo confidence value at " + ConfidenceJsonPath + " from environment variable ConfidenceJSONPath."));
+                    throw new MissingRequiredObjectException("\nNo confidence value at " + ConfidenceJsonPath + " from environment variable ConfidenceJSONPath.");
                 }
 
                 //--------------------------------This section processes the results of the analysis and transferes the blob to the container responsible for the next appropriate stage of processing.-------------------------------
@@ -114,18 +115,18 @@ namespace semisupervisedFramework
                 //model successfully analyzed content
                 if (Confidence >= ConfidenceThreshold)
                 {
-                    CloudBlockBlob EvaluatedData = Search.GetBlob(StorageAccount, EvaluatedDataStorageContainerName, blobName, log);
+                    var EvaluatedData = Search.GetBlob(StorageAccount, EvaluatedDataStorageContainerName, blobName, log);
                     if (EvaluatedData == null)
                     {
-                        throw (new MissingRequiredObject("\nMissing evaluatedData " + blobName + " destination blob in container " + EvaluatedDataStorageContainerName));
+                        throw new MissingRequiredObjectException("\nMissing evaluatedData " + blobName + " destination blob in container " + EvaluatedDataStorageContainerName);
                     }
                     CopyAzureBlobToAzureBlob(StorageAccount, DataEvaluating.AzureBlob, EvaluatedData, log).Wait();
 
                     //pick a random number of successfully analyzed content blobs and submit them for supervision verification.
-                    Random Rnd = new Random();
-                    if (Math.Round(Rnd.NextDouble(),2) <= ModelVerificationPercent)
+                    var Rnd = new Random();
+                    if (Math.Round(Rnd.NextDouble(), 2) <= ModelVerificationPercent)
                     {
-                        CloudBlockBlob ModelValidation = Search.GetBlob(StorageAccount, ModelValidationStorageContainerName, blobName, log);
+                        var ModelValidation = Search.GetBlob(StorageAccount, ModelValidationStorageContainerName, blobName, log);
                         if (ModelValidation == null)
                         {
                             log.LogInformation("\nWarning: Model validation skipped for " + blobName + " because of missing evaluatedData " + blobName + " destination blob in container " + ModelValidationStorageContainerName);
@@ -141,10 +142,10 @@ namespace semisupervisedFramework
                 //model was not sufficiently confident in its analysis
                 else
                 {
-                    CloudBlockBlob PendingSupervision = Search.GetBlob(StorageAccount, PendingSupervisionStorageContainerName, blobName, log);
+                    var PendingSupervision = Search.GetBlob(StorageAccount, PendingSupervisionStorageContainerName, blobName, log);
                     if (PendingSupervision == null)
                     {
-                        throw (new MissingRequiredObject("\nMissing pendingSupervision " + blobName + " destination blob in container " + PendingSupervisionStorageContainerName));
+                        throw new MissingRequiredObjectException("\nMissing pendingSupervision " + blobName + " destination blob in container " + PendingSupervisionStorageContainerName);
                     }
 
                     MoveAzureBlobToAzureBlob(StorageAccount, DataEvaluating.AzureBlob, PendingSupervision, log).Wait();
@@ -152,7 +153,7 @@ namespace semisupervisedFramework
 
                 //----------------------------This section collects information about the blob being analyzied and packages it in JSON that is then written to blob storage for later processing-----------------------------------
 
-                JObject BlobAnalysis =
+                var BlobAnalysis =
                     new JObject(
                         new JProperty("id", Guid.NewGuid().ToString()),
                         new JProperty("blobInfo",
@@ -166,15 +167,15 @@ namespace semisupervisedFramework
                     );
 
                 //create environment JSON object
-                JProperty BlobEnvironment = Engine.GetEnvironmentJson(log);
+                var BlobEnvironment = Engine.GetEnvironmentJson(log);
 
                 BlobAnalysis.Add(BlobEnvironment);
                 BlobAnalysis.Merge(AnalysisJson);
 
                 //Note: all json files get writted to the same container as they are all accessed either by discrete name or by azure search index either GUID or Hash.
-                CloudBlockBlob JsonBlob = Search.GetBlob(StorageAccount, JsonStorageContainerName, (string)BlobAnalysis.SelectToken("blobInfo.id") + ".json", log);
+                var JsonBlob = Search.GetBlob(StorageAccount, JsonStorageContainerName, (string)BlobAnalysis.SelectToken("blobInfo.id") + ".json", log);
                 JsonBlob.Properties.ContentType = "application/json";
-                string SerializedJson = JsonConvert.SerializeObject(BlobAnalysis, Newtonsoft.Json.Formatting.Indented, new JsonSerializerSettings { });
+                var SerializedJson = JsonConvert.SerializeObject(BlobAnalysis, Formatting.Indented, new JsonSerializerSettings { });
                 Stream MemStream = new MemoryStream(Encoding.UTF8.GetBytes(SerializedJson));
                 if (MemStream.Length != 0)
                 {
@@ -182,13 +183,13 @@ namespace semisupervisedFramework
                 }
                 else
                 {
-                    throw (new ZeroLengthFileException("\nencoded JSON memory stream is zero length and cannot be writted to blob storage"));
+                    throw new ZeroLengthFileException("\nencoded JSON memory stream is zero length and cannot be writted to blob storage");
                 }
 
 
                 log.LogInformation($"C# Blob trigger function Processed blob\n Name:{blobName} \n Size: {myBlob.Length} Bytes");
             }
-            catch (MissingRequiredObject e)
+            catch (MissingRequiredObjectException e)
             {
                 log.LogInformation("\n" + blobName + " could not be analyzed with message: " + e.Message);
             }
@@ -204,16 +205,16 @@ namespace semisupervisedFramework
             try
             {
                 //get environment variables used to construct the model request URL
-                string ModelServiceEndpoint = GetEnvironmentVariable("EvaluationServiceEndpoint", log);
+                var ModelServiceEndpoint = GetEnvironmentVariable("EvaluationServiceEndpoint", log);
 
-                if (ModelServiceEndpoint == null || ModelServiceEndpoint == "") 
+                if (ModelServiceEndpoint == null || ModelServiceEndpoint == "")
                 {
-                    throw (new EnvironmentVariableNotSetException("EvaluationServiceEndpoint environment variable not set"));
+                    throw new EnvironmentVariableNotSetException("EvaluationServiceEndpoint environment variable not set");
                 }
-                string ModelAssetParameterName = GetEnvironmentVariable("modelAssetParameterName", log);
+                var ModelAssetParameterName = GetEnvironmentVariable("modelAssetParameterName", log);
 
                 //construct model request URL
-                string ModelRequestUrl = ModelServiceEndpoint;
+                var ModelRequestUrl = ModelServiceEndpoint;
                 if (ModelAssetParameterName != null & ModelAssetParameterName != "")
                 {
                     ModelRequestUrl = ModelRequestUrl + "?" + ModelAssetParameterName + "=";
@@ -221,7 +222,7 @@ namespace semisupervisedFramework
                 }
                 else
                 {
-                    throw (new EnvironmentVariableNotSetException("modelAssetParameterName environment variable not set"));
+                    throw new EnvironmentVariableNotSetException("modelAssetParameterName environment variable not set");
                 }
 
                 return ModelRequestUrl;
@@ -239,10 +240,10 @@ namespace semisupervisedFramework
         {
             try
             {
-                string EnvironmentVariable = System.Environment.GetEnvironmentVariable(name, EnvironmentVariableTarget.Process);
+                var EnvironmentVariable = Environment.GetEnvironmentVariable(name, EnvironmentVariableTarget.Process);
                 if (EnvironmentVariable == null || EnvironmentVariable == "")
                 {
-                    throw (new EnvironmentVariableNotSetException("\n" + name + " environment variable not set"));
+                    throw new EnvironmentVariableNotSetException("\n" + name + " environment variable not set");
                 }
                 else
                 {
@@ -266,7 +267,7 @@ namespace semisupervisedFramework
         {
             await CopyAzureBlobToAzureBlob(account, sourceBlob, destinationBlob, log);
 
-            Stopwatch StopWatch = Stopwatch.StartNew();
+            var StopWatch = Stopwatch.StartNew();
             await sourceBlob.DeleteIfExistsAsync();
             StopWatch.Stop();
             log.LogInformation("The Azure Blob " + sourceBlob + " deleted in: " + StopWatch.Elapsed.TotalSeconds + " seconds.");
@@ -277,10 +278,10 @@ namespace semisupervisedFramework
         public static async Task CopyAzureBlobToAzureBlob(CloudStorageAccount account, CloudBlockBlob sourceBlob, CloudBlockBlob destinationBlob, ILogger log)
         {
             TransferCheckpoint Checkpoint = null;
-            SingleTransferContext Context = GetSingleTransferContext(Checkpoint, log);
-            CancellationTokenSource CancellationSource = new CancellationTokenSource();
+            var Context = GetSingleTransferContext(Checkpoint, log);
+            var CancellationSource = new CancellationTokenSource();
 
-            Stopwatch StopWatch = Stopwatch.StartNew();
+            var StopWatch = Stopwatch.StartNew();
             Task Task;
             try
             {
@@ -299,7 +300,7 @@ namespace semisupervisedFramework
                 e.Data.Add("destinationBlocName", destinationBlob);
                 throw;
             }
-            
+
             StopWatch.Stop();
             log.LogInformation("The Azure Blob " + sourceBlob + " transfer to " + destinationBlob + " completed in:" + StopWatch.Elapsed.TotalSeconds + " seconds.");
         }
@@ -309,7 +310,7 @@ namespace semisupervisedFramework
         {
             try
             {
-                SingleTransferContext Context = new SingleTransferContext(checkpoint);
+                var Context = new SingleTransferContext(checkpoint);
 
                 Context.ProgressHandler = new Progress<TransferStatus>((Progress) =>
                 {
@@ -330,7 +331,7 @@ namespace semisupervisedFramework
         {
             string SasContainerToken;
 
-            SharedAccessBlobPolicy SharedPolicy = new SharedAccessBlobPolicy()
+            var SharedPolicy = new SharedAccessBlobPolicy()
             {
                 //******* To Do: change to a more appropriate time than always 1 hour.  Maybe make this configurable.
                 SharedAccessStartTime = DateTime.UtcNow.AddHours(1),
@@ -355,38 +356,6 @@ namespace semisupervisedFramework
                 log.LogInformation("No description generated.");
             }
 
-        }
-    }
-
-    public class EnvironmentVariableNotSetException : Exception
-    {
-        public EnvironmentVariableNotSetException(string message)
-            : base(message)
-        {
-        }
-    }
-
-    public class InvalidUrlException : Exception
-    {
-        public InvalidUrlException(string message)
-            : base(message)
-        {
-        }
-    }
-
-    public class ZeroLengthFileException : Exception
-    {
-        public ZeroLengthFileException(string message)
-            : base(message)
-        {
-        }
-    }
-
-    public class MissingRequiredObject : Exception
-    {
-        public MissingRequiredObject(string message)
-            : base(message)
-        {
         }
     }
 }
