@@ -2,19 +2,19 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Azure.Storage.Blob;
 
-namespace semisupervisedFramework.Storage
+namespace semisupervisedFramework.Models
 {
     //This class encapsulates the fucntionality for the data blob files that will be used to train the semisupervised model.
-    public class DataBlob : FrameworkBlob
+    public class DataModel : BaseModel
     {
-        private JsonBlob _jsonBlob;
-        public JsonBlob BoundJsonBlob
+        private JsonModel _jsonBlob;
+        public JsonModel BoundJsonBlob
         {
             get
             {
                 if (_jsonBlob == null)
                 {
-                    _jsonBlob = new JsonBlob(AzureBlob.Properties.ContentMD5, Log);
+                    _jsonBlob = new JsonModel(AzureBlob.Properties.ContentMD5, Log);
                     return _jsonBlob;
                 }
                 else
@@ -26,7 +26,7 @@ namespace semisupervisedFramework.Storage
             set => BoundJsonBlob = value;
         }
 
-        public DataBlob(string md5Hash, ILogger log)
+        public DataModel(string md5Hash, ILogger log)
         {
             Log = log;
             var dataBlobUri = GetDataBlobUriFromJson(md5Hash);
@@ -35,7 +35,7 @@ namespace semisupervisedFramework.Storage
             AzureBlob = new CloudBlockBlob(dataBlobUri, blobClient);
         }
 
-        public DataBlob(CloudBlockBlob azureBlob, ILogger log)
+        public DataModel(CloudBlockBlob azureBlob, ILogger log)
         {
             Log = log;
             AzureBlob = azureBlob;

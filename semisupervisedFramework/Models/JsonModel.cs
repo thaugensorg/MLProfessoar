@@ -14,24 +14,24 @@ using Microsoft.Azure.Storage.DataMovement;
 
 using Newtonsoft.Json;
 
-namespace semisupervisedFramework.Storage
+namespace semisupervisedFramework.Models
 {
     //This class encapsulates the functionality for the json blob files that are bound to the data files.  These json files contain all of the meta data, labeling data, and results of every evaluation against the model
-    public class JsonBlob : FrameworkBlob
+    public class JsonModel : BaseModel
     {
         [System.ComponentModel.DataAnnotations.Key]
         public string Id { get; set; }
         //private BlobInfo _blobInfo;
-        public BlobInfo BlobInfo;
+        public BlobModel BlobInfo;
         public IList<string> Labels { get; set; }
-        private DataBlob _DataBlob;
-        public DataBlob BoundDataBlob
+        private DataModel _DataBlob;
+        public DataModel BoundDataBlob
         {
             get
             {
                 if (_DataBlob == null)
                 {
-                    _DataBlob = new DataBlob(BlobInfo.Md5Hash, Log);
+                    _DataBlob = new DataModel(BlobInfo.Md5Hash, Log);
                     return _DataBlob;
                 }
                 else
@@ -42,9 +42,9 @@ namespace semisupervisedFramework.Storage
             set => BoundDataBlob = value;
         }
 
-        public JsonBlob(string md5Hash, ILogger log)
+        public JsonModel(string md5Hash, ILogger log)
         {
-            BlobInfo = new BlobInfo();
+            BlobInfo = new BlobModel();
             Log = log;
             var jsonBlobJson = GetJsonBlobJson(md5Hash);
             //JsonBlob BoundJson = dataBlob.GetBoundJson(log);
@@ -154,12 +154,12 @@ namespace semisupervisedFramework.Storage
             }
         }
 
-        public DataBlob GetBoundData(CloudBlobContainer Container)
+        public DataModel GetBoundData(CloudBlobContainer Container)
         {
             //Get a reference to a container, if the container does not exist create one then get the reference to the blob you want to evaluate."
             //*****TODO***** This uses the file name as the searcdh mechanism.  I expect if the file name changes so does the hash but this has not been verified.  If the name does not change the hash then I need to locate the file using the has which will mean creating a search index over the blob file properties.
             var RawDataBlob = Container.GetBlockBlobReference(BlobInfo.Name);
-            var TrainingDataBlob = new DataBlob(BlobInfo.Md5Hash, Log);
+            var TrainingDataBlob = new DataModel(BlobInfo.Md5Hash, Log);
             if (TrainingDataBlob == null)
             {
                 throw new MissingRequiredObjectException("\nMissing dataEvaluating blob object.");

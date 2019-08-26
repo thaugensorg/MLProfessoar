@@ -9,10 +9,11 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Azure.Storage;
 using Microsoft.Azure.Storage.Blob;
 using Microsoft.Azure.Storage.DataMovement;
+using semisupervisedFramework.Models;
 
 namespace semisupervisedFramework.Storage
 {
-    class AzureStorage
+    class Helper
     {
         //Moves a blob between two azure containers.
         public static async Task MoveAzureBlobToAzureBlob(CloudStorageAccount account, CloudBlockBlob sourceBlob, CloudBlockBlob destinationBlob, ILogger log)
@@ -96,7 +97,7 @@ namespace semisupervisedFramework.Storage
         }
 
         // *****TODO***** should search be static or instanciable?
-        public static FrameworkBlob GetBlob(string Type, string dataBlobMD5, ILogger log)
+        public static BaseModel GetBlob(string Type, string dataBlobMD5, ILogger log)
         {
             //Search BindingSearch = new Search();
             //SearchIndexClient IndexClient = Search.CreateSearchIndexClient("data-labels-index", log);
@@ -110,10 +111,10 @@ namespace semisupervisedFramework.Storage
             switch (Type)
             {
                 case "data":
-                    return new DataBlob(dataBlobMD5, log);
+                    return new DataModel(dataBlobMD5, log);
 
                 case "json":
-                    return new JsonBlob(dataBlobMD5, log);
+                    return new JsonModel(dataBlobMD5, log);
 
                 default:
                     throw (new MissingRequiredObjectException("\nInvalid blob type: " + Type));

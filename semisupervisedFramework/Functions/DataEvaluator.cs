@@ -30,7 +30,7 @@ using Microsoft.AspNetCore.Http;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using semisupervisedFramework.Exceptions;
-using semisupervisedFramework.Storage;
+using semisupervisedFramework.Models;
 
 namespace semisupervisedFramework.Functions
 {
@@ -65,14 +65,14 @@ namespace semisupervisedFramework.Functions
 
                 //Get a reference to a container, if the container does not exist create one then get the reference to the blob you want to evaluate."
                 var RawDataBlob = Search.GetBlob(StorageAccount, JsonStorageContainerName, blobName, log);
-                var DataEvaluating = new DataBlob(RawDataBlob.Properties.ContentMD5, log);
+                var DataEvaluating = new DataModel(RawDataBlob.Properties.ContentMD5, log);
                 if (DataEvaluating == null)
                 {
                     throw new MissingRequiredObjectException("\nMissing dataEvaluating blob object.");
                 }
 
                 //compute the file hash as this will be added to the meta data to allow for file version validation
-                var BlobMd5 = FrameworkBlob.CalculateMD5Hash(DataEvaluating.ToString());
+                var BlobMd5 = BaseModel.CalculateMD5Hash(DataEvaluating.ToString());
                 if (BlobMd5 == null)
                 {
                     log.LogInformation("\nWarning: Blob Hash calculation failed and will not be included in file information blob, continuing operation.");
