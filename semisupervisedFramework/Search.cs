@@ -14,7 +14,7 @@ using Microsoft.Azure.Storage.DataMovement;
 
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-using semisupervisedFramework.Storage;
+using semisupervisedFramework.Models;
 
 
 // This sample shows how to delete, create, upload documents and query an index
@@ -59,7 +59,7 @@ namespace semisupervisedFramework
             {
                 Name = indexName,
 
-                Fields = FieldBuilder.BuildForType<JsonBlob>()
+                Fields = FieldBuilder.BuildForType<JsonModel>()
             };
 
             //new Field("blobInfo", DataType.Complex),

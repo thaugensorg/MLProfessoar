@@ -1,9 +1,9 @@
 ﻿using System;
 using Microsoft.Azure.Search;
 
-namespace semisupervisedFramework.Storage
+namespace semisupervisedFramework.Models
 {
-    public class BlobInfo
+    public class BlobModel
     {
         public string Name { get; set; }
         public string Url { get; set; }

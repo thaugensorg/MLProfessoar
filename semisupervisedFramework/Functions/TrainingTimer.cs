@@ -17,7 +17,7 @@ using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using semisupervisedFramework.Exceptions;
-using semisupervisedFramework.Storage;
+using semisupervisedFramework.Models;
 
 namespace semisupervisedFramework.Functions
 {
@@ -62,7 +62,7 @@ namespace semisupervisedFramework.Functions
                         if (BindingHash == null)
                         {
                             //compute the file hash as this will be added to the meta data to allow for file version validation
-                            var BlobMd5 = FrameworkBlob.CalculateMD5Hash(dataCloudBlockBlob.ToString());
+                            var BlobMd5 = BaseModel.CalculateMD5Hash(dataCloudBlockBlob.ToString());
                             if (BlobMd5 == null)
                             {
                                 log.LogInformation("\nWarning: Blob Hash calculation failed and will not be included in file information blob, continuing operation.");
@@ -77,7 +77,7 @@ namespace semisupervisedFramework.Functions
                         BindingHash = BindingHash.Substring(0, BindingHash.Length - 2);
 
                         //Get the content from the bound JSON file and instanciate a JsonBlob class then retrieve the labels collection from the Json to add to the image.
-                        var boundJson = (JsonBlob)Search.GetBlob("json", BindingHash, log);
+                        var boundJson = (JsonModel)Search.GetBlob("json", BindingHash, log);
                         var trainingDataLabels = Uri.EscapeDataString(JsonConvert.SerializeObject(boundJson.Labels));
 
                         //construct and call model URL then fetch response

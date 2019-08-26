@@ -11,9 +11,9 @@ using Microsoft.Azure.Search.Models;
 using Newtonsoft.Json.Linq;
 using semisupervisedFramework.Exceptions;
 
-namespace semisupervisedFramework.Storage
+namespace semisupervisedFramework.Models
 {
-    public class FrameworkBlob
+    public class BaseModel
     {
         //we have to use has a relationship here as oposed to is a because using CloudBlockBlob as a base class requires
         //the constructor to pass a URI and the primary behavior of the blob class is navigating between data and json blob types
@@ -22,7 +22,7 @@ namespace semisupervisedFramework.Storage
         public ILogger Log { get; set; }
 
         // encapsulates the GetBlobByHash behavior which is reused between both DataBlob and JsonBlob subclasses.
-        public FrameworkBlob() { }
+        public BaseModel() { }
 
         //calculates a blob hash to join JSON to a specific version of a file.
         private async Task<string> CalculateBlobHash(CloudBlockBlob blockBlob, ILogger log)
