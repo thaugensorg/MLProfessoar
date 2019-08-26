@@ -2,7 +2,7 @@
 
 namespace semisupervisedFramework.Settings
 {
-    public static class SettingsHelper
+    public static class Helper
     {
         public static bool TryRead(this string key, out string value, out string error)
         {
