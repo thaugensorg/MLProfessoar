@@ -1,7 +1,7 @@
 ﻿using System;
 using Microsoft.Azure.Search;
 
-namespace semisupervisedFramework.Blob
+namespace semisupervisedFramework.Storage
 {
     public class BlobInfo
     {

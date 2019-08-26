@@ -10,7 +10,7 @@ using Microsoft.Azure.Storage;
 using Microsoft.Azure.Storage.Blob;
 using Microsoft.Azure.Storage.DataMovement;
 
-namespace semisupervisedFramework
+namespace semisupervisedFramework.Storage
 {
     class AzureStorage
     {
@@ -19,7 +19,7 @@ namespace semisupervisedFramework
         {
             await CopyAzureBlobToAzureBlob(account, sourceBlob, destinationBlob, log);
 
-            Stopwatch StopWatch = Stopwatch.StartNew();
+            var StopWatch = Stopwatch.StartNew();
             await sourceBlob.DeleteIfExistsAsync();
             StopWatch.Stop();
             log.LogInformation("The Azure Blob " + sourceBlob + " deleted in: " + StopWatch.Elapsed.TotalSeconds + " seconds.");
@@ -30,10 +30,10 @@ namespace semisupervisedFramework
         public static async Task CopyAzureBlobToAzureBlob(CloudStorageAccount account, CloudBlockBlob sourceBlob, CloudBlockBlob destinationBlob, ILogger log)
         {
             TransferCheckpoint Checkpoint = null;
-            SingleTransferContext Context = GetSingleTransferContext(Checkpoint, log);
-            CancellationTokenSource CancellationSource = new CancellationTokenSource();
+            var Context = GetSingleTransferContext(Checkpoint, log);
+            var CancellationSource = new CancellationTokenSource();
 
-            Stopwatch StopWatch = Stopwatch.StartNew();
+            var StopWatch = Stopwatch.StartNew();
             Task Task;
             try
             {
@@ -63,11 +63,11 @@ namespace semisupervisedFramework
         {
             try
             {
-                CloudBlobClient BlobClient = account.CreateCloudBlobClient();
-                CloudBlobContainer Container = BlobClient.GetContainerReference(containerName);
+                var BlobClient = account.CreateCloudBlobClient();
+                var Container = BlobClient.GetContainerReference(containerName);
                 Container.CreateIfNotExistsAsync().Wait();
 
-                CloudBlockBlob Blob = Container.GetBlockBlobReference(blobName);
+                var Blob = Container.GetBlockBlobReference(blobName);
 
                 return Blob;
             }
@@ -83,7 +83,7 @@ namespace semisupervisedFramework
         {
             try
             {
-                SingleTransferContext Context = new SingleTransferContext(checkpoint);
+                var Context = new SingleTransferContext(checkpoint);
 
                 Context.ProgressHandler = new Progress<TransferStatus>((Progress) =>
                 {
@@ -104,7 +104,7 @@ namespace semisupervisedFramework
         {
             string SasContainerToken;
 
-            SharedAccessBlobPolicy SharedPolicy = new SharedAccessBlobPolicy()
+            var SharedPolicy = new SharedAccessBlobPolicy()
             {
                 //******* To Do: change to a more appropriate time than always 1 hour.  Maybe make this configurable.
                 SharedAccessStartTime = DateTime.UtcNow.AddHours(1),
@@ -116,6 +116,50 @@ namespace semisupervisedFramework
             return SasContainerToken;
         }
 
+        // *****TODO***** should search be static or instanciable?
+        public static FrameworkBlob GetBlob(string Type, string dataBlobMD5, ILogger log)
+        {
+            //Search BindingSearch = new Search();
+            //SearchIndexClient IndexClient = Search.CreateSearchIndexClient("data-labels-index", log);
+            //DocumentSearchResult<JObject> documentSearchResult = FrameworkBlob.GetBlobByHash(IndexClient, ContentMD5, log);
+            //JObject linkingBlob = documentSearchResult.Results[0].Document;
+            //if (documentSearchResult.Results.Count == 0)
+            //{
+            //    throw (new MissingRequiredObject("\ndata-labels-index did not return a document using: " + ContentMD5));
+            //}
+            //string md5Hash = linkingBlob.SelectToken("blobInfo/hash").ToString();
+            switch (Type)
+            {
+                case "data":
+                    return new DataBlob(dataBlobMD5, log);
 
+                case "json":
+                    return new JsonBlob(dataBlobMD5, log);
+
+                default:
+                    throw (new MissingRequiredObjectException("\nInvalid blob type: " + Type));
+
+            }
+        }
+
+        //Gets a reference to a specific blob using container and blob names as strings
+        public static CloudBlockBlob GetBlob(CloudStorageAccount account, string containerName, string blobName, ILogger log)
+        {
+            try
+            {
+                CloudBlobClient BlobClient = account.CreateCloudBlobClient();
+                CloudBlobContainer Container = BlobClient.GetContainerReference(containerName);
+                Container.CreateIfNotExistsAsync().Wait();
+
+                CloudBlockBlob Blob = Container.GetBlockBlobReference(blobName);
+
+                return Blob;
+            }
+            catch (Exception e)
+            {
+                log.LogInformation("\nNo blob " + blobName + " found in " + containerName + " ", e.Message);
+                return null;
+            }
+        }
     }
 }
