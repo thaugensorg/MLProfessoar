@@ -11,7 +11,7 @@ using Microsoft.Azure.Search.Models;
 using Newtonsoft.Json.Linq;
 using semisupervisedFramework.Exceptions;
 
-namespace semisupervisedFramework.Blob
+namespace semisupervisedFramework.Storage
 {
     public class FrameworkBlob
     {

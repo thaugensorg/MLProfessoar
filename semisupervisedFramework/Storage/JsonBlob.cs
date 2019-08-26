@@ -14,7 +14,7 @@ using Microsoft.Azure.Storage.DataMovement;
 
 using Newtonsoft.Json;
 
-namespace semisupervisedFramework.Blob
+namespace semisupervisedFramework.Storage
 {
     //This class encapsulates the functionality for the json blob files that are bound to the data files.  These json files contain all of the meta data, labeling data, and results of every evaluation against the model
     public class JsonBlob : FrameworkBlob

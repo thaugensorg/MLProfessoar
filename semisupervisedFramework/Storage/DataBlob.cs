@@ -2,7 +2,7 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Azure.Storage.Blob;
 
-namespace semisupervisedFramework.Blob
+namespace semisupervisedFramework.Storage
 {
     //This class encapsulates the fucntionality for the data blob files that will be used to train the semisupervised model.
     public class DataBlob : FrameworkBlob
