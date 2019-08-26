@@ -8,6 +8,12 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Files", "Files", "{D4F68877-7192-46AD-BF27-E4E7FE8EA8B9}"
 	ProjectSection(SolutionItems) = preProject
 		Files\Architecture.pptx = Files\Architecture.pptx
+		AzureSearchConfig.ps1 = AzureSearchConfig.ps1
+		CONTRIBUTING.md = CONTRIBUTING.md
+		LICENSE = LICENSE
+		README.md = README.md
+		SemisupervisedOrchestrationFrameworkEnvironmentConfiguration.ps1 = SemisupervisedOrchestrationFrameworkEnvironmentConfiguration.ps1
+		Test.ps1 = Test.ps1
 	EndProjectSection
 EndProject
 Global

@@ -21,6 +21,7 @@ namespace semisupervisedFramework.Injection
 
         private void RegisterServices(IServiceCollection services)
         {
+            services.AddSingleton<Settings.Settings, Settings.Settings>();
             services.AddSingleton<Search, Search>();
             services.AddSingleton<Engine, Engine>();
         }
