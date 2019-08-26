@@ -17,6 +17,7 @@ using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using semisupervisedFramework.Exceptions;
+using semisupervisedFramework.Blob;
 
 namespace semisupervisedFramework.Functions
 {

@@ -14,6 +14,7 @@ using Microsoft.Azure.Storage.DataMovement;
 
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using semisupervisedFramework.Blob;
 
 
 // This sample shows how to delete, create, upload documents and query an index
