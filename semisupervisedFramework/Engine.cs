@@ -16,7 +16,7 @@ namespace semisupervisedFramework
     {
 
         //Returns an environemtn variable matching the name parameter in the current app context
-        public static string GetEnvironmentVariable(string name, ILogger log)
+        public static string GetEnvironmentVariable(string name, ILogger log = null)
         {
             try
             {
