@@ -138,7 +138,7 @@ namespace semisupervisedFramework
             }
             else
             {
-                throw (new MissingRequiredObject($"\nBound JSON for {md5Hash} does not contain a blobInfo.url name."));
+                throw (new MissingRequiredObjectException($"\nBound JSON for {md5Hash} does not contain a blobInfo.url name."));
             }
         }
 
@@ -162,7 +162,7 @@ namespace semisupervisedFramework
                 JObject firstSearchResult = documentSearchResult.Results[0].Document;
                 return firstSearchResult;
             }
-            throw (new MissingRequiredObject("\nNo search results returned from index using {md5Hash}."));
+            throw (new MissingRequiredObjectException("\nNo search results returned from index using {md5Hash}."));
         }
     }
 
@@ -245,7 +245,7 @@ namespace semisupervisedFramework
             }
             else
             {
-                throw (new MissingRequiredObject($"\nBound JSON for {md5Hash} does not contain an id name."));
+                throw (new MissingRequiredObjectException($"\nBound JSON for {md5Hash} does not contain an id name."));
             }
 
             JToken labelsToken = jsonBlobJson.SelectToken("labels");
@@ -256,7 +256,7 @@ namespace semisupervisedFramework
             }
             else
             {
-                throw (new MissingRequiredObject($"\nBound JSON for {md5Hash} does not contain an labels name."));
+                throw (new MissingRequiredObjectException($"\nBound JSON for {md5Hash} does not contain an labels name."));
             }
 
             JToken md5HashToken = jsonBlobJson.SelectToken("blobInfo.hash");
@@ -266,7 +266,7 @@ namespace semisupervisedFramework
             }
             else
             {
-                throw (new MissingRequiredObject($"\nBound JSON for {md5Hash} does not contain an blobInfo.hash name."));
+                throw (new MissingRequiredObjectException($"\nBound JSON for {md5Hash} does not contain an blobInfo.hash name."));
             }
 
             JToken modifiedToken = jsonBlobJson.SelectToken("blobInfo.modified");
@@ -287,7 +287,7 @@ namespace semisupervisedFramework
             }
             else
             {
-                throw (new MissingRequiredObject($"\nBound JSON for {md5Hash} does not contain an blobInfo.modified name."));
+                throw (new MissingRequiredObjectException($"\nBound JSON for {md5Hash} does not contain an blobInfo.modified name."));
             }
 
             JToken nameToken = jsonBlobJson.SelectToken("blobInfo.name");
@@ -297,7 +297,7 @@ namespace semisupervisedFramework
             }
             else
             {
-                throw (new MissingRequiredObject($"\nBound JSON for {md5Hash} does not contain an blobInfo.name name."));
+                throw (new MissingRequiredObjectException($"\nBound JSON for {md5Hash} does not contain an blobInfo.name name."));
             }
 
             JToken urlToken = jsonBlobJson.SelectToken("blobInfo.url");
@@ -307,7 +307,7 @@ namespace semisupervisedFramework
             }
             else
             {
-                throw (new MissingRequiredObject($"\nBound JSON for {md5Hash} does not contain an blobInfo.url name."));
+                throw (new MissingRequiredObjectException($"\nBound JSON for {md5Hash} does not contain an blobInfo.url name."));
             }
         }
 
@@ -351,7 +351,7 @@ namespace semisupervisedFramework
             DataBlob TrainingDataBlob = new DataBlob(BlobInfo.Md5Hash, _Log);
             if (TrainingDataBlob == null)
             {
-                throw (new MissingRequiredObject("\nMissing dataEvaluating blob object."));
+                throw (new MissingRequiredObjectException("\nMissing dataEvaluating blob object."));
             }
 
             return TrainingDataBlob;

@@ -41,7 +41,7 @@ namespace semisupervisedFramework
                     return new JsonBlob(dataBlobMD5, log);
 
                 default:
-                    throw (new MissingRequiredObject("\nInvalid blob type: " + Type));
+                    throw (new MissingRequiredObjectException("\nInvalid blob type: " + Type));
 
             }
         }
