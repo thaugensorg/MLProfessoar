@@ -22,14 +22,12 @@ namespace semisupervisedFramework.Functions
     public static class TrainingTimer
     {
         [FunctionName("TrainingTimer")]
-        public static void Run(
-                [TimerTrigger("0 */1 * * * *"
 
 #if DEBUG
-            , RunOnStartup = true
+        public static void Run([TimerTrigger("0 */1 * * * *", RunOnStartup = true)]TimerInfo myTimer, ILogger log)
+#else
+        public static void Run([TimerTrigger("0 */1 * * * *", RunOnStartup = false)]TimerInfo myTimer, ILogger log)
 #endif            
-
-            )]TimerInfo myTimer, ILogger log)
         {
             try
             {
