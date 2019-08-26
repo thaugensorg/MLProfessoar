@@ -46,6 +46,10 @@ namespace semisupervisedFramework
                 CloudStorageAccount StorageAccount = Engine.GetStorageAccount(log);
                 CloudBlobClient BlobClient = StorageAccount.CreateCloudBlobClient();
                 CloudBlobContainer LabeledDataContainer = BlobClient.GetContainerReference("labeleddata");
+                HttpClient Client = new HttpClient();
+                HttpResponseMessage Response = new HttpResponseMessage();
+                string ResponseString = "";
+
 
                 // with a container load training tags
                 if (LabeledDataContainer.ListBlobs(null, false) != null)
@@ -90,11 +94,10 @@ namespace semisupervisedFramework
                         // The orchestration engine appends the labels json file to the message body.
                         // http://localhost:7071/api/LoadImageTags/?projectID=8d9d12d1-5d5c-4893-b915-4b5b3201f78e&labelsJson={%22Labels%22:[%22Hemlock%22,%22Japanese%20Cherry%22]}
 
-                        HttpClient Client = new HttpClient();
                         string AddLabeledDataUrl = boundJson.BlobInfo.Url;
                         AddLabeledDataUrl = ConstructModelRequestUrl(AddLabeledDataUrl, trainingDataLabels, log);
-                        HttpResponseMessage Response = Client.GetAsync(AddLabeledDataUrl).Result;
-                        string ResponseString = Response.Content.ReadAsStringAsync().Result;
+                        Response = Client.GetAsync(AddLabeledDataUrl).Result;
+                        ResponseString = Response.Content.ReadAsStringAsync().Result;
                         if (string.IsNullOrEmpty(ResponseString)) throw (new MissingRequiredObject($"\nresponseString not generated from URL: {AddLabeledDataUrl}"));
 
                         //the code below is for passing labels and conent as http content and not on the URL string.
@@ -121,6 +124,14 @@ namespace semisupervisedFramework
                         log.LogInformation($"Successfully added blob: {dataCloudBlockBlob.Name} with labels: {JsonConvert.SerializeObject(boundJson.Labels)}");
                     }
                 }
+                //Invoke the train model web service call
+                string trainModelUrl = Engine.GetEnvironmentVariable("TrainModelServiceEndpoint", log);
+                if (string.IsNullOrEmpty(trainModelUrl)) throw (new EnvironmentVariableNotSetException("TrainModelServiceEndpoint environment variable not set"));
+                Client = new HttpClient();
+                Response = Client.GetAsync(trainModelUrl).Result;
+                ResponseString = Response.Content.ReadAsStringAsync().Result;
+                if (string.IsNullOrEmpty(ResponseString)) throw (new MissingRequiredObject($"\nresponseString not generated from URL: {trainModelUrl}"));
+
                 log.LogInformation($"C# Timer trigger function executed at: {DateTime.Now}");
             }
             catch (Exception e)
