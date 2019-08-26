@@ -125,7 +125,7 @@ namespace semisupervisedFramework
             return indexer;
         }
 
-        public static SearchIndexClient CreateSearchIndexClient(string indexName, ILogger log)
+        public static SearchIndexClient CreateSearchIndexClient(string indexName, ILogger log = null)
         {
             string SearchApiKey = Engine.GetEnvironmentVariable("blobSearchKey", log);
             string SearchServiceName = Engine.GetEnvironmentVariable("SearchServiceName", log);
