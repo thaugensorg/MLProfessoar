@@ -57,27 +57,6 @@ namespace semisupervisedFramework.Storage
             log.LogInformation("The Azure Blob " + sourceBlob + " transfer to " + destinationBlob + " completed in:" + StopWatch.Elapsed.TotalSeconds + " seconds.");
         }
 
-
-        //Gets a reference to a specific blob using container and blob names as strings
-        public static CloudBlockBlob GetBlob(CloudStorageAccount account, string containerName, string blobName, ILogger log)
-        {
-            try
-            {
-                var BlobClient = account.CreateCloudBlobClient();
-                var Container = BlobClient.GetContainerReference(containerName);
-                Container.CreateIfNotExistsAsync().Wait();
-
-                var Blob = Container.GetBlockBlobReference(blobName);
-
-                return Blob;
-            }
-            catch (Exception e)
-            {
-                log.LogInformation("\nNo blob " + blobName + " found in " + containerName + " ", e.Message);
-                return null;
-            }
-        }
-
         //returns an Azure file transfer context for making a single file transfer.
         public static SingleTransferContext GetSingleTransferContext(TransferCheckpoint checkpoint, ILogger log)
         {
@@ -147,11 +126,11 @@ namespace semisupervisedFramework.Storage
         {
             try
             {
-                CloudBlobClient BlobClient = account.CreateCloudBlobClient();
-                CloudBlobContainer Container = BlobClient.GetContainerReference(containerName);
+                var BlobClient = account.CreateCloudBlobClient();
+                var Container = BlobClient.GetContainerReference(containerName);
                 Container.CreateIfNotExistsAsync().Wait();
 
-                CloudBlockBlob Blob = Container.GetBlockBlobReference(blobName);
+                var Blob = Container.GetBlockBlobReference(blobName);
 
                 return Blob;
             }
