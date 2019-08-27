@@ -10,7 +10,7 @@ using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 
-namespace semisupervisedFramework.Models
+namespace semisupervisedFramework.Storage
 {
     public static class ModelExtensions
     {
@@ -22,50 +22,35 @@ namespace semisupervisedFramework.Models
             return string.Join(string.Empty, hex);
         }
 
-        public static CloudBlockBlob GetCloudBlockBlob(this JsonModel model)
+        public static CloudBlockBlob GetCloudBlockBlob(this Model model)
         {
             var account = new Engine().GetStorageAccount();
             var client = account.CreateCloudBlobClient();
-            return new CloudBlockBlob(model.SearchInfo.Url, client);
+            return new CloudBlockBlob(model.Search.Url, client);
         }
 
-        public static DataModel ToDataModel(this JsonModel model)
+        public static Model ToStorageModel(this string md5Hash)
         {
-            return new DataModel
+            return new Search().CommitSearch(md5Hash).ToStorageModel();
+        }
+
+        private static Model ToStorageModel(this JObject json)
+        {
+            return new Model()
             {
-                JsonModel = model,
-                AzureBlob = model.GetCloudBlockBlob()
+                Id = json.GetJObjectToken<string>("id"),
+                Labels = json.GetJObjectToken<IList<string>>("labels"),
+                Search = new Model.SearchInfo
+                {
+                    Md5Hash = json.GetJObjectToken<string>("blobInfo.hash"),
+                    Modified = json.GetJObjectToken<DateTime>("blobInfo.modified"),
+                    Name = json.GetJObjectToken<string>("blobInfo.name"),
+                    Url = json.GetJObjectToken<Uri>("blobInfo.url"),
+                }
             };
         }
 
-        public static JsonModel ToJsonModel(this string md5Hash)
-        {
-            var search = new Search();
-            return search.CommitSearch(md5Hash).ToJsonModel();
-        }
-
-        private static JsonModel ToJsonModel(this JObject json)
-        {
-            return new JsonModel()
-            {
-                Id = json.GetToken<string>("id"),
-                Labels = json.GetToken<IList<string>>("labels"),
-                SearchInfo = json.ToSearchModel(),
-            };
-        }
-
-        private static SearchModel ToSearchModel(this JObject json)
-        {
-            return new SearchModel
-            {
-                Md5Hash = json.GetToken<string>("blobInfo.hash"),
-                Modified = json.GetToken<DateTime>("blobInfo.modified"),
-                Name = json.GetToken<string>("blobInfo.name"),
-                Url = json.GetToken<Uri>("blobInfo.url"),
-            };
-        }
-
-        private static T GetToken<T>(this JObject json, string name)
+        private static T GetJObjectToken<T>(this JObject json, string name)
         {
             var result = json.SelectToken("id")?.ToString() ?? throw new MissingRequiredObjectException(name);
             if (typeof(T) == typeof(DateTime))

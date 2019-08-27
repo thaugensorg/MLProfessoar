@@ -9,12 +9,18 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Azure.Storage;
 using Microsoft.Azure.Storage.Blob;
 using Microsoft.Azure.Storage.DataMovement;
-using semisupervisedFramework.Models;
+using semisupervisedFramework.Storage;
 
 namespace semisupervisedFramework.Storage
 {
     class Helper
     {
+        public CloudStorageAccount GetStorageAccount()
+        {
+            string StorageConnection = Engine.GetEnvironmentVariable("AzureWebJobsStorage");
+            return CloudStorageAccount.Parse(StorageConnection);
+        }
+
         //Moves a blob between two azure containers.
         public static async Task MoveAzureBlobToAzureBlob(CloudStorageAccount account, CloudBlockBlob sourceBlob, CloudBlockBlob destinationBlob, ILogger log)
         {
@@ -94,32 +100,6 @@ namespace semisupervisedFramework.Storage
 
             SasContainerToken = cloudBlockBlob.GetSharedAccessSignature(SharedPolicy);
             return SasContainerToken;
-        }
-
-        // *****TODO***** should search be static or instanciable?
-        public static BaseModel GetBlob(string Type, string dataBlobMD5, ILogger log)
-        {
-            //Search BindingSearch = new Search();
-            //SearchIndexClient IndexClient = Search.CreateSearchIndexClient("data-labels-index", log);
-            //DocumentSearchResult<JObject> documentSearchResult = FrameworkBlob.GetBlobByHash(IndexClient, ContentMD5, log);
-            //JObject linkingBlob = documentSearchResult.Results[0].Document;
-            //if (documentSearchResult.Results.Count == 0)
-            //{
-            //    throw (new MissingRequiredObject("\ndata-labels-index did not return a document using: " + ContentMD5));
-            //}
-            //string md5Hash = linkingBlob.SelectToken("blobInfo/hash").ToString();
-            switch (Type)
-            {
-                case "data":
-                    return new DataModel(dataBlobMD5, log);
-
-                case "json":
-                    return new JsonModel(dataBlobMD5, log);
-
-                default:
-                    throw (new MissingRequiredObjectException("\nInvalid blob type: " + Type));
-
-            }
         }
 
         //Gets a reference to a specific blob using container and blob names as strings
