@@ -17,7 +17,7 @@ using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using semisupervisedFramework.Exceptions;
-using semisupervisedFramework.Models;
+using semisupervisedFramework.Storage;
 
 namespace semisupervisedFramework.Functions
 {
@@ -37,7 +37,8 @@ namespace semisupervisedFramework.Functions
                 //Search.InitializeSearch();
 
                 // Create Reference to Azure Storage Account
-                var StorageAccount = Engine.GetStorageAccount(log);
+                var storageHelper = new Storage.Helper();
+                var StorageAccount = storageHelper.GetStorageAccount();
                 var BlobClient = StorageAccount.CreateCloudBlobClient();
                 var LabeledDataContainer = BlobClient.GetContainerReference("labeleddata");
                 var Client = new HttpClient();
@@ -62,7 +63,7 @@ namespace semisupervisedFramework.Functions
                         if (BindingHash == null)
                         {
                             //compute the file hash as this will be added to the meta data to allow for file version validation
-                            var BlobMd5 = BaseModel.CalculateMD5Hash(dataCloudBlockBlob.ToString());
+                            var BlobMd5 = dataCloudBlockBlob.ToString().CalculateMD5Hash();
                             if (BlobMd5 == null)
                             {
                                 log.LogInformation("\nWarning: Blob Hash calculation failed and will not be included in file information blob, continuing operation.");
@@ -77,8 +78,9 @@ namespace semisupervisedFramework.Functions
                         BindingHash = BindingHash.Substring(0, BindingHash.Length - 2);
 
                         //Get the content from the bound JSON file and instanciate a JsonBlob class then retrieve the labels collection from the Json to add to the image.
-                        var boundJson = (JsonModel)Search.GetBlob("json", BindingHash, log);
-                        var trainingDataLabels = Uri.EscapeDataString(JsonConvert.SerializeObject(boundJson.Labels));
+                        var json = storageHelper.DownloadBlobAsString(StorageAccount, "json", BindingHash);
+                        var model = json.ToStorageModel();
+                        var labels = Uri.EscapeDataString(JsonConvert.SerializeObject(model.Labels));
 
                         //construct and call model URL then fetch response
                         // the model always sends the label set in the message body with the name LabelsJson.  If your model needs other values in the URL then use
@@ -88,8 +90,8 @@ namespace semisupervisedFramework.Functions
                         // The orchestration engine appends the labels json file to the message body.
                         // http://localhost:7071/api/LoadImageTags/?projectID=8d9d12d1-5d5c-4893-b915-4b5b3201f78e&labelsJson={%22Labels%22:[%22Hemlock%22,%22Japanese%20Cherry%22]}
 
-                        var AddLabeledDataUrl = boundJson.SearchInfo.Url;
-                        AddLabeledDataUrl = ConstructModelRequestUrl(AddLabeledDataUrl, trainingDataLabels, log);
+                        var AddLabeledDataUrl = model.Search.Url;
+                        AddLabeledDataUrl = ConstructModelRequestUrl(AddLabeledDataUrl, labels, log);
                         Response = Client.GetAsync(AddLabeledDataUrl).Result;
                         ResponseString = Response.Content.ReadAsStringAsync().Result;
                         if (string.IsNullOrEmpty(ResponseString)) throw new MissingRequiredObjectException($"\nresponseString not generated from URL: {AddLabeledDataUrl}");
@@ -115,7 +117,7 @@ namespace semisupervisedFramework.Functions
                         //string ResponseString = Helper.GetEvaluationResponseString(AddLabelingTagsEndpoint, LabeledDataContent, log);
                         //if (string.IsNullOrEmpty(ResponseString)) throw (new MissingRequiredObject("\nresponseString not generated from URL: " + AddLabelingTagsEndpoint));
 
-                        log.LogInformation($"Successfully added blob: {dataCloudBlockBlob.Name} with labels: {JsonConvert.SerializeObject(boundJson.Labels)}");
+                        log.LogInformation($"Successfully added blob: {dataCloudBlockBlob.Name} with labels: {JsonConvert.SerializeObject(model.Labels)}");
                     }
                 }
                 //Invoke the train model web service call
@@ -241,7 +243,7 @@ namespace semisupervisedFramework.Functions
         }
 
         //Builds a URL to call the blob analysis model.
-        private static string ConstructModelRequestUrl(string trainingDataUrl, string dataTrainingLabels, ILogger log)
+        private static Uri ConstructModelRequestUrl(Uri trainingDataUrl, string dataTrainingLabels, ILogger log)
         {
             try
             {
@@ -286,7 +288,7 @@ namespace semisupervisedFramework.Functions
                     throw new EnvironmentVariableNotSetException("modelAssetParameterName environment variable not set");
                 }
 
-                return ModelRequestUrl;
+                return new Uri(ModelRequestUrl);
             }
             catch (EnvironmentVariableNotSetException e)
             {

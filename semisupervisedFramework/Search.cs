@@ -14,7 +14,6 @@ using Microsoft.Azure.Storage.DataMovement;
 
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-using semisupervisedFramework.Models;
 using System.Linq;
 
 
@@ -70,7 +69,7 @@ namespace semisupervisedFramework
             {
                 Name = indexName,
 
-                Fields = FieldBuilder.BuildForType<JsonModel>()
+                // TODO: Fields = FieldBuilder.BuildForType<JsonModel>()
             };
 
             //new Field("blobInfo", DataType.Complex),
