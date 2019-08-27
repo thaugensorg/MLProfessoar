@@ -19,15 +19,10 @@ namespace semisupervisedFramework.Models
         //the constructor to pass a URI and the primary behavior of the blob class is navigating between data and json blob types
         //using the hash value to retrieve the URL.
         public CloudBlockBlob AzureBlob { get; set; }
+
         public ILogger Log { get; set; }
 
         // encapsulates the GetBlobByHash behavior which is reused between both DataBlob and JsonBlob subclasses.
         public BaseModel() { }
-
-        [Obsolete("Use ModelExtensions method")]
-        public static string CalculateMD5Hash(string input)
-        {
-            return input.CalculateMD5Hash();
-        }
     }
 }

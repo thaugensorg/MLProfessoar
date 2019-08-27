@@ -101,7 +101,7 @@ namespace semisupervisedFramework.Functions
                         // The orchestration engine appends the labels json file to the message body.
                         // http://localhost:7071/api/LoadImageTags/?projectID=8d9d12d1-5d5c-4893-b915-4b5b3201f78e&labelsJson={%22Labels%22:[%22Hemlock%22,%22Japanese%20Cherry%22]}
 
-                        var AddLabeledDataUrl = boundJson.BlobInfo.Url;
+                        var AddLabeledDataUrl = boundJson.SearchInfo.Url;
                         AddLabeledDataUrl = ConstructModelRequestUrl(AddLabeledDataUrl, trainingDataLabels, log);
                         Response = Client.GetAsync(AddLabeledDataUrl).Result;
                         ResponseString = Response.Content.ReadAsStringAsync().Result;
