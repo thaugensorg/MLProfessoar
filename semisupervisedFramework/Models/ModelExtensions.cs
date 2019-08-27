@@ -1,5 +1,6 @@
 ﻿using Microsoft.Azure.Search;
 using Microsoft.Azure.Search.Models;
+using Microsoft.Azure.Storage.Blob;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System;
@@ -21,25 +22,46 @@ namespace semisupervisedFramework.Models
             return string.Join(string.Empty, hex);
         }
 
-        public static JsonModel GetJsonModel(this string md5Hash)
+        public static CloudBlockBlob GetCloudBlockBlob(this JsonModel model)
+        {
+            var account = new Engine().GetStorageAccount();
+            var client = account.CreateCloudBlobClient();
+            return new CloudBlockBlob(model.SearchInfo.Url, client);
+        }
+
+        public static DataModel ToDataModel(this JsonModel model)
+        {
+            return new DataModel
+            {
+                JsonModel = model,
+                AzureBlob = model.GetCloudBlockBlob()
+            };
+        }
+
+        public static JsonModel ToJsonModel(this string md5Hash)
         {
             var search = new Search();
             return search.CommitSearch(md5Hash).ToJsonModel();
         }
 
-        public static JsonModel ToJsonModel(this JObject json)
+        private static JsonModel ToJsonModel(this JObject json)
         {
             return new JsonModel()
             {
                 Id = json.GetToken<string>("id"),
                 Labels = json.GetToken<IList<string>>("labels"),
-                BlobInfo = new BlobModel
-                {
-                    Md5Hash = json.GetToken<string>("blobInfo.hash"),
-                    Modified = json.GetToken<DateTime>("blobInfo.modified"),
-                    Name = json.GetToken<string>("blobInfo.name"),
-                    Url = json.GetToken<string>("blobInfo.url"),
-                },
+                SearchInfo = json.ToSearchModel(),
+            };
+        }
+
+        private static SearchModel ToSearchModel(this JObject json)
+        {
+            return new SearchModel
+            {
+                Md5Hash = json.GetToken<string>("blobInfo.hash"),
+                Modified = json.GetToken<DateTime>("blobInfo.modified"),
+                Name = json.GetToken<string>("blobInfo.name"),
+                Url = json.GetToken<Uri>("blobInfo.url"),
             };
         }
 
@@ -49,6 +71,10 @@ namespace semisupervisedFramework.Models
             if (typeof(T) == typeof(DateTime))
             {
                 return (T)(object)DateTime.Parse(result, CultureInfo.InvariantCulture);
+            }
+            else if (typeof(T) == typeof(Uri))
+            {
+                return (T)(object)new Uri(result);
             }
             else
             {

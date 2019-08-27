@@ -3,13 +3,15 @@ using Microsoft.Azure.Search;
 
 namespace semisupervisedFramework.Models
 {
-    public class BlobModel
+    public class SearchModel
     {
         public string Name { get; set; }
-        public string Url { get; set; }
+
+        public Uri Url { get; set; }
 
         [IsSearchable]
         public string Md5Hash { get; set; }
+
         public DateTimeOffset Modified { get; set; }
 
         public override string ToString()

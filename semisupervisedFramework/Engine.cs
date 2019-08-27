@@ -42,7 +42,7 @@ namespace semisupervisedFramework
             }
         }
 
-        public static CloudStorageAccount GetStorageAccount(ILogger log)
+        public CloudStorageAccount GetStorageAccount()
         {
             string StorageConnection = GetEnvironmentVariable("AzureWebJobsStorage", log);
             CloudStorageAccount StorageAccount = CloudStorageAccount.Parse(StorageConnection);
