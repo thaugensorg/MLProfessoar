@@ -42,6 +42,11 @@ namespace semisupervisedFramework.Models
             set => BoundDataBlob = value;
         }
 
+        public JsonModel()
+        {
+            // empty
+        }
+
         public JsonModel(string md5Hash, ILogger log)
         {
             BlobInfo = new BlobModel();
