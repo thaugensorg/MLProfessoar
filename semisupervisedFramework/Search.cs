@@ -25,18 +25,13 @@ namespace semisupervisedFramework
 {
     class Search
     {
+        private Engine Engine;
+
         // *****TODO***** should search be static or instanciable?
-        public static FrameworkBlob GetBlob(string Type, string dataBlobMD5, ILogger log)
+        public FrameworkBlob GetBlob(string Type, string dataBlobMD5, ILogger log)
         {
-            //Search BindingSearch = new Search();
-            //SearchIndexClient IndexClient = Search.CreateSearchIndexClient("data-labels-index", log);
-            //DocumentSearchResult<JObject> documentSearchResult = FrameworkBlob.GetBlobByHash(IndexClient, ContentMD5, log);
-            //JObject linkingBlob = documentSearchResult.Results[0].Document;
-            //if (documentSearchResult.Results.Count == 0)
-            //{
-            //    throw (new MissingRequiredObject("\ndata-labels-index did not return a document using: " + ContentMD5));
-            //}
-            //string md5Hash = linkingBlob.SelectToken("blobInfo/hash").ToString();
+            log.LogInformation("\nEntering Framework Blob Factory");
+
             switch (Type)
             {
                 case "data":
@@ -52,7 +47,7 @@ namespace semisupervisedFramework
         }
 
         //Gets a reference to a specific blob using container and blob names as strings
-        public static CloudBlockBlob GetBlob(CloudStorageAccount account, string containerName, string blobName, ILogger log)
+        public CloudBlockBlob GetBlob(CloudStorageAccount account, string containerName, string blobName, ILogger log)
         {
             try
             {
@@ -72,7 +67,7 @@ namespace semisupervisedFramework
         }
 
 
-        public static void InitializeSearch()
+        public void InitializeSearch()
         {
             ILoggerFactory logger = (ILoggerFactory)new LoggerFactory();
             ILogger log = logger.CreateLogger("Search");
@@ -90,14 +85,14 @@ namespace semisupervisedFramework
         }
 
         // https://cmatskas.com/indexing-and-searching-sql-server-data-with-azure-search/
-        public static SearchServiceClient Initialize(string serviceName, string indexName, string apiKey)
+        public SearchServiceClient Initialize(string serviceName, string indexName, string apiKey)
         {
             SearchServiceClient serviceClient = new SearchServiceClient(serviceName, new SearchCredentials(apiKey));
 
             return serviceClient;
         }
 
-        public static Index CreateIndex(SearchServiceClient client, string indexName)
+        public Index CreateIndex(SearchServiceClient client, string indexName)
         {
             // https://docs.microsoft.com/en-us/rest/api/searchservice/create-index
 
@@ -129,7 +124,7 @@ namespace semisupervisedFramework
             return client.Indexes.Get(indexName);
         }
 
-        private static void DeleteIfIndexExist(SearchServiceClient client, string indexName)
+        private void DeleteIfIndexExist(SearchServiceClient client, string indexName)
         {
             if (client.Indexes.Exists(indexName))
             {
@@ -137,7 +132,7 @@ namespace semisupervisedFramework
             }
         }
 
-        public static DataSource CreateBlobSearchDataSource(ILogger log)
+        public DataSource CreateBlobSearchDataSource(ILogger log)
         {
             string StorageConnection = Engine.GetEnvironmentVariable("AzureWebJobsStorage", log);
 
@@ -148,7 +143,7 @@ namespace semisupervisedFramework
             return dataSource;
         }
 
-        public static Indexer CreateBlobIndexer(SearchServiceClient searchService, Index index, string dataSourceName)
+        public Indexer CreateBlobIndexer(SearchServiceClient searchService, Index index, string dataSourceName)
         {
             Indexer indexer = new Indexer(
                 name: "blob-indexer",
@@ -171,7 +166,7 @@ namespace semisupervisedFramework
             return indexer;
         }
 
-        public static SearchIndexClient CreateSearchIndexClient(string indexName, ILogger log)
+        public SearchIndexClient CreateSearchIndexClient(string indexName, ILogger log)
         {
             string SearchApiKey = Engine.GetEnvironmentVariable("blobSearchKey", log);
             string SearchServiceName = Engine.GetEnvironmentVariable("SearchServiceName", log);

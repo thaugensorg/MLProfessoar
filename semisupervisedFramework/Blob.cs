@@ -42,10 +42,17 @@ namespace semisupervisedFramework
         //the constructor to pass a URI and the primary behavior of the blob class is navigating between data and json blob types
         //using the hash value to retrieve the URL.
         public CloudBlockBlob AzureBlob { get; set; }
-        public ILogger Log { get; set; }
+        private ILogger _Log;
+        private Engine _Engine;
+        private Search _Search;
 
         // encapsulates the GetBlobByHash behavior which is reused between both DataBlob and JsonBlob subclasses.
-        public FrameworkBlob() { }
+        public FrameworkBlob(ILogger log)
+        {
+            _Log = log;
+            _Engine = new Engine(_Log);
+            _Search = new Search();
+        }
 
         //calculates a blob hash to join JSON to a specific version of a file.
         private async Task<string> CalculateBlobHash(CloudBlockBlob blockBlob, ILogger log)
@@ -144,12 +151,12 @@ namespace semisupervisedFramework
         public SearchIndexClient GetJsonBindingSearchIndex()
         {
             Search BindingSearch = new Search();
-            return Search.CreateSearchIndexClient("data-labels-index", Log);
+            return _Search.CreateSearchIndexClient("data-labels-index", _Log);
         }
 
         public JObject JsonBindingSearchResult(SearchIndexClient indexClient, string md5Hash)
         {
-            DocumentSearchResult<JObject> documentSearchResult = GetBlobByHash(indexClient, md5Hash, Log);
+            DocumentSearchResult<JObject> documentSearchResult = GetBlobByHash(indexClient, md5Hash, _Log);
             if (documentSearchResult.Results.Count > 0)
             {
                 JObject firstSearchResult = documentSearchResult.Results[0].Document;
@@ -183,16 +190,17 @@ namespace semisupervisedFramework
 
         public DataBlob(string md5Hash, ILogger log)
         {
-            Log = log;
-            Uri dataBlobUri = GetDataBlobUriFromJson(md5Hash);
-            CloudStorageAccount storageAccount = Engine.GetStorageAccount(log);
-            CloudBlobClient blobClient = storageAccount.CreateCloudBlobClient();
-            AzureBlob = new CloudBlockBlob(dataBlobUri, blobClient);
+            ILogger _Log = log;
+            Engine Engine = new Engine(log);
+            Uri DataBlobUri = GetDataBlobUriFromJson(md5Hash);
+            CloudStorageAccount StorageAccount = Engine.StorageAccount;
+            CloudBlobClient BlobClient = StorageAccount.CreateCloudBlobClient();
+            AzureBlob = new CloudBlockBlob(DataBlobUri, BlobClient);
         }
 
         public DataBlob(CloudBlockBlob azureBlob, ILogger log)
         {
-            Log = log;
+            ILogger Log = log;
             AzureBlob = azureBlob;
         }
     }
@@ -226,7 +234,7 @@ namespace semisupervisedFramework
         public JsonBlob(string md5Hash, ILogger log)
         {
             BlobInfo = new BlobInfo();
-            Log = log;
+            ILogger Log = log;
             JObject jsonBlobJson = GetJsonBlobJson(md5Hash);
             //JsonBlob BoundJson = dataBlob.GetBoundJson(log);
             //*****TODO***** get the url to the actual blob and down load the JOSON full JSON content not just what was indexed
@@ -340,7 +348,7 @@ namespace semisupervisedFramework
             //Get a reference to a container, if the container does not exist create one then get the reference to the blob you want to evaluate."
             //*****TODO***** This uses the file name as the searcdh mechanism.  I expect if the file name changes so does the hash but this has not been verified.  If the name does not change the hash then I need to locate the file using the has which will mean creating a search index over the blob file properties.
             CloudBlockBlob RawDataBlob = Container.GetBlockBlobReference(BlobInfo.Name);
-            DataBlob TrainingDataBlob = new DataBlob(BlobInfo.Md5Hash, Log);
+            DataBlob TrainingDataBlob = new DataBlob(BlobInfo.Md5Hash, _Log);
             if (TrainingDataBlob == null)
             {
                 throw (new MissingRequiredObject("\nMissing dataEvaluating blob object."));
