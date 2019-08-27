@@ -19,6 +19,8 @@ namespace semisupervisedFramework.Storage
         public CloudBlockBlob GetAzureBlob() => this.GetCloudBlockBlob();
 
         public SearchInfo Search { get; set; }
+        public string Md5Hash { get; set; }
+
         public class SearchInfo
         {
             public string Name { get; set; }

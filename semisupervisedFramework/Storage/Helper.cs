@@ -10,6 +10,7 @@ using Microsoft.Azure.Storage;
 using Microsoft.Azure.Storage.Blob;
 using Microsoft.Azure.Storage.DataMovement;
 using semisupervisedFramework.Storage;
+using System.IO;
 
 namespace semisupervisedFramework.Storage
 {
@@ -103,21 +104,27 @@ namespace semisupervisedFramework.Storage
         }
 
         //Gets a reference to a specific blob using container and blob names as strings
-        public static CloudBlockBlob GetBlob(CloudStorageAccount account, string containerName, string blobName, ILogger log)
+        public string DownloadBlobAsString(CloudStorageAccount account, string containerName, string blobName)
         {
             try
             {
                 var BlobClient = account.CreateCloudBlobClient();
                 var Container = BlobClient.GetContainerReference(containerName);
                 Container.CreateIfNotExistsAsync().Wait();
-
                 var Blob = Container.GetBlockBlobReference(blobName);
 
-                return Blob;
+                using (var memoryStream = new MemoryStream())
+                {
+                    Blob.DownloadToStream(memoryStream);
+                    using (var streamReader = new StreamReader(memoryStream))
+                    {
+                        return streamReader.ReadToEnd();
+                    }
+                }
             }
             catch (Exception e)
             {
-                log.LogInformation("\nNo blob " + blobName + " found in " + containerName + " ", e.Message);
+                // log.LogInformation("\nNo blob " + blobName + " found in " + containerName + " ", e.Message);
                 return null;
             }
         }

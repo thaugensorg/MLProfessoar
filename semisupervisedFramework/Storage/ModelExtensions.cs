@@ -24,14 +24,16 @@ namespace semisupervisedFramework.Storage
 
         public static CloudBlockBlob GetCloudBlockBlob(this Model model)
         {
-            var account = new Engine().GetStorageAccount();
+            var account = new Storage.Helper().GetStorageAccount();
             var client = account.CreateCloudBlobClient();
             return new CloudBlockBlob(model.Search.Url, client);
         }
 
         public static Model ToStorageModel(this string md5Hash)
         {
-            return new Search().CommitSearch(md5Hash).ToStorageModel();
+            var result = new Search().CommitSearch(md5Hash).ToStorageModel();
+            result.Md5Hash = md5Hash;
+            return result;
         }
 
         private static Model ToStorageModel(this JObject json)

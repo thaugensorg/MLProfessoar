@@ -42,13 +42,6 @@ namespace semisupervisedFramework
             }
         }
 
-        public CloudStorageAccount GetStorageAccount()
-        {
-            string StorageConnection = GetEnvironmentVariable("AzureWebJobsStorage", log);
-            CloudStorageAccount StorageAccount = CloudStorageAccount.Parse(StorageConnection);
-            return StorageAccount;
-        }
-
         public static JProperty GetEnvironmentJson(ILogger log)
         {
             //create environment JSON object
