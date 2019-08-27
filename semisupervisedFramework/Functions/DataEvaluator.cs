@@ -30,7 +30,7 @@ using Microsoft.AspNetCore.Http;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using semisupervisedFramework.Exceptions;
-using semisupervisedFramework.Models;
+using semisupervisedFramework.Storage;
 
 namespace semisupervisedFramework.Functions
 {
@@ -64,33 +64,33 @@ namespace semisupervisedFramework.Functions
                 var Container = BlobClient.GetContainerReference(PendingEvaluationStorageContainerName);
 
                 //Get a reference to a container, if the container does not exist create one then get the reference to the blob you want to evaluate."
-                var RawDataBlob = Search.GetBlob(StorageAccount, JsonStorageContainerName, blobName, log);
-                var DataEvaluating = new DataModel(RawDataBlob.Properties.ContentMD5, log);
-                if (DataEvaluating == null)
+                var json = new Storage.Helper().DownloadBlobAsString(StorageAccount, JsonStorageContainerName, blobName);
+                var model = json.ToStorageModel();
+                if (model == null)
                 {
                     throw new MissingRequiredObjectException("\nMissing dataEvaluating blob object.");
                 }
 
                 //compute the file hash as this will be added to the meta data to allow for file version validation
-                var BlobMd5 = BaseModel.CalculateMD5Hash(DataEvaluating.ToString());
+                var BlobMd5 = model.ToString().CalculateMD5Hash();
                 if (BlobMd5 == null)
                 {
                     log.LogInformation("\nWarning: Blob Hash calculation failed and will not be included in file information blob, continuing operation.");
                 }
                 else
                 {
-                    DataEvaluating.AzureBlob.Properties.ContentMD5 = BlobMd5;
+                    model.Md5Hash = BlobMd5;
                 }
 
                 //****Currently only working with public access set on blob folders
                 //Generate a URL with SAS token to submit to analyze image API
                 //string dataEvaluatingSas = GetBlobSharedAccessSignature(dataEvaluating);
-                var DataEvaluatingUrl = DataEvaluating.AzureBlob.Uri.ToString(); //+ dataEvaluatingSas;
+                var DataEvaluatingUrl = model.Search.Url.ToString(); //+ dataEvaluatingSas;
                 //string dataEvaluatingUrl = "test";
 
                 //package the file contents to send as http request content
                 var DataEvaluatingContent = new MemoryStream();
-                await DataEvaluating.AzureBlob.DownloadToStreamAsync(DataEvaluatingContent);
+                await model.GetAzureBlob().DownloadToStreamAsync(DataEvaluatingContent);
                 HttpContent DataEvaluatingStream = new StreamContent(DataEvaluatingContent);
                 var content = new MultipartFormDataContent();
                 content.Add(DataEvaluatingStream, "name");
@@ -121,7 +121,7 @@ namespace semisupervisedFramework.Functions
                     {
                         throw new MissingRequiredObjectException("\nMissing evaluatedData " + blobName + " destination blob in container " + EvaluatedDataStorageContainerName);
                     }
-                    CopyAzureBlobToAzureBlob(StorageAccount, DataEvaluating.AzureBlob, EvaluatedData, log).Wait();
+                    CopyAzureBlobToAzureBlob(StorageAccount, model.GetAzureBlob(), EvaluatedData, log).Wait();
 
                     //pick a random number of successfully analyzed content blobs and submit them for supervision verification.
                     var Rnd = new Random();
@@ -134,10 +134,10 @@ namespace semisupervisedFramework.Functions
                         }
                         else
                         {
-                            MoveAzureBlobToAzureBlob(StorageAccount, DataEvaluating.AzureBlob, ModelValidation, log).Wait();
+                            MoveAzureBlobToAzureBlob(StorageAccount, model.AzureBlob, ModelValidation, log).Wait();
                         }
                     }
-                    await DataEvaluating.AzureBlob.DeleteIfExistsAsync();
+                    await model.AzureBlob.DeleteIfExistsAsync();
                 }
 
                 //model was not sufficiently confident in its analysis
@@ -149,7 +149,7 @@ namespace semisupervisedFramework.Functions
                         throw new MissingRequiredObjectException("\nMissing pendingSupervision " + blobName + " destination blob in container " + PendingSupervisionStorageContainerName);
                     }
 
-                    MoveAzureBlobToAzureBlob(StorageAccount, DataEvaluating.AzureBlob, PendingSupervision, log).Wait();
+                    MoveAzureBlobToAzureBlob(StorageAccount, model.AzureBlob, PendingSupervision, log).Wait();
                 }
 
                 //----------------------------This section collects information about the blob being analyzied and packages it in JSON that is then written to blob storage for later processing-----------------------------------
@@ -160,8 +160,8 @@ namespace semisupervisedFramework.Functions
                         new JProperty("blobInfo",
                             new JObject(
                                 new JProperty("name", blobName),
-                                new JProperty("url", DataEvaluating.AzureBlob.Uri.ToString()),
-                                new JProperty("modified", DataEvaluating.AzureBlob.Properties.LastModified.ToString()),
+                                new JProperty("url", model.AzureBlob.Uri.ToString()),
+                                new JProperty("modified", model.AzureBlob.Properties.LastModified.ToString()),
                                 new JProperty("hash", BlobMd5)
                             )
                         )
