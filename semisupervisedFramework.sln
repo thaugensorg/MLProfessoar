@@ -1,9 +1,20 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 15
-VisualStudioVersion = 15.0.28307.705
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.29123.88
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "semisupervisedFramework", "semisupervisedFramework\semisupervisedFramework.csproj", "{8C9230AE-A3AF-4574-89E7-3A5D4AD78ED9}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Files", "Files", "{D4F68877-7192-46AD-BF27-E4E7FE8EA8B9}"
+	ProjectSection(SolutionItems) = preProject
+		Files\Architecture.pptx = Files\Architecture.pptx
+		AzureSearchConfig.ps1 = AzureSearchConfig.ps1
+		CONTRIBUTING.md = CONTRIBUTING.md
+		LICENSE = LICENSE
+		README.md = README.md
+		SemisupervisedOrchestrationFrameworkEnvironmentConfiguration.ps1 = SemisupervisedOrchestrationFrameworkEnvironmentConfiguration.ps1
+		Test.ps1 = Test.ps1
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

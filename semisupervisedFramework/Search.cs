@@ -14,6 +14,7 @@ using Microsoft.Azure.Storage.DataMovement;
 
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using System.Linq;
 
 
 // This sample shows how to delete, create, upload documents and query an index
@@ -25,49 +26,7 @@ namespace semisupervisedFramework
 {
     class Search
     {
-        private Engine Engine;
-
-        // *****TODO***** should search be static or instanciable?
-        public FrameworkBlob GetBlob(string Type, string dataBlobMD5, ILogger log)
-        {
-            log.LogInformation("\nEntering Framework Blob Factory");
-
-            switch (Type)
-            {
-                case "data":
-                    return new DataBlob(dataBlobMD5, log);
-
-                case "json":
-                    return new JsonBlob(dataBlobMD5, log);
-
-                default:
-                    throw (new MissingRequiredObject("\nInvalid blob type: " + Type));
-
-            }
-        }
-
-        //Gets a reference to a specific blob using container and blob names as strings
-        public CloudBlockBlob GetBlob(CloudStorageAccount account, string containerName, string blobName, ILogger log)
-        {
-            try
-            {
-                CloudBlobClient BlobClient = account.CreateCloudBlobClient();
-                CloudBlobContainer Container = BlobClient.GetContainerReference(containerName);
-                Container.CreateIfNotExistsAsync().Wait();
-
-                CloudBlockBlob Blob = Container.GetBlockBlobReference(blobName);
-
-                return Blob;
-            }
-            catch (Exception e)
-            {
-                log.LogInformation("\nNo blob " + blobName + " found in " + containerName + " ", e.Message);
-                return null;
-            }
-        }
-
-
-        public void InitializeSearch()
+        public static void InitializeSearch()
         {
             ILoggerFactory logger = (ILoggerFactory)new LoggerFactory();
             ILogger log = logger.CreateLogger("Search");
@@ -84,15 +43,25 @@ namespace semisupervisedFramework
 
         }
 
+        public JObject CommitSearch(string md5Hash)
+        {
+            var client = CreateSearchIndexClient("data-labels-index");
+            var parameters = new SearchParameters()
+            {
+                Select = new[] { "id", "blobInfo/name", "blobInfo/url", "blobInfo/hash", "blobInfo/modified" }
+            };
+            return client.Documents.Search<JObject>(md5Hash, parameters).Results.Single().Document;
+        }
+
         // https://cmatskas.com/indexing-and-searching-sql-server-data-with-azure-search/
-        public SearchServiceClient Initialize(string serviceName, string indexName, string apiKey)
+        public static SearchServiceClient Initialize(string serviceName, string indexName, string apiKey)
         {
             SearchServiceClient serviceClient = new SearchServiceClient(serviceName, new SearchCredentials(apiKey));
 
             return serviceClient;
         }
 
-        public Index CreateIndex(SearchServiceClient client, string indexName)
+        public static Index CreateIndex(SearchServiceClient client, string indexName)
         {
             // https://docs.microsoft.com/en-us/rest/api/searchservice/create-index
 
@@ -100,7 +69,7 @@ namespace semisupervisedFramework
             {
                 Name = indexName,
 
-                Fields = FieldBuilder.BuildForType<JsonBlob>()
+                // TODO: Fields = FieldBuilder.BuildForType<JsonModel>()
             };
 
             //new Field("blobInfo", DataType.Complex),
@@ -124,7 +93,7 @@ namespace semisupervisedFramework
             return client.Indexes.Get(indexName);
         }
 
-        private void DeleteIfIndexExist(SearchServiceClient client, string indexName)
+        private static void DeleteIfIndexExist(SearchServiceClient client, string indexName)
         {
             if (client.Indexes.Exists(indexName))
             {
@@ -132,7 +101,7 @@ namespace semisupervisedFramework
             }
         }
 
-        public DataSource CreateBlobSearchDataSource(ILogger log)
+        public static DataSource CreateBlobSearchDataSource(ILogger log)
         {
             string StorageConnection = Engine.GetEnvironmentVariable("AzureWebJobsStorage", log);
 
@@ -143,7 +112,7 @@ namespace semisupervisedFramework
             return dataSource;
         }
 
-        public Indexer CreateBlobIndexer(SearchServiceClient searchService, Index index, string dataSourceName)
+        public static Indexer CreateBlobIndexer(SearchServiceClient searchService, Index index, string dataSourceName)
         {
             Indexer indexer = new Indexer(
                 name: "blob-indexer",
@@ -166,7 +135,7 @@ namespace semisupervisedFramework
             return indexer;
         }
 
-        public SearchIndexClient CreateSearchIndexClient(string indexName, ILogger log)
+        public SearchIndexClient CreateSearchIndexClient(string indexName, ILogger log = null)
         {
             string SearchApiKey = Engine.GetEnvironmentVariable("blobSearchKey", log);
             string SearchServiceName = Engine.GetEnvironmentVariable("SearchServiceName", log);

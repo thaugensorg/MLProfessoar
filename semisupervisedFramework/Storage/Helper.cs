@@ -9,17 +9,25 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Azure.Storage;
 using Microsoft.Azure.Storage.Blob;
 using Microsoft.Azure.Storage.DataMovement;
+using semisupervisedFramework.Storage;
+using System.IO;
 
-namespace semisupervisedFramework
+namespace semisupervisedFramework.Storage
 {
-    class AzureStorage
+    class Helper
     {
+        public CloudStorageAccount GetStorageAccount()
+        {
+            string StorageConnection = Engine.GetEnvironmentVariable("AzureWebJobsStorage");
+            return CloudStorageAccount.Parse(StorageConnection);
+        }
+
         //Moves a blob between two azure containers.
         public static async Task MoveAzureBlobToAzureBlob(CloudStorageAccount account, CloudBlockBlob sourceBlob, CloudBlockBlob destinationBlob, ILogger log)
         {
             await CopyAzureBlobToAzureBlob(account, sourceBlob, destinationBlob, log);
 
-            Stopwatch StopWatch = Stopwatch.StartNew();
+            var StopWatch = Stopwatch.StartNew();
             await sourceBlob.DeleteIfExistsAsync();
             StopWatch.Stop();
             log.LogInformation("The Azure Blob " + sourceBlob + " deleted in: " + StopWatch.Elapsed.TotalSeconds + " seconds.");
@@ -30,10 +38,10 @@ namespace semisupervisedFramework
         public static async Task CopyAzureBlobToAzureBlob(CloudStorageAccount account, CloudBlockBlob sourceBlob, CloudBlockBlob destinationBlob, ILogger log)
         {
             TransferCheckpoint Checkpoint = null;
-            SingleTransferContext Context = GetSingleTransferContext(Checkpoint, log);
-            CancellationTokenSource CancellationSource = new CancellationTokenSource();
+            var Context = GetSingleTransferContext(Checkpoint, log);
+            var CancellationSource = new CancellationTokenSource();
 
-            Stopwatch StopWatch = Stopwatch.StartNew();
+            var StopWatch = Stopwatch.StartNew();
             Task Task;
             try
             {
@@ -57,33 +65,12 @@ namespace semisupervisedFramework
             log.LogInformation("The Azure Blob " + sourceBlob + " transfer to " + destinationBlob + " completed in:" + StopWatch.Elapsed.TotalSeconds + " seconds.");
         }
 
-
-        //Gets a reference to a specific blob using container and blob names as strings
-        public static CloudBlockBlob GetBlob(CloudStorageAccount account, string containerName, string blobName, ILogger log)
-        {
-            try
-            {
-                CloudBlobClient BlobClient = account.CreateCloudBlobClient();
-                CloudBlobContainer Container = BlobClient.GetContainerReference(containerName);
-                Container.CreateIfNotExistsAsync().Wait();
-
-                CloudBlockBlob Blob = Container.GetBlockBlobReference(blobName);
-
-                return Blob;
-            }
-            catch (Exception e)
-            {
-                log.LogInformation("\nNo blob " + blobName + " found in " + containerName + " ", e.Message);
-                return null;
-            }
-        }
-
         //returns an Azure file transfer context for making a single file transfer.
         public static SingleTransferContext GetSingleTransferContext(TransferCheckpoint checkpoint, ILogger log)
         {
             try
             {
-                SingleTransferContext Context = new SingleTransferContext(checkpoint);
+                var Context = new SingleTransferContext(checkpoint);
 
                 Context.ProgressHandler = new Progress<TransferStatus>((Progress) =>
                 {
@@ -104,7 +91,7 @@ namespace semisupervisedFramework
         {
             string SasContainerToken;
 
-            SharedAccessBlobPolicy SharedPolicy = new SharedAccessBlobPolicy()
+            var SharedPolicy = new SharedAccessBlobPolicy()
             {
                 //******* To Do: change to a more appropriate time than always 1 hour.  Maybe make this configurable.
                 SharedAccessStartTime = DateTime.UtcNow.AddHours(1),
@@ -116,6 +103,30 @@ namespace semisupervisedFramework
             return SasContainerToken;
         }
 
+        //Gets a reference to a specific blob using container and blob names as strings
+        public string DownloadBlobAsString(CloudStorageAccount account, string containerName, string blobName)
+        {
+            try
+            {
+                var BlobClient = account.CreateCloudBlobClient();
+                var Container = BlobClient.GetContainerReference(containerName);
+                Container.CreateIfNotExistsAsync().Wait();
+                var Blob = Container.GetBlockBlobReference(blobName);
 
+                using (var memoryStream = new MemoryStream())
+                {
+                    Blob.DownloadToStream(memoryStream);
+                    using (var streamReader = new StreamReader(memoryStream))
+                    {
+                        return streamReader.ReadToEnd();
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                // log.LogInformation("\nNo blob " + blobName + " found in " + containerName + " ", e.Message);
+                return null;
+            }
+        }
     }
 }
