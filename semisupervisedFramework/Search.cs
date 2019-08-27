@@ -15,6 +15,7 @@ using Microsoft.Azure.Storage.DataMovement;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using semisupervisedFramework.Models;
+using System.Linq;
 
 
 // This sample shows how to delete, create, upload documents and query an index
@@ -41,6 +42,16 @@ namespace semisupervisedFramework
             Indexer BlobIndexer = CreateBlobIndexer(serviceClient, BlobIndex, "json-blob");
             serviceClient.Indexers.RunAsync(BlobIndexer.Name).Wait();
 
+        }
+
+        public JObject CommitSearch(string md5Hash)
+        {
+            var client = CreateSearchIndexClient("data-labels-index");
+            var parameters = new SearchParameters()
+            {
+                Select = new[] { "id", "blobInfo/name", "blobInfo/url", "blobInfo/hash", "blobInfo/modified" }
+            };
+            return client.Documents.Search<JObject>(md5Hash, parameters).Results.Single().Document;
         }
 
         // https://cmatskas.com/indexing-and-searching-sql-server-data-with-azure-search/
@@ -125,7 +136,7 @@ namespace semisupervisedFramework
             return indexer;
         }
 
-        public static SearchIndexClient CreateSearchIndexClient(string indexName, ILogger log = null)
+        public SearchIndexClient CreateSearchIndexClient(string indexName, ILogger log = null)
         {
             string SearchApiKey = Engine.GetEnvironmentVariable("blobSearchKey", log);
             string SearchServiceName = Engine.GetEnvironmentVariable("SearchServiceName", log);
