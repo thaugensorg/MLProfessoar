@@ -221,4 +221,35 @@ namespace semisupervisedFramework
             return SasContainerToken;
         }
     }
+    public class EnvironmentVariableNotSetException : Exception
+    {
+        public EnvironmentVariableNotSetException(string message)
+            : base(message)
+        {
+        }
+    }
+
+    public class InvalidUrlException : Exception
+    {
+        public InvalidUrlException(string message)
+            : base(message)
+        {
+        }
+    }
+
+    public class ZeroLengthFileException : Exception
+    {
+        public ZeroLengthFileException(string message)
+            : base(message)
+        {
+        }
+    }
+
+    public class MissingRequiredObject : Exception
+    {
+        public MissingRequiredObject(string message)
+            : base(message)
+        {
+        }
+    }
 }
