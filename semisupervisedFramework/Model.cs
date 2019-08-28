@@ -15,6 +15,17 @@ using Newtonsoft.Json.Linq;
 
 namespace semisupervisedFramework
 {
+    //**********************************************************************************************************
+    //                      CLASS DESCRIPTION
+    // This class marshals the data science code of the model.  All calls to the data science model are handled 
+    // via simple http with a very limited set of required parameters.  This allows a data scientist to provide
+    // model code in virtually any language on any platform in any location.  Note: ML Professor handles all
+    // orchestration of the model using either Azure blob triggers or Azure timer triggers.  That is the definition
+    // of orchestration as a result a data scientist only needs to provide behavior for labeling data (generally
+    // using open source tools), loading labeled training data, training, and evaluating data.  All other aspects
+    // of taking action and moving files is handled by the orchestration engine.
+    //**********************************************************************************************************
+
     class Model
     {
         private ILogger _Log;
@@ -25,12 +36,12 @@ namespace semisupervisedFramework
         private Engine _Engine;
         private Search _Search;
 
-        public Model(ILogger log)
+        public Model(Engine engine, Search search, ILogger log)
         {
             _Log = log;
             _Client = new HttpClient();
-            _Engine = new Engine(log);
-            _Search = new Search();
+            _Engine = engine;
+            _Search = search;
             _TrainModelUrl = _Engine.GetEnvironmentVariable("TrainModelServiceEndpoint", _Log);
             if (string.IsNullOrEmpty(_TrainModelUrl)) throw (new EnvironmentVariableNotSetException("TrainModelServiceEndpoint environment variable not set"));
         }
@@ -53,7 +64,7 @@ namespace semisupervisedFramework
                     if (BindingHash == null)
                     {
                         //compute the file hash as this will be added to the meta data to allow for file version validation
-                        string BlobMd5 = FrameworkBlob.CalculateMD5Hash(dataCloudBlockBlob.ToString());
+                        string BlobMd5 = new DataBlob(dataCloudBlockBlob, _Search, _Log).CalculateMD5Hash().ToString();
                         if (BlobMd5 == null)
                         {
                             _Log.LogInformation("\nWarning: Blob Hash calculation failed and will not be included in file information blob, continuing operation.");
@@ -68,7 +79,7 @@ namespace semisupervisedFramework
                     BindingHash = BindingHash.Substring(0, BindingHash.Length - 2);
 
                     //Get the content from the bound JSON file and instanciate a JsonBlob class then retrieve the labels collection from the Json to add to the image.
-                    JsonBlob boundJson = (JsonBlob)_Search.GetBlob("json", BindingHash, _Log);
+                    JsonBlob boundJson = (JsonBlob)_Search.GetBlob("json", BindingHash);
                     string trainingDataLabels = Uri.EscapeDataString(JsonConvert.SerializeObject(boundJson.Labels));
 
                     //construct and call model URL then fetch response
@@ -159,7 +170,7 @@ namespace semisupervisedFramework
                 //string DataTagsUrl = DataTagsBlob.Uri.ToString(); //+ dataEvaluatingSas;
 
                 //Make a request to the model service load labeling tags function passing the tags.
-                responseString = Helper.GetEvaluationResponseString(AddLabelingTagsEndpoint, content, _Log);
+                responseString = _Engine.GetEvaluationResponseString(AddLabelingTagsEndpoint, content, _Log);
                 if (string.IsNullOrEmpty(responseString)) throw (new MissingRequiredObject("\nresponseString not generated from URL: " + AddLabelingTagsEndpoint));
 
                 //save the hash of this version of the labeling tags file so that we can avoid running load labeling tags if the file has not changed.
@@ -205,21 +216,21 @@ namespace semisupervisedFramework
 
                 //Get a reference to a container, if the container does not exist create one then get the reference to the blob you want to evaluate."
                 CloudBlockBlob RawDataBlob = _Search.GetBlob(StorageAccount, JsonStorageContainerName, blobName, _Log);
-                DataBlob DataEvaluating = new DataBlob(RawDataBlob.Properties.ContentMD5, _Log);
+                DataBlob DataEvaluating = new DataBlob(RawDataBlob.Properties.ContentMD5, _Engine, _Search, _Log);
                 if (DataEvaluating == null)
                 {
                     throw (new MissingRequiredObject("\nMissing dataEvaluating blob object."));
                 }
 
                 //compute the file hash as this will be added to the meta data to allow for file version validation
-                string BlobMd5 = FrameworkBlob.CalculateMD5Hash(DataEvaluating.ToString());
-                if (BlobMd5 == null)
+                string blobMd5 = DataEvaluating.CalculateMD5Hash().ToString();
+                if (blobMd5 == null)
                 {
                     _Log.LogInformation("\nWarning: Blob Hash calculation failed and will not be included in file information blob, continuing operation.");
                 }
                 else
                 {
-                    DataEvaluating.AzureBlob.Properties.ContentMD5 = BlobMd5;
+                    DataEvaluating.AzureBlob.Properties.ContentMD5 = blobMd5;
                 }
 
                 //****Currently only working with public access set on blob folders
@@ -236,7 +247,7 @@ namespace semisupervisedFramework
                 //content.Add(DataEvaluatingStream, "name");
 
                 //Make a request to the model service passing the file URL
-                string ResponseString = Helper.GetEvaluationResponseString(DataEvaluatingUrl, content, _Log);
+                string ResponseString = _Engine.GetEvaluationResponseString(DataEvaluatingUrl, content, _Log);
                 if (ResponseString == "")
                 {
                     throw (new MissingRequiredObject("\nresponseString not generated from URL: " + DataEvaluatingUrl));
@@ -302,7 +313,7 @@ namespace semisupervisedFramework
                                 new JProperty("name", blobName),
                                 new JProperty("url", DataEvaluating.AzureBlob.Uri.ToString()),
                                 new JProperty("modified", DataEvaluating.AzureBlob.Properties.LastModified.ToString()),
-                                new JProperty("hash", BlobMd5)
+                                new JProperty("hash", blobMd5)
                             )
                         )
                     );

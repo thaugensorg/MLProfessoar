@@ -18,9 +18,16 @@ using Newtonsoft.Json.Linq;
 
 namespace semisupervisedFramework
 {
+    //**********************************************************************************************************
+    //                      CLASS DESCRIPTION
+    // This class provides the utility functions that enable the orchestration of marshaling the data science
+    // model and taking proper action on the data files the model will evaluate.  This is generally enviroenment
+    // interaction (think environment variables), http behavior and azure storage marshalling.
+    //**********************************************************************************************************
+
     class Engine
     {
-        ILogger _Log;
+        private ILogger _Log;
         public CloudStorageAccount StorageAccount { get; set; }
 
         public Engine(ILogger log)
@@ -87,6 +94,33 @@ namespace semisupervisedFramework
             return BlobEnvironment;
         }
 
+        //Returns a response string for a given URL.
+        public string GetEvaluationResponseString(string targetUrl, MultipartFormDataContent postData, ILogger log)
+        {
+            //initialize variables
+            Stopwatch StopWatch = Stopwatch.StartNew();
+            string ResponseString = new string("");
+
+            try
+            {
+                //construct and call model URL then fetch response
+                HttpClient Client = new HttpClient();
+                Uri TargetUri = new Uri(targetUrl);
+                HttpResponseMessage Response = Client.PostAsync(TargetUri, postData).Result;
+                ResponseString = Response.Content.ReadAsStringAsync().Result;
+            }
+            catch (Exception e)
+            {
+                log.LogInformation("\nFailed HTTP request for URL" + targetUrl + " in application environment variables", e.Message);
+                return "";
+            }
+
+            //log the http elapsed time
+            StopWatch.Stop();
+            log.LogInformation("\nHTTP call to " + targetUrl + " completed in:" + StopWatch.Elapsed.TotalSeconds + " seconds.");
+            return ResponseString;
+        }
+
         //Moves a blob between two azure containers.
         public async Task MoveAzureBlobToAzureBlob(CloudStorageAccount account, CloudBlockBlob sourceBlob, CloudBlockBlob destinationBlob, ILogger log)
         {
@@ -127,6 +161,26 @@ namespace semisupervisedFramework
 
             StopWatch.Stop();
             log.LogInformation("The Azure Blob " + sourceBlob + " transfer to " + destinationBlob + " completed in:" + StopWatch.Elapsed.TotalSeconds + " seconds.");
+        }
+
+        //Gets a reference to a specific blob using container and blob names as strings
+        public static CloudBlockBlob GetBlob(CloudStorageAccount account, string containerName, string blobName, ILogger log)
+        {
+            try
+            {
+                CloudBlobClient BlobClient = account.CreateCloudBlobClient();
+                CloudBlobContainer Container = BlobClient.GetContainerReference(containerName);
+                Container.CreateIfNotExistsAsync().Wait();
+
+                CloudBlockBlob Blob = Container.GetBlockBlobReference(blobName);
+
+                return Blob;
+            }
+            catch (Exception e)
+            {
+                log.LogInformation("\nNo blob " + blobName + " found in " + containerName + " ", e.Message);
+                return null;
+            }
         }
 
         //returns an Azure file transfer context for making a single file transfer.

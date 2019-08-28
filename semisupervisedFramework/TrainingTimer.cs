@@ -27,6 +27,13 @@ namespace semisupervisedFramework
         // *****todo***** why doesn't this run???
         public void Initialize(ExtensionConfigContext context) => _Search.InitializeSearch();
     }
+
+    //**********************************************************************************************************
+    //                      CLASS DESCRIPTION
+    // This class is the timer that launches the model training process using labeled data from the labeleddata
+    // Azure blob container.
+    //**********************************************************************************************************
+
     public static class TrainingTimer
     {
         //*****TODO***** Externalize timer frequency.
@@ -41,6 +48,7 @@ namespace semisupervisedFramework
 
             )]TimerInfo myTimer, ILogger log)
         {
+
             Engine engine = new Engine(log);
             try
             {
@@ -49,11 +57,14 @@ namespace semisupervisedFramework
                 CloudBlobClient blobClient = storageAccount.CreateCloudBlobClient();
                 //*****TODO***** externalize labeled data container name.
                 CloudBlobContainer labeledDataContainer = blobClient.GetContainerReference("labeleddata");
-                Model model = new Model(log);
 
-                // with a container load training tags
+                //*****TODO***** update this to check if there are any new files not just files
+                // Check if there are any files in the labeled data container before loading labeling tags follwed by labeled data followed by training the model.
                 if (labeledDataContainer.ListBlobs(null, false) != null)
                 {
+                    Search search = new Search(engine, log);
+                    Model model = new Model(engine, search, log);
+
                     //*****TODO***** Where should search be initialized?  Azure search does not offer CLI calls to configure all of search so it needs to be initialized befor it can be used as a service.  Look at putting it in engine.  Recognize this is not the same thing as migrating search to a non-static mode and then newing it up.
                     //Search.InitializeSearch();
 

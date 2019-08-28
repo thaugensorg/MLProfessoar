@@ -23,25 +23,37 @@ using Newtonsoft.Json.Linq;
 
 namespace semisupervisedFramework
 {
+    //**********************************************************************************************************
+    //                      CLASS DESCRIPTION
+    // This class marshalls the Azure Search engine which is used to construct blobs from data blob MD5 hash
+    // values.  All files that are "touched" by ML Professoar have a json blob file created that includes information
+    // about the iteration and results of the action AND the MD5 hash that binds data blobs and json blobs together.
+    //**********************************************************************************************************
+
     class Search
     {
-        private Engine Engine;
+        private ILogger _Log;
+        private Engine _Engine;
+
+        public Search(Engine engine, ILogger log)
+        {
+            _Log = log;
+            _Engine = engine;
+        }
 
         // *****TODO***** should search be static or instanciable?
-        public FrameworkBlob GetBlob(string Type, string dataBlobMD5, ILogger log)
+        public FrameworkBlob GetBlob(string Type, string dataBlobMD5)
         {
-            log.LogInformation("\nEntering Framework Blob Factory");
-
             switch (Type)
             {
                 case "data":
-                    return new DataBlob(dataBlobMD5, log);
+                    return new DataBlob(dataBlobMD5, _Engine, this, _Log);
 
                 case "json":
-                    return new JsonBlob(dataBlobMD5, log);
+                    return new JsonBlob(dataBlobMD5, _Engine, this, _Log);
 
                 default:
-                    throw (new MissingRequiredObject("\nInvalid blob type: " + Type));
+                    throw (new MissingRequiredObject($"\nInvalid blob type: {Type}"));
 
             }
         }
@@ -71,8 +83,8 @@ namespace semisupervisedFramework
         {
             ILoggerFactory logger = (ILoggerFactory)new LoggerFactory();
             ILogger log = logger.CreateLogger("Search");
-            string SearchApiKey = Engine.GetEnvironmentVariable("blobSearchKey", log);
-            string indexName = Engine.GetEnvironmentVariable("bindinghash", log);
+            string SearchApiKey = _Engine.GetEnvironmentVariable("blobSearchKey", log);
+            string indexName = _Engine.GetEnvironmentVariable("bindinghash", log);
 
             //instanciates a serch client and creates the index.
             SearchServiceClient serviceClient = Initialize("semisupervisedblobsearch", "blobindex", SearchApiKey);
@@ -134,7 +146,7 @@ namespace semisupervisedFramework
 
         public DataSource CreateBlobSearchDataSource(ILogger log)
         {
-            string StorageConnection = Engine.GetEnvironmentVariable("AzureWebJobsStorage", log);
+            string StorageConnection = _Engine.GetEnvironmentVariable("AzureWebJobsStorage", log);
 
             DataSource dataSource = DataSource.AzureBlobStorage(
                 name: "json-blob",
@@ -168,8 +180,8 @@ namespace semisupervisedFramework
 
         public SearchIndexClient CreateSearchIndexClient(string indexName, ILogger log)
         {
-            string SearchApiKey = Engine.GetEnvironmentVariable("blobSearchKey", log);
-            string SearchServiceName = Engine.GetEnvironmentVariable("SearchServiceName", log);
+            string SearchApiKey = _Engine.GetEnvironmentVariable("blobSearchKey", log);
+            string SearchServiceName = _Engine.GetEnvironmentVariable("SearchServiceName", log);
 
             SearchIndexClient indexClient = new SearchIndexClient(SearchServiceName, indexName, new SearchCredentials(SearchApiKey));
             return indexClient;

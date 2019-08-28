@@ -21,6 +21,11 @@ using Newtonsoft.Json.Linq;
 
 namespace semisupervisedFramework
 {
+    //**********************************************************************************************************
+    //                      CLASS DESCRIPTION
+    //This class is provided to assist newtonsoft in deserializing json blob search results into objects
+    //that can be reasoned over.  *****TODO***** it is unclear if this is still required as a JObject
+    //class may be just as effective given this class has no behavior.
     public class BlobInfo
     {
         public string Name { get; set; }
@@ -35,27 +40,34 @@ namespace semisupervisedFramework
             return $"Name: {Name}\tURL: {Url}\tHash: {Md5Hash}\tModified: {Modified}";
         }
     }
+    
+    //**********************************************************************************************************
+    //                      CLASS DESCRIPTION
+    //This class provides the common functionality for DataBlob and JsonBlob subclasses.  This shared behavior 
+    //is generally dealing with hashes and the ability to construct and navigate between a pair of bound DataBlob
+    //and JsonBlobs.  THe binsing of these two files using MD5 hases is one of the key values of ML Proferssoar.
+    //It allows the orchestration engine to handle any type of data that needs a supervision loop as some data
+    //file types do not have the ability to embed an arbitrary amount of json data.
+    //**********************************************************************************************************
 
-    public class FrameworkBlob
+    abstract class FrameworkBlob
     {
         //we have to use has a relationship here as oposed to is a because using CloudBlockBlob as a base class requires
         //the constructor to pass a URI and the primary behavior of the blob class is navigating between data and json blob types
         //using the hash value to retrieve the URL.
         public CloudBlockBlob AzureBlob { get; set; }
-        private ILogger _Log;
-        private Engine _Engine;
-        private Search _Search;
+        virtual public ILogger Log { get; set; } //*****TODO*****should this be abstract or virtual?
+        virtual public Search Search { get; set; }
 
-        // encapsulates the GetBlobByHash behavior which is reused between both DataBlob and JsonBlob subclasses.
-        public FrameworkBlob(ILogger log)
+        // encapsulates the GetBlobByHash behavior which is reused between both DataBlob and JsonBlob subclasses
+        public FrameworkBlob(Search search, ILogger log)
         {
-            _Log = log;
-            _Engine = new Engine(_Log);
-            _Search = new Search();
+            Log = log;
+            Search = search;
         }
 
         //calculates a blob hash to join JSON to a specific version of a file.
-        private async Task<string> CalculateBlobHash(CloudBlockBlob blockBlob, ILogger log)
+        private async Task<string> CalculateBlobHash(CloudBlockBlob blockBlob, ILogger _Log)
         {
             try
             {
@@ -66,7 +78,7 @@ namespace semisupervisedFramework
                     throw (new ZeroLengthFileException("\nCloud Block Blob: " + blockBlob.Name + " is zero length"));
                 }
                 string BlobString = MemStream.ToString();
-                string md5Hash = CalculateMD5Hash(BlobString);
+                string md5Hash = CalculateMD5Hash();
 
                 // ***** TODO ***** check if chunking the file download is necissary or if the azure blob movement namepace handles chunking for you.
                 // Download will re-populate the client MD5 value from the server
@@ -85,20 +97,21 @@ namespace semisupervisedFramework
             }
             catch (ZeroLengthFileException e)
             {
-                log.LogInformation("\n" + blockBlob.Name + " is zero length.  CalculateBlobFileHash failed with error: " + e.Message);
+                _Log.LogInformation("\n" + blockBlob.Name + " is zero length.  CalculateBlobFileHash failed with error: " + e.Message);
                 return null;
             }
             catch (Exception e)
             {
-                log.LogInformation("\ncalculatingBlobFileHash for " + blockBlob.Name + " failed with: " + e.Message);
+                _Log.LogInformation("\ncalculatingBlobFileHash for " + blockBlob.Name + " failed with: " + e.Message);
                 return null;
             }
         }
-        public static string CalculateMD5Hash(string input)
+
+        public string CalculateMD5Hash()
         {
             // step 1, calculate MD5 hash from input
             MD5 md5 = MD5.Create();
-            byte[] inputBytes = Encoding.ASCII.GetBytes(input);
+            byte[] inputBytes = Encoding.ASCII.GetBytes(AzureBlob.ToString());
             byte[] md5Hash = md5.ComputeHash(inputBytes);
 
             // step 2, convert byte array to hex string
@@ -110,7 +123,7 @@ namespace semisupervisedFramework
             return sb.ToString();
         }
 
-        public static DocumentSearchResult<JObject> GetBlobByHash(SearchIndexClient indexClient, string md5Hash, ILogger log)
+        public DocumentSearchResult<JObject> GetBlobByHash(SearchIndexClient indexClient, string md5Hash, ILogger log)
         {
             SearchParameters parameters;
 
@@ -150,13 +163,12 @@ namespace semisupervisedFramework
 
         public SearchIndexClient GetJsonBindingSearchIndex()
         {
-            Search BindingSearch = new Search();
-            return _Search.CreateSearchIndexClient("data-labels-index", _Log);
+            return Search.CreateSearchIndexClient("data-labels-index", Log);
         }
 
         public JObject JsonBindingSearchResult(SearchIndexClient indexClient, string md5Hash)
         {
-            DocumentSearchResult<JObject> documentSearchResult = GetBlobByHash(indexClient, md5Hash, _Log);
+            DocumentSearchResult<JObject> documentSearchResult = GetBlobByHash(indexClient, md5Hash, Log);
             if (documentSearchResult.Results.Count > 0)
             {
                 JObject firstSearchResult = documentSearchResult.Results[0].Document;
@@ -166,9 +178,14 @@ namespace semisupervisedFramework
         }
     }
 
+    //**********************************************************************************************************
+    //                      CLASS DESCRIPTION
     //This class encapsulates the fucntionality for the data blob files that will be used to train the semisupervised model.
-    public class DataBlob : FrameworkBlob
+    //**********************************************************************************************************
+    class DataBlob : FrameworkBlob
     {
+        //public Log;
+        private Engine _Engine;
         private JsonBlob _jsonBlob;
         public JsonBlob BoundJsonBlob
         {
@@ -176,7 +193,7 @@ namespace semisupervisedFramework
             {
                 if (_jsonBlob == null)
                 {
-                    _jsonBlob = new JsonBlob(AzureBlob.Properties.ContentMD5, Log);
+                    _jsonBlob = new JsonBlob(AzureBlob.Properties.ContentMD5, _Engine, Search, Log);
                     return _jsonBlob;
                 }
                 else
@@ -188,25 +205,61 @@ namespace semisupervisedFramework
             set => BoundJsonBlob = value;
         }
 
-        public DataBlob(string md5Hash, ILogger log)
+        public DataBlob(string md5Hash, Engine engine, Search search, ILogger log) : base(search, log)
         {
-            ILogger _Log = log;
-            Engine Engine = new Engine(log);
+            Log = log;
+            _Engine = engine;
             Uri DataBlobUri = GetDataBlobUriFromJson(md5Hash);
-            CloudStorageAccount StorageAccount = Engine.StorageAccount;
+            CloudStorageAccount StorageAccount = _Engine.StorageAccount;
             CloudBlobClient BlobClient = StorageAccount.CreateCloudBlobClient();
             AzureBlob = new CloudBlockBlob(DataBlobUri, BlobClient);
         }
 
-        public DataBlob(CloudBlockBlob azureBlob, ILogger log)
+        public DataBlob(CloudBlockBlob azureBlob, Search search, ILogger log) : base(search, log)
         {
-            ILogger Log = log;
+            Log = log;
+            Search = search; 
             AzureBlob = azureBlob;
+        }
+
+        private async Task<string> CalculateMD5Async()
+        {
+            //*****TODO***** it is not clear if the standard api for calculating the MD5 hash in Azure pages the hash calculation or if I have to do it manually.
+            // https://stackoverflow.com/questions/2124468/possible-to-calculate-md5-or-other-hash-with-buffered-reads
+            // http://www.infinitec.de/post/2007/06/09/Displaying-progress-updates-when-hashing-large-files.aspx
+            // https://stackoverflow.com/questions/24312527/azure-blob-storage-downloadtobytearray-vs-downloadtostream
+            // https://stackoverflow.com/questions/6752000/downloading-azure-blob-files-in-mvc3
+            byte[] block = ArrayPool<byte>.Shared.Rent(8192);
+            try
+            {
+                using (MD5 md5 = MD5.Create())
+                {
+                    MemoryStream MemStream = new MemoryStream();
+                    using (var stream = new FileStream(AzureBlob.Name, FileMode.Open, FileAccess.Read, FileShare.Read, 8192, true))
+                    {
+                        int length;
+                        while ((length = await stream.ReadAsync(block, 0, block.Length).ConfigureAwait(false)) > 0)
+                        {
+                            md5.TransformBlock(block, 0, length, null, 0);
+                        }
+                        md5.TransformFinalBlock(block, 0, 0);
+                    }
+                    var md5Hash = md5.Hash;
+                    return Convert.ToBase64String(md5Hash);
+                }
+            }
+            finally
+            {
+                ArrayPool<byte>.Shared.Return(block);
+            }
         }
     }
 
+    //**********************************************************************************************************
+    //                      CLASS DESCRIPTION
     //This class encapsulates the functionality for the json blob files that are bound to the data files.  These json files contain all of the meta data, labeling data, and results of every evaluation against the model
-    public class JsonBlob : FrameworkBlob
+    //**********************************************************************************************************
+    class JsonBlob : FrameworkBlob
     {
         [System.ComponentModel.DataAnnotations.Key]
         public string Id { get; set; }
@@ -214,27 +267,32 @@ namespace semisupervisedFramework
         public BlobInfo BlobInfo;
         public IList<string> Labels { get; set; }
         private DataBlob _DataBlob;
-        public DataBlob BoundDataBlob
+        public DataBlob DataBlob
         {
             get
             {
                 if (_DataBlob == null)
                 {
-                    _DataBlob = new DataBlob(BlobInfo.Md5Hash, Log);
+                    DataBlob dataBlob = new DataBlob(BlobInfo.Md5Hash, _Engine, Search, Log);
+                    if (dataBlob == null)
+                    {
+                        throw (new MissingRequiredObject($"\nNo data blob found with MD% hash {BlobInfo.Md5Hash}."));
+                    }
+                    _DataBlob = dataBlob;
                     return _DataBlob;
                 }
-                else
-                {
-                    return _DataBlob;
-                }
+                return _DataBlob;
             }
-            set => BoundDataBlob = value;
+            set => DataBlob = value;
         }
+        private Engine _Engine;
 
-        public JsonBlob(string md5Hash, ILogger log)
+        public JsonBlob(string md5Hash, Engine engine, Search search, ILogger log) : base(search, log)
         {
+            Log = log;
+            Search = search;
+            _Engine = engine;
             BlobInfo = new BlobInfo();
-            ILogger Log = log;
             JObject jsonBlobJson = GetJsonBlobJson(md5Hash);
             //JsonBlob BoundJson = dataBlob.GetBoundJson(log);
             //*****TODO***** get the url to the actual blob and down load the JOSON full JSON content not just what was indexed
@@ -309,53 +367,6 @@ namespace semisupervisedFramework
             {
                 throw (new MissingRequiredObject($"\nBound JSON for {md5Hash} does not contain an blobInfo.url name."));
             }
-        }
-
-        private static async Task<string> CalculateMD5Async(CloudBlockBlob blockBlob, ILogger log)
-        {
-            //*****TODO***** it is not clear if the standard api for calculating the MD5 hash in Azure pages the hash calculation or if I have to do it manually.
-            // https://stackoverflow.com/questions/2124468/possible-to-calculate-md5-or-other-hash-with-buffered-reads
-            // http://www.infinitec.de/post/2007/06/09/Displaying-progress-updates-when-hashing-large-files.aspx
-            // https://stackoverflow.com/questions/24312527/azure-blob-storage-downloadtobytearray-vs-downloadtostream
-            // https://stackoverflow.com/questions/6752000/downloading-azure-blob-files-in-mvc3
-            byte[] block = ArrayPool<byte>.Shared.Rent(8192);
-            try
-            {
-                using (MD5 md5 = MD5.Create())
-                {
-                    MemoryStream MemStream = new MemoryStream();
-                    using (var stream = new FileStream(blockBlob.Name, FileMode.Open, FileAccess.Read, FileShare.Read, 8192, true))
-                    {
-                        int length;
-                        while ((length = await stream.ReadAsync(block, 0, block.Length).ConfigureAwait(false)) > 0)
-                        {
-                            md5.TransformBlock(block, 0, length, null, 0);
-                        }
-                        md5.TransformFinalBlock(block, 0, 0);
-                    }
-                    var md5Hash = md5.Hash;
-                    return Convert.ToBase64String(md5Hash);
-                }
-            }
-            finally
-            {
-                ArrayPool<byte>.Shared.Return(block);
-            }
-        }
-
-        public DataBlob GetBoundData(CloudBlobContainer Container)
-        {
-            //Get a reference to a container, if the container does not exist create one then get the reference to the blob you want to evaluate."
-            //*****TODO***** This uses the file name as the searcdh mechanism.  I expect if the file name changes so does the hash but this has not been verified.  If the name does not change the hash then I need to locate the file using the has which will mean creating a search index over the blob file properties.
-            CloudBlockBlob RawDataBlob = Container.GetBlockBlobReference(BlobInfo.Name);
-            DataBlob TrainingDataBlob = new DataBlob(BlobInfo.Md5Hash, _Log);
-            if (TrainingDataBlob == null)
-            {
-                throw (new MissingRequiredObject("\nMissing dataEvaluating blob object."));
-            }
-
-            return TrainingDataBlob;
-
         }
     }
 }

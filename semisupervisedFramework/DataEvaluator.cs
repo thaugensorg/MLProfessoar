@@ -32,13 +32,21 @@ using Newtonsoft.Json.Linq;
 
 namespace semisupervisedFramework
 {
+    //**********************************************************************************************************
+    //                      CLASS DESCRIPTION
+    // This class is the event handler for the Azure blob trigger to evaluate a data blob when a data blob is 
+    // uploaded to the pendingevaluation blob container.
+    //**********************************************************************************************************
+
     public static class DataEvaluator
     {
         [FunctionName("EvaluateData")]
 
         public static async Task RunAsync([BlobTrigger("pendingevaluation/{blobName}", Connection = "AzureWebJobsStorage")]Stream myBlob, string blobName, ILogger log)
         {
-            Model model = new Model(log);
+            Engine engine = new Engine(log);
+            Search search = new Search(engine, log);
+            Model model = new Model(engine, search, log);
             try
             {
                 string result = model.EvaluateData(blobName);
