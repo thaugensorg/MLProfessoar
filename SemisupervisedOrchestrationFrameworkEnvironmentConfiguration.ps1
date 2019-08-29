@@ -52,7 +52,7 @@ if ([string]::IsNullOrWhiteSpace($pendingSupervisionStorageContainerName)) {$pen
 
 $modelServiceEndpoint = Read-Host -Prompt 'Input the URL (http address) of the model analysis function app'
 
-$evaluationDataParameterName = Read-Host -Prompt 'Input the parameter name of the asset that will be passed into the azure function model (defaule=name)'
+$evaluationDataParameterName = Read-Host -Prompt 'Input the parameter name of the asset that will be passed into the azure function model (defaule=dataBlobURL)'
 if ([string]::IsNullOrWhiteSpace($evaluationDataParameterName)) {$evaluationDataParameterName = "dataBlobUrl"}
 
 $confidenceJSONPath = Read-Host -Prompt 'Input the JSON path where the blob analysis confidence value will be found in the JSON document found in the model analysis response.  By default confidence is expected as a root value in the response JSON (default=confidence)'
@@ -61,7 +61,7 @@ if ([string]::IsNullOrWhiteSpace($confidenceJSONPath)) {$confidenceJSONPath = "c
 $confidenceThreshold = Read-Host -Prompt 'Input the decimal value in the format of a C# Double that specifies the confidence threshold the model must return to indicate the model blob analysis is acceptable (default=.95)'
 if ([string]::IsNullOrWhiteSpace($confidenceThreshold)) {$confidenceThreshold = .95}
 
-$blobSearchEndpointUrl = Read-Host -Prompt 'Input the url that will be used to access the blob search service to locate JSON files bound to data (default=.semisupervisedblobsearch)'
+$blobSearchEndpointUrl = Read-Host -Prompt 'Input the url that will be used to access the blob search service to locate JSON files bound to data (default=semisupervisedblobsearch)'
 if ([string]::IsNullOrWhiteSpace($blobSearchEndpointUrl)) {$blobSearchEndpointUrl = "semisupervisedblobsearch"}
 
 $blobSearchIndexName = Read-Host -Prompt 'Input the name of the index that will be used to access the blob binding hash. (default="bindinghash")'
@@ -70,7 +70,7 @@ if ([string]::IsNullOrWhiteSpace($blobSearchIndexName)) {$blobSearchIndexName = 
 $blobSearchServiceName = Read-Host -Prompt 'Input the name of the search service that will be used to access the blob binding hash. (default="semisupervisedblobsearch")'
 if ([string]::IsNullOrWhiteSpace($blobSearchServiceName)) {$blobSearchServiceName = "semisupervisedblobsearch"}
 
-$dataEvaluationServiceEndpoint = Read-Host -Prompt 'Input the name of the search service that will be used to access the blob binding hash. (default="https://imagedetectionapp.azurewebsites.net/api/EvaluateData")'
+$dataEvaluationServiceEndpoint = Read-Host -Prompt 'Input the http address of the evaluate data endpoint for your app. (default="https://imagedetectionapp.azurewebsites.net/api/EvaluateData")'
 if ([string]::IsNullOrWhiteSpace($dataEvaluationServiceEndpoint)) {$dataEvaluationServiceEndpoint = "https://imagedetectionapp.azurewebsites.net/api/EvaluateData"}
 
 #These environment variables are only used for trained models
@@ -111,9 +111,14 @@ if (az group exists --name $frameworkResourceGroupName) `
 	  --subscription $subscription `
 	  --yes -y}
 
+Write-Host "Creating Resource Group: " $modelResourceGroupName  -ForegroundColor "Green"
+
 az group create `
   --name $frameworkResourceGroupName `
   --location $frameworkLocation
+
+  
+Write-Host "Creating storage account: " $frameworkStorageAccountName  -ForegroundColor "Green"
 
 az storage account create `
     --location $frameworkLocation `
@@ -121,10 +126,14 @@ az storage account create `
     --resource-group $frameworkResourceGroupName `
     --sku Standard_LRS
 
+Write-Host "Getting storage account key." -ForegroundColor "Green"
+
 $frameworkStorageAccountKey = `
 	(get-azureRmStorageAccountKey `
 		-resourceGroupName $frameworkResourceGroupName `
 		-AccountName $frameworkStorageAccountName).Value[0]
+
+Write-Host "Creating function app: " $frameworkFunctionAppName -ForegroundColor "Green"
 
 az functionapp create `
   --name $frameworkFunctionAppName `
@@ -132,11 +141,15 @@ az functionapp create `
   --consumption-plan-location $frameworkLocation `
   --resource-group $frameworkResourceGroupName
 
+Write-Host "Creating pending evaluation storage container: " $pendingEvaluationStorageContainerName  -ForegroundColor "Green"
+
 az storage container create `
   --name $pendingEvaluationStorageContainerName `
   --account-name $frameworkStorageAccountName `
   --account-key $frameworkStorageAccountKey `
   --fail-on-exist
+
+Write-Host "Creating evaluated data storage container: " $evaluatedDataStorageContainerName  -ForegroundColor "Green"
 
 az storage container create `
   --name $evaluatedDataStorageContainerName `
@@ -144,11 +157,15 @@ az storage container create `
   --account-key $frameworkStorageAccountKey `
   --fail-on-exist
 
+Write-Host "Creating pending supervision storage container: " $pendingSupervisionStorageContainerName  -ForegroundColor "Green"
+
 az storage container create `
   --name $pendingSupervisionStorageContainerName `
   --account-name $frameworkStorageAccountName `
   --account-key $frameworkStorageAccountKey `
   --fail-on-exist
+
+Write-Host "Creating json storage container: " $jsonStorageContainerName  -ForegroundColor "Green"
 
 az storage container create `
   --name $jsonStorageContainerName `
@@ -160,17 +177,23 @@ az storage container create `
 if ($modelType -eq "Trained")
 {
   
+  Write-Host "Creating labeled data storage container: " $labeledDataStorageContainerName  -ForegroundColor "Green"
+
   az storage container create `
     --name $labeledDataStorageContainerName `
     --account-name $frameworkStorageAccountName `
     --account-key $frameworkStorageAccountKey `
     --fail-on-exist
 
+  Write-Host "Creating model validation storage container: " $modelValidationStorageContainerName  -ForegroundColor "Green"
+
   az storage container create `
     --name $modelValidationStorageContainerName `
     --account-name $frameworkStorageAccountName `
     --account-key $frameworkStorageAccountKey `
     --fail-on-exist
+
+  Write-Host "Creating pending new model storage container: " $pendingNewModelStorageContainerName  -ForegroundColor "Green"
 
   az storage container create `
     --name $pendingNewModelStorageContainerName `
@@ -179,70 +202,98 @@ if ($modelType -eq "Trained")
     --fail-on-exist
 }
 
+Write-Host "Creating app config setting: modelType: " $modelType -ForegroundColor "Green"
+
 az functionapp config appsettings set `
     --name $frameworkFunctionAppName `
     --resource-group $frameworkResourceGroupName `
     --settings "modelType=$modelType"
+
+Write-Host "Creating app config setting: pendingEvaluationStorageContainerName: " $pendingEvaluationStorageContainerName -ForegroundColor "Green"
 
 az functionapp config appsettings set `
     --name $frameworkFunctionAppName `
     --resource-group $frameworkResourceGroupName `
     --settings "pendingEvaluationStorageContainerName=$pendingEvaluationStorageContainerName" 
 
+Write-Host "Creating app config setting: evaluatedDataStorageContainerName: " $evaluatedDataStorageContainerName -ForegroundColor "Green"
+
 az functionapp config appsettings set `
     --name $frameworkFunctionAppName `
     --resource-group $frameworkResourceGroupName `
     --settings "evaluatedDataStorageContainerName=$evaluatedDataStorageContainerName" 
+
+Write-Host "Creating app config setting: jsonStorageContainerName: " $jsonStorageContainerName -ForegroundColor "Green"
 
 az functionapp config appsettings set `
     --name $frameworkFunctionAppName `
     --resource-group $frameworkResourceGroupName `
     --settings "jsonStorageContainerName=$jsonStorageContainerName"
 
+Write-Host "Creating app config setting: pendingSupervisionStorageContainerName: " $pendingSupervisionStorageContainerName -ForegroundColor "Green"
+
 az functionapp config appsettings set `
     --name $frameworkFunctionAppName `
     --resource-group $frameworkResourceGroupName `
     --settings "pendingSupervisionStorageContainerName=$pendingSupervisionStorageContainerName"
+
+Write-Host "Creating app config setting: confidenceThreshold: " $confidenceThreshold -ForegroundColor "Green"
 
 az functionapp config appsettings set `
   --name $frameworkFunctionAppName `
   --resource-group $frameworkResourceGroupName `
   --settings "confidenceThreshold=$confidenceThreshold" 
 
+Write-Host "Creating app config setting: confidenceJSONPath: " $confidenceJSONPath -ForegroundColor "Green"
+
 az functionapp config appsettings set `
   --name $frameworkFunctionAppName `
   --resource-group $frameworkResourceGroupName `
   --settings "confidenceJSONPath=$confidenceJSONPath"
+
+Write-Host "Creating app config setting: modelServiceEndpoint: " $modelServiceEndpoint -ForegroundColor "Green"
 
 az functionapp config appsettings set `
   --name $frameworkFunctionAppName `
   --resource-group $frameworkResourceGroupName `
   --settings "modelServiceEndpoint=$modelServiceEndpoint"
 
+Write-Host "Creating app config setting: evaluationDataParameterName: " $evaluationDataParameterName -ForegroundColor "Green"
+
 az functionapp config appsettings set `
   --name $frameworkFunctionAppName `
   --resource-group $frameworkResourceGroupName `
   --settings "evaluationDataParameterName=$evaluationDataParameterName"
+
+Write-Host "Creating app config setting: blobSearchEndpoint: " $frameworkFunctionAppName -ForegroundColor "Green"
 
 az functionapp config appsettings set `
   --name $frameworkFunctionAppName `
   --resource-group $frameworkResourceGroupName `
   --settings "blobSearchEndpoint=$blobSearchEndpointUrl"
 
+Write-Host "Creating app config setting: blobSearchKey: null" -ForegroundColor "Green"
+
 az functionapp config appsettings set `
   --name $frameworkFunctionAppName `
   --resource-group $frameworkResourceGroupName `
   --settings "blobSearchKey=null"
+
+Write-Host "Creating app config setting: blobSearchIndexName: " $blobSearchIndexName -ForegroundColor "Green"
 
 az functionapp config appsettings set `
   --name $frameworkFunctionAppName `
   --resource-group $frameworkResourceGroupName `
   --settings "blobSearchIndexName=$blobSearchIndexName"
 
+Write-Host "Creating app config setting: blobSearchIndexName: " $blobSearchServiceName -ForegroundColor "Green"
+
 az functionapp config appsettings set `
   --name $frameworkFunctionAppName `
   --resource-group $frameworkResourceGroupName `
   --settings "blobSearchIndexName=$blobSearchServiceName"
+
+Write-Host "Creating app config setting: DataEvaluationServiceEndpoint: " $dataEvaluationServiceEndpoint -ForegroundColor "Green"
 
 az functionapp config appsettings set `
   --name $frameworkFunctionAppName `
@@ -252,45 +303,63 @@ az functionapp config appsettings set `
 #These environment variables are only used for trained models
 if ($modelType -eq "Trained")
 {
+  Write-Host "Creating app config setting: labeledDataStorageContainerName: " $labeledDataStorageContainerName -ForegroundColor "Green"
+
 az functionapp config appsettings set `
     --name $frameworkFunctionAppName `
     --resource-group $frameworkResourceGroupName `
     --settings "labeledDataStorageContainerName=$labeledDataStorageContainerName"
+
+Write-Host "Creating app config setting: modelValidationStorageContainerName: " $modelValidationStorageContainerName -ForegroundColor "Green"
 
 az functionapp config appsettings set `
     --name $frameworkFunctionAppName `
     --resource-group $frameworkResourceGroupName `
     --settings "modelValidationStorageContainerName=$modelValidationStorageContainerName"
 
+Write-Host "Creating app config setting: pendingNewModelStorageContainerName: " $pendingNewModelStorageContainerName -ForegroundColor "Green"
+
 az functionapp config appsettings set `
     --name $frameworkFunctionAppName `
     --resource-group $frameworkResourceGroupName `
     --settings "pendingNewModelStorageContainerName=$pendingNewModelStorageContainerName"
+
+Write-Host "Creating app config setting: modelVerificationPercentage: " $modelVerificationPercentage -ForegroundColor "Green"
 
 az functionapp config appsettings set `
     --name $frameworkFunctionAppName `
     --resource-group $frameworkResourceGroupName `
     --settings "modelVerificationPercentage=$modelVerificationPercentage"
 
+Write-Host "Creating app config setting: labelingTagsBlobName: " $labelingTagsBlobName -ForegroundColor "Green"
+
 az functionapp config appsettings set `
     --name $frameworkFunctionAppName `
     --resource-group $frameworkResourceGroupName `
     --settings "labelingTagsBlobName=$labelingTagsBlobName"
+
+Write-Host "Creating app config setting: labelingTagsFileHash: " $labelingTagsFileHash -ForegroundColor "Green"
 
 az functionapp config appsettings set `
     --name $frameworkFunctionAppName `
     --resource-group $frameworkResourceGroupName `
     --settings "labelingTagsFileHash=$labelingTagsFileHash"
 
+Write-Host "Creating app config setting: TrainModelServiceEndpoint: " $trainModelServiceEndpoint -ForegroundColor "Green"
+
 az functionapp config appsettings set `
     --name $frameworkFunctionAppName `
     --resource-group $frameworkResourceGroupName `
     --settings "TrainModelServiceEndpoint=$trainModelServiceEndpoint"
 
+Write-Host "Creating app config setting: TagsUploadServiceEndpoint: " $tagsUploadServiceEndpoint -ForegroundColor "Green"
+
 az functionapp config appsettings set `
     --name $frameworkFunctionAppName `
     --resource-group $frameworkResourceGroupName `
     --settings "TagsUploadServiceEndpoint=$tagsUploadServiceEndpoint"
+
+Write-Host "Creating app config setting: labelingTagsBlobName: " $labelingTagsBlobName -ForegroundColor "Green"
 
 az functionapp config appsettings set `
     --name $frameworkFunctionAppName `
