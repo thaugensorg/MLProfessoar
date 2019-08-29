@@ -39,11 +39,11 @@ namespace semisupervisedFramework
         //*****TODO***** Externalize timer frequency.
         [FunctionName("TrainingTimer")]
         public static void Run(
-                [TimerTrigger("0 */1 * * * *"
+                [TimerTrigger("0 */1 * * * *" //setting this to 1 will cause the trigger to fire every minute for debug purposes.
 
             //This setting causes the timer job to immediately run when you press F5 rather than having to wait for the timer to fire after n minutes.
 #if DEBUG
-            , RunOnStartup = true
+            , RunOnStartup = true //set this to true if you want to debug the timer process.
 #endif            
 
             )]TimerInfo myTimer, ILogger log)

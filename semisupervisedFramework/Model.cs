@@ -80,7 +80,10 @@ namespace semisupervisedFramework
 
                     //Get the content from the bound JSON file and instanciate a JsonBlob class then retrieve the labels collection from the Json to add to the image.
                     JsonBlob boundJson = (JsonBlob)_Search.GetBlob("json", BindingHash);
+                    string AddLabeledDataUrl = boundJson.BlobInfo.Url;
+                    string addLabeledDataParameters = $"?blobUrl={AddLabeledDataUrl}";
                     string trainingDataLabels = Uri.EscapeDataString(JsonConvert.SerializeObject(boundJson.Labels));
+                    addLabeledDataParameters = $"{addLabeledDataParameters}&imageLabels={trainingDataLabels}";
 
                     //construct and call model URL then fetch response
                     // the model always sends the label set in the message body with the name LabelsJson.  If your model needs other values in the URL then use
@@ -90,8 +93,7 @@ namespace semisupervisedFramework
                     // The orchestration engine appends the labels json file to the message body.
                     // http://localhost:7071/api/LoadImageTags/?projectID=8d9d12d1-5d5c-4893-b915-4b5b3201f78e&labelsJson={%22Labels%22:[%22Hemlock%22,%22Japanese%20Cherry%22]}
 
-                    string AddLabeledDataUrl = boundJson.BlobInfo.Url;
-                    AddLabeledDataUrl = ConstructModelRequestUrl(AddLabeledDataUrl, trainingDataLabels, _Log);
+                    AddLabeledDataUrl = _Engine.ConstructModelRequestUrl(AddLabeledDataUrl, addLabeledDataParameters);
                     _Response = _Client.GetAsync(AddLabeledDataUrl).Result;
                     _ResponseString = _Response.Content.ReadAsStringAsync().Result;
                     if (string.IsNullOrEmpty(_ResponseString)) throw (new MissingRequiredObject($"\nresponseString not generated from URL: {AddLabeledDataUrl}"));
@@ -213,30 +215,30 @@ namespace semisupervisedFramework
                 CloudStorageAccount StorageAccount = CloudStorageAccount.Parse(StorageConnection);
                 CloudBlobClient BlobClient = StorageAccount.CreateCloudBlobClient();
                 CloudBlobContainer Container = BlobClient.GetContainerReference(PendingEvaluationStorageContainerName);
-
-                //Get a reference to a container, if the container does not exist create one then get the reference to the blob you want to evaluate."
-                CloudBlockBlob RawDataBlob = _Search.GetBlob(StorageAccount, JsonStorageContainerName, blobName, _Log);
-                DataBlob DataEvaluating = new DataBlob(RawDataBlob.Properties.ContentMD5, _Engine, _Search, _Log);
-                if (DataEvaluating == null)
+                CloudBlockBlob rawDataBlob = Container.GetBlockBlobReference(blobName);
+                DataBlob dataEvaluating = new DataBlob(rawDataBlob, _Search, _Log);
+                //CloudBlockBlob RawDataBlob = _Search.GetBlob(StorageAccount, JsonStorageContainerName, blobName, _Log);
+                //DataBlob DataEvaluating = new DataBlob(RawDataBlob.Properties.ContentMD5, _Engine, _Search, _Log);
+                if (dataEvaluating == null)
                 {
                     throw (new MissingRequiredObject("\nMissing dataEvaluating blob object."));
                 }
 
                 //compute the file hash as this will be added to the meta data to allow for file version validation
-                string blobMd5 = DataEvaluating.CalculateMD5Hash().ToString();
+                string blobMd5 = dataEvaluating.CalculateMD5Hash().ToString();
                 if (blobMd5 == null)
                 {
                     _Log.LogInformation("\nWarning: Blob Hash calculation failed and will not be included in file information blob, continuing operation.");
                 }
                 else
                 {
-                    DataEvaluating.AzureBlob.Properties.ContentMD5 = blobMd5;
+                    dataEvaluating.AzureBlob.Properties.ContentMD5 = blobMd5;
                 }
 
                 //****Currently only working with public access set on blob folders
                 //Generate a URL with SAS token to submit to analyze image API
                 //string dataEvaluatingSas = GetBlobSharedAccessSignature(dataEvaluating);
-                string DataEvaluatingUrl = DataEvaluating.AzureBlob.Uri.ToString(); //+ dataEvaluatingSas;
+                string DataEvaluatingUrl = dataEvaluating.AzureBlob.Uri.ToString(); //+ dataEvaluatingSas;
                 //string dataEvaluatingUrl = "test";
 
                 //package the file contents to send as http request content
@@ -245,6 +247,23 @@ namespace semisupervisedFramework
                 //HttpContent DataEvaluatingStream = new StreamContent(DataEvaluatingContent);
                 var content = new MultipartFormDataContent();
                 //content.Add(DataEvaluatingStream, "name");
+
+                //get environment variables used to construct the model request URL
+                string labeledDataServiceEndpoint = _Engine.GetEnvironmentVariable("DataEvaluationServiceEndpoint", _Log);
+
+                if (labeledDataServiceEndpoint == null || labeledDataServiceEndpoint == "")
+                {
+                    throw (new EnvironmentVariableNotSetException("LabeledDataServiceEndpoint environment variable not set"));
+                }
+
+                string evaluationDataParameterName = _Engine.GetEnvironmentVariable("modelAssetParameterName", _Log);
+                if (evaluationDataParameterName == null || evaluationDataParameterName == "")
+                {
+                    throw (new EnvironmentVariableNotSetException("LabeledDataServiceEndpoint environment variable not set"));
+                }
+
+                string parameters = $"?{evaluationDataParameterName}={DataEvaluatingUrl}";
+                string evaluateData = _Engine.ConstructModelRequestUrl(labeledDataServiceEndpoint, parameters);
 
                 //Make a request to the model service passing the file URL
                 string ResponseString = _Engine.GetEvaluationResponseString(DataEvaluatingUrl, content, _Log);
@@ -272,7 +291,7 @@ namespace semisupervisedFramework
                     {
                         throw (new MissingRequiredObject("\nMissing evaluatedData " + blobName + " destination blob in container " + EvaluatedDataStorageContainerName));
                     }
-                    _Engine.CopyAzureBlobToAzureBlob(StorageAccount, DataEvaluating.AzureBlob, EvaluatedData, _Log).Wait();
+                    _Engine.CopyAzureBlobToAzureBlob(StorageAccount, dataEvaluating.AzureBlob, EvaluatedData, _Log).Wait();
 
                     //pick a random number of successfully analyzed content blobs and submit them for supervision verification.
                     Random Rnd = new Random();
@@ -285,10 +304,10 @@ namespace semisupervisedFramework
                         }
                         else
                         {
-                            _Engine.MoveAzureBlobToAzureBlob(StorageAccount, DataEvaluating.AzureBlob, ModelValidation, _Log).Wait();
+                            _Engine.MoveAzureBlobToAzureBlob(StorageAccount, dataEvaluating.AzureBlob, ModelValidation, _Log).Wait();
                         }
                     }
-                    DataEvaluating.AzureBlob.DeleteIfExistsAsync();
+                    dataEvaluating.AzureBlob.DeleteIfExistsAsync();
                 }
 
                 //model was not sufficiently confident in its analysis
@@ -300,7 +319,7 @@ namespace semisupervisedFramework
                         throw (new MissingRequiredObject("\nMissing pendingSupervision " + blobName + " destination blob in container " + PendingSupervisionStorageContainerName));
                     }
 
-                    _Engine.MoveAzureBlobToAzureBlob(StorageAccount, DataEvaluating.AzureBlob, PendingSupervision, _Log).Wait();
+                    _Engine.MoveAzureBlobToAzureBlob(StorageAccount, dataEvaluating.AzureBlob, PendingSupervision, _Log).Wait();
                 }
 
                 //----------------------------This section collects information about the blob being analyzied and packages it in JSON that is then written to blob storage for later processing-----------------------------------
@@ -311,8 +330,8 @@ namespace semisupervisedFramework
                         new JProperty("blobInfo",
                             new JObject(
                                 new JProperty("name", blobName),
-                                new JProperty("url", DataEvaluating.AzureBlob.Uri.ToString()),
-                                new JProperty("modified", DataEvaluating.AzureBlob.Properties.LastModified.ToString()),
+                                new JProperty("url", dataEvaluating.AzureBlob.Uri.ToString()),
+                                new JProperty("modified", dataEvaluating.AzureBlob.Properties.LastModified.ToString()),
                                 new JProperty("hash", blobMd5)
                             )
                         )
@@ -348,62 +367,6 @@ namespace semisupervisedFramework
                 _Log.LogInformation("\n" + blobName + " could not be analyzed with message: " + e.Message);
             }
             return $"Evaluate data completed evaluating data blob: {blobName}";
-        }
-
-        //Builds a URL to call the blob analysis model.
-        //******TODO***** need to genericize this so that it works for all requests not just Labeled Data.
-        private string ConstructModelRequestUrl(string trainingDataUrl, string dataTrainingLabels, ILogger log)
-        {
-            try
-            {
-                //get environment variables used to construct the model request URL
-                string LabeledDataServiceEndpoint = _Engine.GetEnvironmentVariable("LabeledDataServiceEndpoint", log);
-                LabeledDataServiceEndpoint = "https://imagedetectionapp.azurewebsites.net/api/AddLabeledDataClient/";
-
-                if (LabeledDataServiceEndpoint == null || LabeledDataServiceEndpoint == "")
-                {
-                    throw (new EnvironmentVariableNotSetException("LabeledDataServiceEndpoint environment variable not set"));
-                }
-
-                // *****TODO***** enable string replacement for endpoint URLs.  THis will allow calling functions to be able to controle parameters that are passed.
-                // use the following order blob attributes, environment variables, URL parameters.
-                int StringReplaceStart = 0;
-                int StringReplaceEnd = 0;
-                do
-                {
-                    StringReplaceStart = LabeledDataServiceEndpoint.IndexOf("{{", StringReplaceEnd);
-                    if (StringReplaceStart != -1)
-                    {
-                        StringReplaceEnd = LabeledDataServiceEndpoint.IndexOf("}}", StringReplaceStart);
-                        string StringToReplace = LabeledDataServiceEndpoint.Substring(StringReplaceStart, StringReplaceEnd - StringReplaceStart);
-                        string ReplacementString = _Engine.GetEnvironmentVariable(StringToReplace.Substring(2, StringToReplace.Length - 2), log);
-                        LabeledDataServiceEndpoint = LabeledDataServiceEndpoint.Replace(StringToReplace, ReplacementString);
-                    }
-                } while (StringReplaceStart != -1);
-
-                //http://localhost:7071/api/AddLabeledDataClient/?blobUrl=https://semisupervisedstorage.blob.core.windows.net/testimages/hemlock_2.jpg&imageLabels={%22Labels%22:[%22Hemlock%22]}
-                string ModelAssetParameterName = _Engine.GetEnvironmentVariable("modelAssetParameterName", log);
-                ModelAssetParameterName = "blobUrl";
-
-                string ModelRequestUrl = LabeledDataServiceEndpoint;
-                if (ModelAssetParameterName != null & ModelAssetParameterName != "")
-                {
-                    ModelRequestUrl = ModelRequestUrl + "?" + ModelAssetParameterName + "=";
-                    ModelRequestUrl = ModelRequestUrl + trainingDataUrl;
-                    ModelRequestUrl = ModelRequestUrl + "&imageLabels=" + dataTrainingLabels;
-                }
-                else
-                {
-                    throw (new EnvironmentVariableNotSetException("modelAssetParameterName environment variable not set"));
-                }
-
-                return ModelRequestUrl;
-            }
-            catch (EnvironmentVariableNotSetException e)
-            {
-                log.LogInformation(e.Message);
-                return null;
-            }
         }
     }
 }

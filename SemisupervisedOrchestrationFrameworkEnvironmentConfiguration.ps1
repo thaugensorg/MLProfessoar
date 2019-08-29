@@ -70,6 +70,9 @@ if ([string]::IsNullOrWhiteSpace($blobSearchIndexName)) {$blobSearchIndexName = 
 $blobSearchServiceName = Read-Host -Prompt 'Input the name of the search service that will be used to access the blob binding hash. (default="semisupervisedblobsearch")'
 if ([string]::IsNullOrWhiteSpace($blobSearchServiceName)) {$blobSearchServiceName = "semisupervisedblobsearch"}
 
+$dataEvaluationServiceEndpoint = Read-Host -Prompt 'Input the name of the search service that will be used to access the blob binding hash. (default="https://imagedetectionapp.azurewebsites.net/api/EvaluateData")'
+if ([string]::IsNullOrWhiteSpace($dataEvaluationServiceEndpoint)) {$dataEvaluationServiceEndpoint = "https://imagedetectionapp.azurewebsites.net/api/EvaluateData"}
+
 #These environment variables are only used for trained models
 if ($modelType -eq "Trained")
 {
@@ -225,6 +228,11 @@ az functionapp config appsettings set `
   --name $frameworkFunctionAppName `
   --resource-group $frameworkResourceGroupName `
   --settings "blobSearchIndexName=$blobSearchServiceName"
+
+az functionapp config appsettings set `
+  --name $frameworkFunctionAppName `
+  --resource-group $frameworkResourceGroupName `
+  --settings "DataEvaluationServiceEndpoint=$dataEvaluationServiceEndpoint"
 
 #These environment variables are only used for trained models
 if ($modelType -eq "Trained")

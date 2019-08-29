@@ -94,6 +94,42 @@ namespace semisupervisedFramework
             return BlobEnvironment;
         }
 
+
+        //Builds a URL to call the blob analysis model.
+        //******TODO***** need to genericize this so that it works for all requests not just Labeled Data.
+        public string ConstructModelRequestUrl(string modelApiEndpoint, string parameters)
+        {
+            try
+            {
+                // *****TODO***** enable string replacement for endpoint URLs.  THis will allow calling functions to be able to controle parameters that are passed.
+                // use the following order blob attributes, environment variables, URL parameters.
+                int StringReplaceStart = 0;
+                int StringReplaceEnd = 0;
+                do
+                {
+                    StringReplaceStart = modelApiEndpoint.IndexOf("{{", StringReplaceEnd);
+                    if (StringReplaceStart != -1)
+                    {
+                        StringReplaceEnd = modelApiEndpoint.IndexOf("}}", StringReplaceStart);
+                        string StringToReplace = modelApiEndpoint.Substring(StringReplaceStart, StringReplaceEnd - StringReplaceStart);
+                        string ReplacementString = GetEnvironmentVariable(StringToReplace.Substring(2, StringToReplace.Length - 2), _Log);
+                        modelApiEndpoint = modelApiEndpoint.Replace(StringToReplace, ReplacementString);
+                    }
+                } while (StringReplaceStart != -1);
+
+                //http://localhost:7071/api/AddLabeledDataClient/?blobUrl=https://semisupervisedstorage.blob.core.windows.net/testimages/hemlock_2.jpg&imageLabels={%22Labels%22:[%22Hemlock%22]}
+
+                string ModelRequestUrl = modelApiEndpoint;
+                ModelRequestUrl = ModelRequestUrl + parameters;
+
+                return ModelRequestUrl;
+            }
+            catch (Exception e)
+            {
+                throw e;
+            }
+        }
+
         //Returns a response string for a given URL.
         public string GetEvaluationResponseString(string targetUrl, MultipartFormDataContent postData, ILogger log)
         {
