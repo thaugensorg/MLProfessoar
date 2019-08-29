@@ -79,7 +79,7 @@ namespace semisupervisedFramework
                 new JProperty("environment",
                     new JObject(
                         new JProperty("endpoint", GetEnvironmentVariable("modelServiceEndpoint", log)),
-                        new JProperty("parameter", GetEnvironmentVariable("modelAssetParameterName", log)),
+                        new JProperty("parameter", GetEnvironmentVariable("evaluationDataParameterName", log)),
                         new JProperty("pendingEvaluationStorage", GetEnvironmentVariable("pendingEvaluationStorageContainerName", log)),
                         new JProperty("evaluatedDataStorage", GetEnvironmentVariable("evaluatedDataStorageContainerName", log)),
                         new JProperty("pendingSupervisionStorage", GetEnvironmentVariable("pendingSupervisionStorageContainerName", log)),
@@ -179,7 +179,7 @@ namespace semisupervisedFramework
             Task Task;
             try
             {
-                Task = TransferManager.CopyAsync(sourceBlob, destinationBlob, true, null, Context, CancellationSource.Token);
+                Task = TransferManager.CopyAsync(sourceBlob, destinationBlob, CopyMethod.ServiceSideSyncCopy, null, Context, CancellationSource.Token);
                 await Task;
             }
             catch (AggregateException e)

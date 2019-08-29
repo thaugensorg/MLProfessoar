@@ -80,8 +80,8 @@ namespace semisupervisedFramework
 
                     //Get the content from the bound JSON file and instanciate a JsonBlob class then retrieve the labels collection from the Json to add to the image.
                     JsonBlob boundJson = (JsonBlob)_Search.GetBlob("json", BindingHash);
-                    string AddLabeledDataUrl = boundJson.BlobInfo.Url;
-                    string addLabeledDataParameters = $"?blobUrl={AddLabeledDataUrl}";
+                    string labeledDataUrl = boundJson.BlobInfo.Url;
+                    string addLabeledDataParameters = $"?dataBlobUrl={labeledDataUrl}";
                     string trainingDataLabels = Uri.EscapeDataString(JsonConvert.SerializeObject(boundJson.Labels));
                     addLabeledDataParameters = $"{addLabeledDataParameters}&imageLabels={trainingDataLabels}";
 
@@ -93,10 +93,13 @@ namespace semisupervisedFramework
                     // The orchestration engine appends the labels json file to the message body.
                     // http://localhost:7071/api/LoadImageTags/?projectID=8d9d12d1-5d5c-4893-b915-4b5b3201f78e&labelsJson={%22Labels%22:[%22Hemlock%22,%22Japanese%20Cherry%22]}
 
-                    AddLabeledDataUrl = _Engine.ConstructModelRequestUrl(AddLabeledDataUrl, addLabeledDataParameters);
-                    _Response = _Client.GetAsync(AddLabeledDataUrl).Result;
+                    string labeledDataServiceEndpoint = _Engine.GetEnvironmentVariable("LabeledDataServiceEndpoint", _Log);
+                    if (string.IsNullOrEmpty(labeledDataServiceEndpoint)) throw (new EnvironmentVariableNotSetException("LabeledDataServiceEndpoint environment variable not set"));
+
+                    string addLabeledDataUrl = _Engine.ConstructModelRequestUrl(labeledDataServiceEndpoint, addLabeledDataParameters);
+                    _Response = _Client.GetAsync(addLabeledDataUrl).Result;
                     _ResponseString = _Response.Content.ReadAsStringAsync().Result;
-                    if (string.IsNullOrEmpty(_ResponseString)) throw (new MissingRequiredObject($"\nresponseString not generated from URL: {AddLabeledDataUrl}"));
+                    if (string.IsNullOrEmpty(_ResponseString)) throw (new MissingRequiredObject($"\nresponseString not generated from URL: {addLabeledDataUrl}"));
 
                     //the code below is for passing labels and conent as http content and not on the URL string.
                     //Format the Data Labels content
@@ -140,10 +143,10 @@ namespace semisupervisedFramework
             CloudBlobContainer Container = LabelsBlobClient.GetContainerReference(jsonDataContainerName);
 
             //get the training tags json blob from the container
-            string DataTagsBlobName = _Engine.GetEnvironmentVariable("dataTagsBlobName", _Log);
-            if (string.IsNullOrEmpty(DataTagsBlobName)) throw (new EnvironmentVariableNotSetException("dataTagsBlobName environment variable not set"));
+            string labelingTagsBlobName = _Engine.GetEnvironmentVariable("labelingTagsBlobName", _Log);
+            if (string.IsNullOrEmpty(labelingTagsBlobName)) throw (new EnvironmentVariableNotSetException("labelingTagsBlobName environment variable not set"));
 
-            CloudBlockBlob DataTagsBlob = Container.GetBlockBlobReference(DataTagsBlobName);
+            CloudBlockBlob DataTagsBlob = Container.GetBlockBlobReference(labelingTagsBlobName);
 
             //the blob has to be "touched" or the properties will all be null
             if (DataTagsBlob.Exists() != true)
@@ -152,7 +155,7 @@ namespace semisupervisedFramework
             };
 
             //get the environment variable specifying the MD5 hash of the last run tags file
-            string LkgDataTagsFileHash = _Engine.GetEnvironmentVariable("dataTagsFileHash", _Log);
+            string LkgDataTagsFileHash = _Engine.GetEnvironmentVariable("labelingTagsFileHash", _Log);
 
             //Check if there is a new version of the tags json file and if so load them into the environment
             if (DataTagsBlob.Properties.ContentMD5 != LkgDataTagsFileHash)
@@ -160,7 +163,7 @@ namespace semisupervisedFramework
                 //format the http call to load labeling tags
                 string AddLabelingTagsEndpoint = _Engine.GetEnvironmentVariable("TagsUploadServiceEndpoint", _Log);
                 if (string.IsNullOrEmpty(AddLabelingTagsEndpoint)) throw (new EnvironmentVariableNotSetException("TagsUploadServiceEndpoint environment variable not set"));
-                string LabelingTagsParamatersName = _Engine.GetEnvironmentVariable("tagDataParameterName", _Log);
+                string LabelingTagsParamatersName = _Engine.GetEnvironmentVariable("labelingTagsBlobName", _Log);
                 string LabelingTags = DataTagsBlob.DownloadText(Encoding.UTF8);
                 HttpContent LabelingTagsContent = new StringContent(LabelingTags);
                 var content = new MultipartFormDataContent();
@@ -249,37 +252,37 @@ namespace semisupervisedFramework
                 //content.Add(DataEvaluatingStream, "name");
 
                 //get environment variables used to construct the model request URL
-                string labeledDataServiceEndpoint = _Engine.GetEnvironmentVariable("DataEvaluationServiceEndpoint", _Log);
+                string dataEvaluationServiceEndpoint = _Engine.GetEnvironmentVariable("DataEvaluationServiceEndpoint", _Log);
 
-                if (labeledDataServiceEndpoint == null || labeledDataServiceEndpoint == "")
+                if (dataEvaluationServiceEndpoint == null || dataEvaluationServiceEndpoint == "")
                 {
-                    throw (new EnvironmentVariableNotSetException("LabeledDataServiceEndpoint environment variable not set"));
+                    throw (new EnvironmentVariableNotSetException("DataEvaluationServiceEndpoint environment variable not set"));
                 }
 
-                string evaluationDataParameterName = _Engine.GetEnvironmentVariable("modelAssetParameterName", _Log);
+                string evaluationDataParameterName = _Engine.GetEnvironmentVariable("evaluationDataParameterName", _Log);
                 if (evaluationDataParameterName == null || evaluationDataParameterName == "")
                 {
-                    throw (new EnvironmentVariableNotSetException("LabeledDataServiceEndpoint environment variable not set"));
+                    throw (new EnvironmentVariableNotSetException("evaluationDataParameterName environment variable not set"));
                 }
 
                 string parameters = $"?{evaluationDataParameterName}={DataEvaluatingUrl}";
-                string evaluateData = _Engine.ConstructModelRequestUrl(labeledDataServiceEndpoint, parameters);
+                string evaluateDataUrl = _Engine.ConstructModelRequestUrl(dataEvaluationServiceEndpoint, parameters);
 
                 //Make a request to the model service passing the file URL
-                string ResponseString = _Engine.GetEvaluationResponseString(DataEvaluatingUrl, content, _Log);
+                string ResponseString = _Engine.GetEvaluationResponseString(evaluateDataUrl, content, _Log);
                 if (ResponseString == "")
                 {
-                    throw (new MissingRequiredObject("\nresponseString not generated from URL: " + DataEvaluatingUrl));
+                    throw (new MissingRequiredObject("\nresponseString not generated from URL: " + evaluateDataUrl));
                 }
 
                 //deserialize response JSON, get confidence score and compare with confidence threshold
                 JObject AnalysisJson = JObject.Parse(ResponseString);
                 string StrConfidence = (string)AnalysisJson.SelectToken(ConfidenceJsonPath);
-                double Confidence = (double)AnalysisJson.SelectToken(ConfidenceJsonPath);
                 if (StrConfidence == null)
                 {
                     throw (new MissingRequiredObject("\nNo confidence value at " + ConfidenceJsonPath + " from environment variable ConfidenceJSONPath."));
                 }
+                double Confidence = (double)AnalysisJson.SelectToken(ConfidenceJsonPath);
 
                 //--------------------------------This section processes the results of the analysis and transferes the blob to the container responsible for the next appropriate stage of processing.-------------------------------
 

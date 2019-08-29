@@ -52,8 +52,8 @@ if ([string]::IsNullOrWhiteSpace($pendingSupervisionStorageContainerName)) {$pen
 
 $modelServiceEndpoint = Read-Host -Prompt 'Input the URL (http address) of the model analysis function app'
 
-$modelAssetParameterName = Read-Host -Prompt 'Input the parameter name of the asset that will be passed into the azure function model (defaule=name)'
-if ([string]::IsNullOrWhiteSpace($modelAssetParameterName)) {$modelAssetParameterName = "name"}
+$evaluationDataParameterName = Read-Host -Prompt 'Input the parameter name of the asset that will be passed into the azure function model (defaule=name)'
+if ([string]::IsNullOrWhiteSpace($evaluationDataParameterName)) {$evaluationDataParameterName = "dataBlobUrl"}
 
 $confidenceJSONPath = Read-Host -Prompt 'Input the JSON path where the blob analysis confidence value will be found in the JSON document found in the model analysis response.  By default confidence is expected as a root value in the response JSON (default=confidence)'
 if ([string]::IsNullOrWhiteSpace($confidenceJSONPath)) {$confidenceJSONPath = "confidence"}
@@ -85,8 +85,23 @@ if ($modelType -eq "Trained")
   $pendingNewModelStorageContainerName = Read-Host -Prompt 'Input the name of the storage container for blobs that need to be re-evaluated after a new mode has been published (default=pendingnewmodelevaluation)'
   if ([string]::IsNullOrWhiteSpace($pendingNewModelStorageContainerName)) {$pendingNewModelStorageContainerName = "pendingnewmodelevaluation"}
 
-  $modelVerificationPercent = Read-Host -Prompt 'Input the decimal value in the format of a C# Double that specifies the percentage of successfully evaluated blobs to be routed to a verification queue (default=.05)'
-  if ([string]::IsNullOrWhiteSpace($modelVerificationPercent)) {$modelVerificationPercent = .05}
+  $modelVerificationPercentage = Read-Host -Prompt 'Input the decimal value in the format of a C# Double that specifies the percentage of successfully evaluated blobs to be routed to a verification queue (default=.05)'
+  if ([string]::IsNullOrWhiteSpace($modelVerificationPercentage)) {$modelVerificationPercentage = .05}
+  
+  $labelingTagsBlobName = Read-Host -Prompt 'Input the decimal value in the format of a C# Double that specifies the percentage of successfully evaluated blobs to be routed to a verification queue (default=labelingTags)'
+  if ([string]::IsNullOrWhiteSpace($labelingTagsBlobName)) {$labelingTagsBlobName = 'labelingTags'}
+
+  $labelingTagsFileHash = Read-Host -Prompt 'Input the decimal value in the format of a C# Double that specifies the percentage of successfully evaluated blobs to be routed to a verification queue (default=hash not initialized)'
+  if ([string]::IsNullOrWhiteSpace($labelingTagsFileHash)) {$labelingTagsFileHash = 'hash not initialized'}
+  
+  $trainModelServiceEndpoint = Read-Host -Prompt 'Input the decimal value in the format of a C# Double that specifies the percentage of successfully evaluated blobs to be routed to a verification queue (default=https://imagedetectionapp.azurewebsites.net/api/TrainModel)'
+  if ([string]::IsNullOrWhiteSpace($trainModelServiceEndpoint)) {$trainModelServiceEndpoint = 'https://imagedetectionapp.azurewebsites.net/api/TrainModel'}
+
+  $tagsUploadServiceEndpoint = Read-Host -Prompt 'Input the decimal value in the format of a C# Double that specifies the percentage of successfully evaluated blobs to be routed to a verification queue (default=https://imagedetectionapp.azurewebsites.net/api/LoadLabelingTags)'
+  if ([string]::IsNullOrWhiteSpace($tagsUploadServiceEndpoint)) {$tagsUploadServiceEndpoint = 'https://imagedetectionapp.azurewebsites.net/api/LoadLabelingTags'}
+
+  $labelingTagsBlobName = Read-Host -Prompt 'Input the decimal value in the format of a C# Double that specifies the percentage of successfully evaluated blobs to be routed to a verification queue (default=LabelingTags.json)'
+  if ([string]::IsNullOrWhiteSpace($labelingTagsBlobName)) {$labelingTagsBlobName = 'LabelingTags.json'}
 }
 
 #########      settign up the Azure environment
@@ -207,7 +222,7 @@ az functionapp config appsettings set `
 az functionapp config appsettings set `
   --name $frameworkFunctionAppName `
   --resource-group $frameworkResourceGroupName `
-  --settings "modelAssetParameterName=$modelAssetParameterName"
+  --settings "evaluationDataParameterName=$evaluationDataParameterName"
 
 az functionapp config appsettings set `
   --name $frameworkFunctionAppName `
@@ -255,15 +270,30 @@ az functionapp config appsettings set `
 az functionapp config appsettings set `
     --name $frameworkFunctionAppName `
     --resource-group $frameworkResourceGroupName `
-    --settings "modelVerificationPercentage=$modelVerificationPercent"
+    --settings "modelVerificationPercentage=$modelVerificationPercentage"
 
 az functionapp config appsettings set `
     --name $frameworkFunctionAppName `
     --resource-group $frameworkResourceGroupName `
-    --settings "dataTagsBlobName=labels.json"
+    --settings "labelingTagsBlobName=$labelingTagsBlobName"
 
 az functionapp config appsettings set `
     --name $frameworkFunctionAppName `
     --resource-group $frameworkResourceGroupName `
-    --settings "dataTagsFileHash=null"
-}
+    --settings "labelingTagsFileHash=$labelingTagsFileHash"
+
+az functionapp config appsettings set `
+    --name $frameworkFunctionAppName `
+    --resource-group $frameworkResourceGroupName `
+    --settings "TrainModelServiceEndpoint=$trainModelServiceEndpoint"
+
+az functionapp config appsettings set `
+    --name $frameworkFunctionAppName `
+    --resource-group $frameworkResourceGroupName `
+    --settings "TagsUploadServiceEndpoint=$tagsUploadServiceEndpoint"
+
+az functionapp config appsettings set `
+    --name $frameworkFunctionAppName `
+    --resource-group $frameworkResourceGroupName `
+    --settings "labelingTagsBlobName=$labelingTagsBlobName"  
+  }
