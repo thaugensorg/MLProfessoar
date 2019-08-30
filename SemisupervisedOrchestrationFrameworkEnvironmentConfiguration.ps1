@@ -61,15 +61,6 @@ if ([string]::IsNullOrWhiteSpace($confidenceJSONPath)) {$confidenceJSONPath = "c
 $confidenceThreshold = Read-Host -Prompt 'Input the decimal value in the format of a C# Double that specifies the confidence threshold the model must return to indicate the model blob analysis is acceptable (default=.95)'
 if ([string]::IsNullOrWhiteSpace($confidenceThreshold)) {$confidenceThreshold = .95}
 
-$blobSearchEndpointUrl = Read-Host -Prompt 'Input the url that will be used to access the blob search service to locate JSON files bound to data (default=semisupervisedblobsearch)'
-if ([string]::IsNullOrWhiteSpace($blobSearchEndpointUrl)) {$blobSearchEndpointUrl = "semisupervisedblobsearch"}
-
-$blobSearchIndexName = Read-Host -Prompt 'Input the name of the index that will be used to access the blob binding hash. (default="bindinghash")'
-if ([string]::IsNullOrWhiteSpace($blobSearchIndexName)) {$blobSearchIndexName = "bindinghash"}
-
-$blobSearchServiceName = Read-Host -Prompt 'Input the name of the search service that will be used to access the blob binding hash. (default="semisupervisedblobsearch")'
-if ([string]::IsNullOrWhiteSpace($blobSearchServiceName)) {$blobSearchServiceName = "semisupervisedblobsearch"}
-
 $dataEvaluationServiceEndpoint = Read-Host -Prompt 'Input the http address of the evaluate data endpoint for your app. (default="https://imagedetectionapp.azurewebsites.net/api/EvaluateData")'
 if ([string]::IsNullOrWhiteSpace($dataEvaluationServiceEndpoint)) {$dataEvaluationServiceEndpoint = "https://imagedetectionapp.azurewebsites.net/api/EvaluateData"}
 
@@ -102,6 +93,15 @@ if ($modelType -eq "Trained")
 
   $labelingTagsBlobName = Read-Host -Prompt 'Input the decimal value in the format of a C# Double that specifies the percentage of successfully evaluated blobs to be routed to a verification queue (default=LabelingTags.json)'
   if ([string]::IsNullOrWhiteSpace($labelingTagsBlobName)) {$labelingTagsBlobName = 'LabelingTags.json'}
+
+  $blobSearchEndpointUrl = Read-Host -Prompt 'Input the url that will be used to access the blob search service to locate JSON files bound to data (default=semisupervisedblobsearch)'
+  if ([string]::IsNullOrWhiteSpace($blobSearchEndpointUrl)) {$blobSearchEndpointUrl = "semisupervisedblobsearch"}
+
+  $blobSearchIndexName = Read-Host -Prompt 'Input the name of the index that will be used to access the blob binding hash. (default="bindinghash")'
+  if ([string]::IsNullOrWhiteSpace($blobSearchIndexName)) {$blobSearchIndexName = "bindinghash"}
+
+  $blobSearchServiceName = Read-Host -Prompt 'Input the name of the search service that will be used to access the blob binding hash. (default="semisupervisedblobsearch")'
+  if ([string]::IsNullOrWhiteSpace($blobSearchServiceName)) {$blobSearchServiceName = "semisupervisedblobsearch"}
 }
 
 #########      settign up the Azure environment
