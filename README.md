@@ -23,7 +23,7 @@ This project is dependent on an externalized model, the model must be invocable 
 # Getting started
 First, review the [architecture image](https://github.com/thaugensorg/semisupervisedFramework/blob/master/Architecture.jpg) included with the solution as it will help you understand the structure of the solution.
 
-To get started, save the powershell, EnvironmentConfiguration.ps1, script to your environment, see deployment below.  This is the script that will configure your azure environment for the semi-supervised framework.  Because this framework is dependent on having an analysis model to run, please deploy your analysis model before running this script, see the imageAnalysisModel.ps1 script in the brand detection project.  It will save you additional configuration steps after you complete deployment.
+To get started, install azure search module for powershell, install-module az.search, and then save the powershell, SemisupervisedOrchestrationFrameworkEnvironmentConfiguration.ps1, script to your environment, see deployment below.  This is the script that will configure your azure environment for ML Professoar.  Because this framework is dependent on having an analysis model to run, please deploy your analysis model before running this script, see the SemisupervisedDataEvaluationModelEnvironmentConfiguration.ps1 script in the semisupervised data evaluation model project.  It will save you additional configuration steps after you complete deployment.
 
 The PowerShell script will prompt for a significant number of parameters about the environment.  As a result, it will help to plan your environment in advance.  See the Configuration Parameters below for the values the scripts require.
 
