@@ -102,6 +102,9 @@ if ($modelType -eq "Trained")
 
   $blobSearchServiceName = Read-Host -Prompt 'Input the name of the search service that will be used to access the blob binding hash. (default="semisupervisedblobsearch")'
   if ([string]::IsNullOrWhiteSpace($blobSearchServiceName)) {$blobSearchServiceName = "semisupervisedblobsearch"}
+
+  while([string]::IsNullOrWhiteSpace($blobSearchServiceKey))
+  {$subscription= Read-Host -Prompt "Input the admin key of the search service that will be used to locate json blob files."}
 }
 
 #########      settign up the Azure environment
@@ -200,6 +203,83 @@ if ($modelType -eq "Trained")
     --account-name $frameworkStorageAccountName `
     --account-key $frameworkStorageAccountKey `
     --fail-on-exist
+}
+
+#Search is only used with trained models
+if ($modelType -eq "Trained")
+{
+
+  New-AzSearchService `
+      -ResourceGroupName $frameworkResourceGroupName `
+      -Name $blobSearchServiceName `
+      -Sku "Standard" `
+      -Location $frameworkLocation `
+      -PartitionCount 1 `
+      -ReplicaCount 1 `
+      -HostingMode Default
+
+  $url = "https://binding-hash-search.search.windows.net/datasources/binding-hash-datasource?api-version=2019-05-06"
+
+  $headers = @{
+      'Content-Type' = 'application/json'
+      'api-key' = $blobSearchServiceKey }
+  
+  $body = @"
+      {
+          "name" : "binding-hash-datasource",
+          "type" : "azureblob",
+          "credentials" : { "connectionString" : "DefaultEndpointsProtocol=https;AccountName=orchestrationstorage;AccountKey=...windows.net;" },
+          "container" : { "name" : "json" }
+      }
+"@
+      
+      
+  Invoke-RestMethod -Uri $url -Headers $headers -Method Put -Body $body | ConvertTo-Json
+
+  $url = "https://$blobSearchServiceName/indexes/$blobSearchIndexName?api-version=2019-05-06"
+
+  $headers = @{
+    'api-key' = $blobSearchServiceKey
+    'Content-Type' = 'application/json' 
+    'Accept' = 'application/json' }
+
+  $body = @"
+      {
+          "name": {blobSearchIndexName},  
+          "fields": [
+              {"name": "metadata_storage_path", "type": "Edm.String", "key": true, "filterable": true},
+              {"name": "blobInfo", "type": "Edm.ComplexType", 
+              "fields": [
+              {"name": "name", "type": "Edm.String", "filterable": false, "sortable": false, "facetable": false, "searchable": true},
+              {"name": "url", "type": "Edm.String", "searchable": true, "filterable": true, "sortable": true, "facetable": true},
+              {"name": "modified", "type": "Edm.String", "searchable": true, "filterable": true, "sortable": true, "facetable": true},
+              {"name": "id", "type": "Edm.String", "searchable": true, "filterable": true, "sortable": true, "facetable": true},
+              {"name": "hash", "type": "Edm.String", "searchable": true, "filterable": true, "sortable": true, "facetable": true}
+              ]
+          }
+        ]
+      }
+"@
+
+  Invoke-RestMethod -Uri $url -Headers $headers -Method Put -Body $body | ConvertTo-Json
+
+  $url = "https://binding-hash-search.search.windows.net/indexers/binding-hash-indexer?api-version=2019-05-06"
+
+  $headers = @{
+      'Content-Type' = 'application/json'
+      'api-key' = $blobSearchServiceKey }
+  
+  $body = @"
+      {
+        "name" : "binding-hash-indexer",
+        "dataSourceName" : "binding-hash-datasource",
+        "targetIndexName" : "binding-hash-index",
+        "schedule" : { "interval" : "PT2H" }
+      }
+"@
+  
+  Invoke-RestMethod -Uri $url -Headers $headers -Method Put -Body $body | ConvertTo-Json
+
 }
 
 Write-Host "Creating app config setting: modelType: " $modelType -ForegroundColor "Green"
