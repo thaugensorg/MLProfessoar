@@ -7,8 +7,8 @@ while([string]::IsNullOrWhiteSpace($subscription))
 
 
 #######      variables for framework
-$frameworkResourceGroupName = Read-Host -Prompt 'Input the name of the resource group that you want to create for installing this orchestration framework for managing semisupervised models.  (default=semisupervisedOrchestrationFramework'
-if ([string]::IsNullOrWhiteSpace($frameworkResourceGroupName)) {$frameworkResourceGroupName = "semisupervisedOrchestrationFramework"}
+$frameworkResourceGroupName = Read-Host -Prompt 'Input the name of the resource group that you want to create for installing this orchestration framework for managing semisupervised models.  (default=MLProfessoar)'
+if ([string]::IsNullOrWhiteSpace($frameworkResourceGroupName)) {$frameworkResourceGroupName = "MLProfessoar"}
 
 while([string]::IsNullOrWhiteSpace($frameworkStorageAccountName))
   {$frameworkStorageAccountName = Read-Host -Prompt 'Input the name of the azure storage account you want to create for this installation of the orchestration framework.  Note this needs to be between 3 and 24 characters, globally unique in Azure, and contain all lowercase letters and or numbers.'
@@ -18,8 +18,8 @@ while([string]::IsNullOrWhiteSpace($frameworkStorageAccountName))
     Write-Host "Storage account name must not have upper case letters." -ForegroundColor "Red"}
   }
 
-$frameworkFunctionAppName = Read-Host -Prompt 'Input the name for the azure function app you want to create for this installation of the orchestration framework.  By default this value is semisupervisedApp'
-if ([string]::IsNullOrWhiteSpace($frameworkFunctionAppName)) {$frameworkFunctionAppName = "semisupervisedApp"}
+$frameworkFunctionAppName = Read-Host -Prompt 'Input the name for the azure function app you want to create for this installation of the orchestration framework.  By default this value is MLProfessoarApp'
+if ([string]::IsNullOrWhiteSpace($frameworkFunctionAppName)) {$frameworkFunctionAppName = "MLProfessoarApp"}
 
 $frameworkStorageAccountKey = $null #the script retrieves this at run time and populates it.
 #these values we should try and get automatically and write to environment variables.
@@ -50,8 +50,6 @@ if ([string]::IsNullOrWhiteSpace($jsonStorageContainerName)) {$jsonStorageContai
 $pendingSupervisionStorageContainerName = Read-Host -Prompt 'Input the name of the storage container for blobs that require supervision after they have been evaluated by the model (default=pendingsupervision)'
 if ([string]::IsNullOrWhiteSpace($pendingSupervisionStorageContainerName)) {$pendingSupervisionStorageContainerName = "pendingsupervision"}
 
-$modelServiceEndpoint = Read-Host -Prompt 'Input the URL (http address) of the model analysis function app'
-
 $evaluationDataParameterName = Read-Host -Prompt 'Input the parameter name of the asset that will be passed into the azure function model (defaule=dataBlobURL)'
 if ([string]::IsNullOrWhiteSpace($evaluationDataParameterName)) {$evaluationDataParameterName = "dataBlobUrl"}
 
@@ -61,8 +59,8 @@ if ([string]::IsNullOrWhiteSpace($confidenceJSONPath)) {$confidenceJSONPath = "c
 $confidenceThreshold = Read-Host -Prompt 'Input the decimal value in the format of a C# Double that specifies the confidence threshold the model must return to indicate the model blob analysis is acceptable (default=.95)'
 if ([string]::IsNullOrWhiteSpace($confidenceThreshold)) {$confidenceThreshold = .95}
 
-$dataEvaluationServiceEndpoint = Read-Host -Prompt 'Input the http address of the evaluate data endpoint for your app. (default="https://imagedetectionapp.azurewebsites.net/api/EvaluateData")'
-if ([string]::IsNullOrWhiteSpace($dataEvaluationServiceEndpoint)) {$dataEvaluationServiceEndpoint = "https://imagedetectionapp.azurewebsites.net/api/EvaluateData"}
+$dataEvaluationServiceEndpoint = Read-Host -Prompt 'Input the http address of the evaluate data endpoint for your app. (default="https://mlprofessoarsamplemodelapp.azurewebsites.net/api/EvaluateData")'
+if ([string]::IsNullOrWhiteSpace($dataEvaluationServiceEndpoint)) {$dataEvaluationServiceEndpoint = "https://mlprofessoarsamplemodelapp.azurewebsites.net/api/EvaluateData"}
 
 #These environment variables are only used for trained models
 if ($modelType -eq "Trained")
@@ -78,33 +76,36 @@ if ($modelType -eq "Trained")
 
   $modelVerificationPercentage = Read-Host -Prompt 'Input the decimal value in the format of a C# Double that specifies the percentage of successfully evaluated blobs to be routed to a verification queue (default=.05)'
   if ([string]::IsNullOrWhiteSpace($modelVerificationPercentage)) {$modelVerificationPercentage = .05}
-  
-  $labelingTagsBlobName = Read-Host -Prompt 'Input the decimal value in the format of a C# Double that specifies the percentage of successfully evaluated blobs to be routed to a verification queue (default=labelingTags)'
-  if ([string]::IsNullOrWhiteSpace($labelingTagsBlobName)) {$labelingTagsBlobName = 'labelingTags'}
 
-  $labelingTagsFileHash = Read-Host -Prompt 'Input the decimal value in the format of a C# Double that specifies the percentage of successfully evaluated blobs to be routed to a verification queue (default=hash not initialized)'
+  $labelingTagsFileHash = Read-Host -Prompt 'This environment variable cannot be set at configuration time. (default=hash not initialized)'
   if ([string]::IsNullOrWhiteSpace($labelingTagsFileHash)) {$labelingTagsFileHash = 'hash not initialized'}
   
-  $trainModelServiceEndpoint = Read-Host -Prompt 'Input the decimal value in the format of a C# Double that specifies the percentage of successfully evaluated blobs to be routed to a verification queue (default=https://imagedetectionapp.azurewebsites.net/api/TrainModel)'
-  if ([string]::IsNullOrWhiteSpace($trainModelServiceEndpoint)) {$trainModelServiceEndpoint = 'https://imagedetectionapp.azurewebsites.net/api/TrainModel'}
+  $trainModelServiceEndpoint = Read-Host -Prompt 'Input the http address of the services endpoint to initiate training of the model. (default=https://mlprofessoarsamplemodelapp.azurewebsites.net/api/TrainModel)'
+  if ([string]::IsNullOrWhiteSpace($trainModelServiceEndpoint)) {$trainModelServiceEndpoint = 'https://mlprofessoarsamplemodelapp.azurewebsites.net/api/TrainModel'}
 
-  $tagsUploadServiceEndpoint = Read-Host -Prompt 'Input the decimal value in the format of a C# Double that specifies the percentage of successfully evaluated blobs to be routed to a verification queue (default=https://imagedetectionapp.azurewebsites.net/api/LoadLabelingTags)'
-  if ([string]::IsNullOrWhiteSpace($tagsUploadServiceEndpoint)) {$tagsUploadServiceEndpoint = 'https://imagedetectionapp.azurewebsites.net/api/LoadLabelingTags'}
+  $tagsUploadServiceEndpoint = Read-Host -Prompt 'Input the http address of the service endpoint to upload valid labeling tags to the model. (default=https://mlprofessoarsamplemodelapp.azurewebsites.net/api/LoadLabelingTags)'
+  if ([string]::IsNullOrWhiteSpace($tagsUploadServiceEndpoint)) {$tagsUploadServiceEndpoint = 'https://mlprofessoarsamplemodelapp.azurewebsites.net/api/LoadLabelingTags'}
 
-  $labelingTagsBlobName = Read-Host -Prompt 'Input the decimal value in the format of a C# Double that specifies the percentage of successfully evaluated blobs to be routed to a verification queue (default=LabelingTags.json)'
+  $LabeledDataServiceEndpoint = Read-Host -Prompt 'Input the http address of the service endpoint to upload labeled data that will train the model. (default=https://mlprofessoarsamplemodelapp.azurewebsites.net/api/AddLabeledDataClient)'
+  if ([string]::IsNullOrWhiteSpace($LabeledDataServiceEndpoint)) {$LabeledDataServiceEndpoint = 'https://mlprofessoarsamplemodelapp.azurewebsites.net/api/AddLabeledDataClient'}
+
+  $labelingTagsBlobName = Read-Host -Prompt 'Input the name of the josn file that contains all of the valid labeling tags that can be used in labeling training data.. (default=LabelingTags.json)'
   if ([string]::IsNullOrWhiteSpace($labelingTagsBlobName)) {$labelingTagsBlobName = 'LabelingTags.json'}
 
-  $blobSearchEndpointUrl = Read-Host -Prompt 'Input the url that will be used to access the blob search service to locate JSON files bound to data (default=semisupervisedblobsearch)'
-  if ([string]::IsNullOrWhiteSpace($blobSearchEndpointUrl)) {$blobSearchEndpointUrl = "semisupervisedblobsearch"}
+  while([string]::IsNullOrWhiteSpace($blobSearchServiceName))
+  {$blobSearchServiceName = Read-Host -Prompt 'Input the name of the search service that will be used to access the blob binding hash. (default="bindinghashsearch")'
+  if ([string]::IsNullOrWhiteSpace($blobSearchServiceName)) {$blobSearchServiceName = 'bindinghashsearch'}
+  if ($blobSearchServiceName.length -gt 60){$blobSearchServiceName=$null
+    Write-Host "Storage account name cannot be shortern than 2 characters and no longer than 60 charaters." -ForegroundColor "Red"}
+  if ($blobSearchServiceName -cmatch '[A-Z]') {$blobSearchServiceName=$null
+    Write-Host "Service name must only contain lowercase letters, digits or dashes, cannot use dash as the first two or last one characters, cannot contain consecutive dashes, and is limited between 2 and 60 characters in length." -ForegroundColor "Red"}
+  }
 
-  $blobSearchIndexName = Read-Host -Prompt 'Input the name of the index that will be used to access the blob binding hash. (default="bindinghash")'
-  if ([string]::IsNullOrWhiteSpace($blobSearchIndexName)) {$blobSearchIndexName = "bindinghash"}
+  $blobsearchdatasource = $blobSearchServiceName + "datasource"
 
-  $blobSearchServiceName = Read-Host -Prompt 'Input the name of the search service that will be used to access the blob binding hash. (default="semisupervisedblobsearch")'
-  if ([string]::IsNullOrWhiteSpace($blobSearchServiceName)) {$blobSearchServiceName = "semisupervisedblobsearch"}
+  $blobSearchIndexName = $blobSearchServiceName + "index"
 
-  while([string]::IsNullOrWhiteSpace($blobSearchServiceKey))
-  {$subscription= Read-Host -Prompt "Input the admin key of the search service that will be used to locate json blob files."}
+  $blobSearchEndpointUrl = "https://" + $blobSearchServiceName + ".search.windows.net"
 }
 
 #########      settign up the Azure environment
@@ -136,6 +137,8 @@ $frameworkStorageAccountKey = `
 		-resourceGroupName $frameworkResourceGroupName `
 		-AccountName $frameworkStorageAccountName).Value[0]
 
+$connectionString = 'DefaultEndpointsProtocol=https;AccountName=' + $frameworkStorageAccountName + ';AccountKey=' + $frameworkStorageAccountKey + ';EndpointSuffix=core.windows.net'
+
 Write-Host "Creating function app: " $frameworkFunctionAppName -ForegroundColor "Green"
 
 az functionapp create `
@@ -144,70 +147,24 @@ az functionapp create `
   --consumption-plan-location $frameworkLocation `
   --resource-group $frameworkResourceGroupName
 
-Write-Host "Creating pending evaluation storage container: " $pendingEvaluationStorageContainerName  -ForegroundColor "Green"
+$StorageContext = New-AzureStorageContext -ConnectionString $connectionString
 
-az storage container create `
-  --name $pendingEvaluationStorageContainerName `
-  --account-name $frameworkStorageAccountName `
-  --account-key $frameworkStorageAccountKey `
-  --fail-on-exist
-
-Write-Host "Creating evaluated data storage container: " $evaluatedDataStorageContainerName  -ForegroundColor "Green"
-
-az storage container create `
-  --name $evaluatedDataStorageContainerName `
-  --account-name $frameworkStorageAccountName `
-  --account-key $frameworkStorageAccountKey `
-  --fail-on-exist
-
-Write-Host "Creating pending supervision storage container: " $pendingSupervisionStorageContainerName  -ForegroundColor "Green"
-
-az storage container create `
-  --name $pendingSupervisionStorageContainerName `
-  --account-name $frameworkStorageAccountName `
-  --account-key $frameworkStorageAccountKey `
-  --fail-on-exist
-
-Write-Host "Creating json storage container: " $jsonStorageContainerName  -ForegroundColor "Green"
-
-az storage container create `
-  --name $jsonStorageContainerName `
-  --account-name $frameworkStorageAccountName `
-  --account-key $frameworkStorageAccountKey `
-  --fail-on-exist
+$staticStorageContainers = "$pendingEvaluationStorageContainerName $evaluatedDataStorageContainerName $pendingSupervisionStorageContainerName $jsonStorageContainerName" 
+Write-Host "Creating static model storage containers: " $staticStorageContainers  -ForegroundColor "Green"
+$staticStorageContainers.split() | New-AzStorageContainer -Permission Container -Context $StorageContext
 
 #These storage containers are only used for trained models
 if ($modelType -eq "Trained")
 {
-  
-  Write-Host "Creating labeled data storage container: " $labeledDataStorageContainerName  -ForegroundColor "Green"
-
-  az storage container create `
-    --name $labeledDataStorageContainerName `
-    --account-name $frameworkStorageAccountName `
-    --account-key $frameworkStorageAccountKey `
-    --fail-on-exist
-
-  Write-Host "Creating model validation storage container: " $modelValidationStorageContainerName  -ForegroundColor "Green"
-
-  az storage container create `
-    --name $modelValidationStorageContainerName `
-    --account-name $frameworkStorageAccountName `
-    --account-key $frameworkStorageAccountKey `
-    --fail-on-exist
-
-  Write-Host "Creating pending new model storage container: " $pendingNewModelStorageContainerName  -ForegroundColor "Green"
-
-  az storage container create `
-    --name $pendingNewModelStorageContainerName `
-    --account-name $frameworkStorageAccountName `
-    --account-key $frameworkStorageAccountKey `
-    --fail-on-exist
+  $staticStorageContainers = "$pendingNewModelStorageContainerName $modelValidationStorageContainerName $labeledDataStorageContainerName" 
+  Write-Host "Creating trained model storage containers: " $staticStorageContainers  -ForegroundColor "Green"
+  $staticStorageContainers.split() | New-AzStorageContainer -Permission Container -Context $StorageContext
 }
 
 #Search is only used with trained models
 if ($modelType -eq "Trained")
 {
+  Write-Host "Creating blob binding hash search service: " $blobSearchServiceName  -ForegroundColor "Green"
 
   New-AzSearchService `
       -ResourceGroupName $frameworkResourceGroupName `
@@ -218,67 +175,734 @@ if ($modelType -eq "Trained")
       -ReplicaCount 1 `
       -HostingMode Default
 
-  $url = "https://binding-hash-search.search.windows.net/datasources/binding-hash-datasource?api-version=2019-05-06"
+  Write-Host "Creating blob binding hash search service data source: " $blobsearchdatasource  -ForegroundColor "Green"
 
-  $headers = @{
-      'Content-Type' = 'application/json'
-      'api-key' = $blobSearchServiceKey }
+  $blobSearchServiceKey = (Invoke-AzureRmResourceAction -Action listAdminKeys -ResourceType "Microsoft.Search/searchServices" -ResourceGroupName 'MLProfessoar' -ResourceName 'bindinghashsearch' -ApiVersion 2015-08-19).primaryKey
+
+  $url = "https://$blobSearchServiceName.search.windows.net/datasources/" + $blobsearchdatasource + "?api-version=2019-05-06"
   
+  $headers = @{}
+  $headers.add("Content-Type", "application/json")
+  $headers.add("api-key", $blobSearchServiceKey)
+
   $body = @"
       {
-          "name" : "binding-hash-datasource",
+          "name" : "$blobsearchdatasource",
           "type" : "azureblob",
-          "credentials" : { "connectionString" : "DefaultEndpointsProtocol=https;AccountName=orchestrationstorage;AccountKey=...windows.net;" },
-          "container" : { "name" : "json" }
+          "credentials" : { "connectionString" : "$connectionString" },
+          "container" : { "name" : "$jsonStorageContainerName" }
       }
 "@
-      
-      
+
   Invoke-RestMethod -Uri $url -Headers $headers -Method Put -Body $body | ConvertTo-Json
 
-  $url = "https://$blobSearchServiceName/indexes/$blobSearchIndexName?api-version=2019-05-06"
+  Write-Host "Creating blob binding hash search service index: " $blobSearchIndexName  -ForegroundColor "Green"
+
+  $url = "https://$blobSearchServiceName.search.windows.net/indexes/" + $blobSearchIndexName + "?api-version=2019-05-06"
 
   $headers = @{
-    'api-key' = $blobSearchServiceKey
+    'api-key' = "$blobSearchServiceKey"
     'Content-Type' = 'application/json' 
     'Accept' = 'application/json' }
 
   $body = @"
       {
-          "name": {blobSearchIndexName},  
-          "fields": [
-              {"name": "metadata_storage_path", "type": "Edm.String", "key": true, "filterable": true},
-              {"name": "blobInfo", "type": "Edm.ComplexType", 
-              "fields": [
-              {"name": "name", "type": "Edm.String", "filterable": false, "sortable": false, "facetable": false, "searchable": true},
-              {"name": "url", "type": "Edm.String", "searchable": true, "filterable": true, "sortable": true, "facetable": true},
-              {"name": "modified", "type": "Edm.String", "searchable": true, "filterable": true, "sortable": true, "facetable": true},
-              {"name": "id", "type": "Edm.String", "searchable": true, "filterable": true, "sortable": true, "facetable": true},
-              {"name": "hash", "type": "Edm.String", "searchable": true, "filterable": true, "sortable": true, "facetable": true}
-              ]
+        "name": "$blobSearchIndexName",
+        "fields": [
+          {
+            "name": "id",
+            "type": "Edm.String",
+            "facetable": false,
+            "filterable": false,
+            "key": false,
+            "retrievable": true,
+            "searchable": false,
+            "sortable": false,
+            "analyzer": null,
+            "indexAnalyzer": null,
+            "searchAnalyzer": null,
+            "synonymMaps": [],
+            "fields": []
+          },
+          {
+            "name": "blobInfo",
+            "type": "Edm.ComplexType",
+            "analyzer": null,
+            "synonymMaps": [],
+            "fields": [
+              {
+                "name": "name",
+                "type": "Edm.String",
+                "facetable": false,
+                "filterable": false,
+                "key": false,
+                "retrievable": true,
+                "searchable": false,
+                "sortable": false,
+                "analyzer": null,
+                "indexAnalyzer": null,
+                "searchAnalyzer": null,
+                "synonymMaps": [],
+                "fields": []
+              },
+              {
+                "name": "url",
+                "type": "Edm.String",
+                "facetable": false,
+                "filterable": false,
+                "key": false,
+                "retrievable": true,
+                "searchable": false,
+                "sortable": false,
+                "analyzer": null,
+                "indexAnalyzer": null,
+                "searchAnalyzer": null,
+                "synonymMaps": [],
+                "fields": []
+              },
+              {
+                "name": "modified",
+                "type": "Edm.String",
+                "facetable": false,
+                "filterable": false,
+                "key": false,
+                "retrievable": true,
+                "searchable": false,
+                "sortable": false,
+                "analyzer": null,
+                "indexAnalyzer": null,
+                "searchAnalyzer": null,
+                "synonymMaps": [],
+                "fields": []
+              },
+              {
+                "name": "hash",
+                "type": "Edm.String",
+                "facetable": false,
+                "filterable": false,
+                "key": false,
+                "retrievable": true,
+                "searchable": true,
+                "sortable": false,
+                "analyzer": "standard.lucene",
+                "indexAnalyzer": null,
+                "searchAnalyzer": null,
+                "synonymMaps": [],
+                "fields": []
+              }
+            ]
+          },
+          {
+            "name": "environment",
+            "type": "Edm.ComplexType",
+            "analyzer": null,
+            "synonymMaps": [],
+            "fields": [
+              {
+                "name": "endpoint",
+                "type": "Edm.String",
+                "facetable": false,
+                "filterable": false,
+                "key": false,
+                "retrievable": false,
+                "searchable": false,
+                "sortable": false,
+                "analyzer": null,
+                "indexAnalyzer": null,
+                "searchAnalyzer": null,
+                "synonymMaps": [],
+                "fields": []
+              },
+              {
+                "name": "parameter",
+                "type": "Edm.String",
+                "facetable": false,
+                "filterable": false,
+                "key": false,
+                "retrievable": false,
+                "searchable": false,
+                "sortable": false,
+                "analyzer": null,
+                "indexAnalyzer": null,
+                "searchAnalyzer": null,
+                "synonymMaps": [],
+                "fields": []
+              },
+              {
+                "name": "pendingEvaluationStorage",
+                "type": "Edm.String",
+                "facetable": false,
+                "filterable": false,
+                "key": false,
+                "retrievable": false,
+                "searchable": false,
+                "sortable": false,
+                "analyzer": null,
+                "indexAnalyzer": null,
+                "searchAnalyzer": null,
+                "synonymMaps": [],
+                "fields": []
+              },
+              {
+                "name": "evaluatedDataStorage",
+                "type": "Edm.String",
+                "facetable": false,
+                "filterable": false,
+                "key": false,
+                "retrievable": false,
+                "searchable": false,
+                "sortable": false,
+                "analyzer": null,
+                "indexAnalyzer": null,
+                "searchAnalyzer": null,
+                "synonymMaps": [],
+                "fields": []
+              },
+              {
+                "name": "pendingSupervisionStorage",
+                "type": "Edm.String",
+                "facetable": false,
+                "filterable": false,
+                "key": false,
+                "retrievable": false,
+                "searchable": false,
+                "sortable": false,
+                "analyzer": null,
+                "indexAnalyzer": null,
+                "searchAnalyzer": null,
+                "synonymMaps": [],
+                "fields": []
+              },
+              {
+                "name": "modelValidationStorage",
+                "type": "Edm.String",
+                "facetable": false,
+                "filterable": false,
+                "key": false,
+                "retrievable": false,
+                "searchable": false,
+                "sortable": false,
+                "analyzer": null,
+                "indexAnalyzer": null,
+                "searchAnalyzer": null,
+                "synonymMaps": [],
+                "fields": []
+              },
+              {
+                "name": "pendingNewModelStorage",
+                "type": "Edm.String",
+                "facetable": false,
+                "filterable": false,
+                "key": false,
+                "retrievable": false,
+                "searchable": false,
+                "sortable": false,
+                "analyzer": null,
+                "indexAnalyzer": null,
+                "searchAnalyzer": null,
+                "synonymMaps": [],
+                "fields": []
+              },
+              {
+                "name": "confidenceJSONPath",
+                "type": "Edm.String",
+                "facetable": false,
+                "filterable": false,
+                "key": false,
+                "retrievable": false,
+                "searchable": false,
+                "sortable": false,
+                "analyzer": null,
+                "indexAnalyzer": null,
+                "searchAnalyzer": null,
+                "synonymMaps": [],
+                "fields": []
+              },
+              {
+                "name": "confidenceThreshold",
+                "type": "Edm.String",
+                "facetable": false,
+                "filterable": false,
+                "key": false,
+                "retrievable": false,
+                "searchable": false,
+                "sortable": false,
+                "analyzer": null,
+                "indexAnalyzer": null,
+                "searchAnalyzer": null,
+                "synonymMaps": [],
+                "fields": []
+              },
+              {
+                "name": "verificationPercent",
+                "type": "Edm.String",
+                "facetable": false,
+                "filterable": false,
+                "key": false,
+                "retrievable": false,
+                "searchable": false,
+                "sortable": false,
+                "analyzer": null,
+                "indexAnalyzer": null,
+                "searchAnalyzer": null,
+                "synonymMaps": [],
+                "fields": []
+              }
+            ]
+          },
+          {
+            "name": "labels",
+            "type": "Collection(Edm.String)",
+            "facetable": false,
+            "filterable": false,
+            "retrievable": true,
+            "searchable": false,
+            "analyzer": null,
+            "indexAnalyzer": null,
+            "searchAnalyzer": null,
+            "synonymMaps": [],
+            "fields": []
+          },
+          {
+            "name": "categories",
+            "type": "Collection(Edm.ComplexType)",
+            "analyzer": null,
+            "synonymMaps": [],
+            "fields": [
+              {
+                "name": "name",
+                "type": "Edm.String",
+                "facetable": false,
+                "filterable": false,
+                "key": false,
+                "retrievable": false,
+                "searchable": false,
+                "sortable": false,
+                "analyzer": null,
+                "indexAnalyzer": null,
+                "searchAnalyzer": null,
+                "synonymMaps": [],
+                "fields": []
+              },
+              {
+                "name": "score",
+                "type": "Edm.Double",
+                "facetable": false,
+                "filterable": false,
+                "retrievable": false,
+                "sortable": false,
+                "analyzer": null,
+                "indexAnalyzer": null,
+                "searchAnalyzer": null,
+                "synonymMaps": [],
+                "fields": []
+              }
+            ]
+          },
+          {
+            "name": "color",
+            "type": "Edm.ComplexType",
+            "analyzer": null,
+            "synonymMaps": [],
+            "fields": [
+              {
+                "name": "dominantColorForeground",
+                "type": "Edm.String",
+                "facetable": false,
+                "filterable": false,
+                "key": false,
+                "retrievable": false,
+                "searchable": false,
+                "sortable": false,
+                "analyzer": null,
+                "indexAnalyzer": null,
+                "searchAnalyzer": null,
+                "synonymMaps": [],
+                "fields": []
+              },
+              {
+                "name": "dominantColorBackground",
+                "type": "Edm.String",
+                "facetable": false,
+                "filterable": false,
+                "key": false,
+                "retrievable": false,
+                "searchable": false,
+                "sortable": false,
+                "analyzer": null,
+                "indexAnalyzer": null,
+                "searchAnalyzer": null,
+                "synonymMaps": [],
+                "fields": []
+              },
+              {
+                "name": "dominantColors",
+                "type": "Collection(Edm.String)",
+                "facetable": false,
+                "filterable": false,
+                "retrievable": false,
+                "searchable": false,
+                "analyzer": null,
+                "indexAnalyzer": null,
+                "searchAnalyzer": null,
+                "synonymMaps": [],
+                "fields": []
+              },
+              {
+                "name": "accentColor",
+                "type": "Edm.String",
+                "facetable": false,
+                "filterable": false,
+                "key": false,
+                "retrievable": false,
+                "searchable": false,
+                "sortable": false,
+                "analyzer": null,
+                "indexAnalyzer": null,
+                "searchAnalyzer": null,
+                "synonymMaps": [],
+                "fields": []
+              }
+            ]
+          },
+          {
+            "name": "description",
+            "type": "Edm.ComplexType",
+            "analyzer": null,
+            "synonymMaps": [],
+            "fields": [
+              {
+                "name": "tags",
+                "type": "Collection(Edm.String)",
+                "facetable": false,
+                "filterable": false,
+                "retrievable": false,
+                "searchable": false,
+                "analyzer": null,
+                "indexAnalyzer": null,
+                "searchAnalyzer": null,
+                "synonymMaps": [],
+                "fields": []
+              },
+              {
+                "name": "captions",
+                "type": "Collection(Edm.ComplexType)",
+                "analyzer": null,
+                "synonymMaps": [],
+                "fields": [
+                  {
+                    "name": "text",
+                    "type": "Edm.String",
+                    "facetable": false,
+                    "filterable": false,
+                    "key": false,
+                    "retrievable": false,
+                    "searchable": false,
+                    "sortable": false,
+                    "analyzer": null,
+                    "indexAnalyzer": null,
+                    "searchAnalyzer": null,
+                    "synonymMaps": [],
+                    "fields": []
+                  },
+                  {
+                    "name": "confidence",
+                    "type": "Edm.Double",
+                    "facetable": false,
+                    "filterable": false,
+                    "retrievable": false,
+                    "sortable": false,
+                    "analyzer": null,
+                    "indexAnalyzer": null,
+                    "searchAnalyzer": null,
+                    "synonymMaps": [],
+                    "fields": []
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "name": "brands",
+            "type": "Collection(Edm.ComplexType)",
+            "analyzer": null,
+            "synonymMaps": [],
+            "fields": [
+              {
+                "name": "name",
+                "type": "Edm.String",
+                "facetable": false,
+                "filterable": false,
+                "key": false,
+                "retrievable": false,
+                "searchable": false,
+                "sortable": false,
+                "analyzer": null,
+                "indexAnalyzer": null,
+                "searchAnalyzer": null,
+                "synonymMaps": [],
+                "fields": []
+              },
+              {
+                "name": "confidence",
+                "type": "Edm.Double",
+                "facetable": false,
+                "filterable": false,
+                "retrievable": false,
+                "sortable": false,
+                "analyzer": null,
+                "indexAnalyzer": null,
+                "searchAnalyzer": null,
+                "synonymMaps": [],
+                "fields": []
+              },
+              {
+                "name": "rectangle",
+                "type": "Edm.ComplexType",
+                "analyzer": null,
+                "synonymMaps": [],
+                "fields": [
+                  {
+                    "name": "x",
+                    "type": "Edm.Int64",
+                    "facetable": false,
+                    "filterable": false,
+                    "retrievable": false,
+                    "sortable": false,
+                    "analyzer": null,
+                    "indexAnalyzer": null,
+                    "searchAnalyzer": null,
+                    "synonymMaps": [],
+                    "fields": []
+                  },
+                  {
+                    "name": "y",
+                    "type": "Edm.Int64",
+                    "facetable": false,
+                    "filterable": false,
+                    "retrievable": false,
+                    "sortable": false,
+                    "analyzer": null,
+                    "indexAnalyzer": null,
+                    "searchAnalyzer": null,
+                    "synonymMaps": [],
+                    "fields": []
+                  },
+                  {
+                    "name": "w",
+                    "type": "Edm.Int64",
+                    "facetable": false,
+                    "filterable": false,
+                    "retrievable": false,
+                    "sortable": false,
+                    "analyzer": null,
+                    "indexAnalyzer": null,
+                    "searchAnalyzer": null,
+                    "synonymMaps": [],
+                    "fields": []
+                  },
+                  {
+                    "name": "h",
+                    "type": "Edm.Int64",
+                    "facetable": false,
+                    "filterable": false,
+                    "retrievable": false,
+                    "sortable": false,
+                    "analyzer": null,
+                    "indexAnalyzer": null,
+                    "searchAnalyzer": null,
+                    "synonymMaps": [],
+                    "fields": []
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "name": "requestId",
+            "type": "Edm.String",
+            "facetable": false,
+            "filterable": false,
+            "key": false,
+            "retrievable": false,
+            "searchable": false,
+            "sortable": false,
+            "analyzer": null,
+            "indexAnalyzer": null,
+            "searchAnalyzer": null,
+            "synonymMaps": [],
+            "fields": []
+          },
+          {
+            "name": "metadata",
+            "type": "Edm.ComplexType",
+            "analyzer": null,
+            "synonymMaps": [],
+            "fields": [
+              {
+                "name": "width",
+                "type": "Edm.Int64",
+                "facetable": false,
+                "filterable": false,
+                "retrievable": false,
+                "sortable": false,
+                "analyzer": null,
+                "indexAnalyzer": null,
+                "searchAnalyzer": null,
+                "synonymMaps": [],
+                "fields": []
+              },
+              {
+                "name": "height",
+                "type": "Edm.Int64",
+                "facetable": false,
+                "filterable": false,
+                "retrievable": false,
+                "sortable": false,
+                "analyzer": null,
+                "indexAnalyzer": null,
+                "searchAnalyzer": null,
+                "synonymMaps": [],
+                "fields": []
+              },
+              {
+                "name": "format",
+                "type": "Edm.String",
+                "facetable": false,
+                "filterable": false,
+                "key": false,
+                "retrievable": false,
+                "searchable": false,
+                "sortable": false,
+                "analyzer": null,
+                "indexAnalyzer": null,
+                "searchAnalyzer": null,
+                "synonymMaps": [],
+                "fields": []
+              }
+            ]
+          },
+          {
+            "name": "metadata_storage_content_type",
+            "type": "Edm.String",
+            "facetable": false,
+            "filterable": false,
+            "key": false,
+            "retrievable": false,
+            "searchable": false,
+            "sortable": false,
+            "analyzer": null,
+            "indexAnalyzer": null,
+            "searchAnalyzer": null,
+            "synonymMaps": [],
+            "fields": []
+          },
+          {
+            "name": "metadata_storage_size",
+            "type": "Edm.Int64",
+            "facetable": false,
+            "filterable": false,
+            "retrievable": false,
+            "sortable": false,
+            "analyzer": null,
+            "indexAnalyzer": null,
+            "searchAnalyzer": null,
+            "synonymMaps": [],
+            "fields": []
+          },
+          {
+            "name": "metadata_storage_last_modified",
+            "type": "Edm.DateTimeOffset",
+            "facetable": false,
+            "filterable": false,
+            "retrievable": false,
+            "sortable": false,
+            "analyzer": null,
+            "indexAnalyzer": null,
+            "searchAnalyzer": null,
+            "synonymMaps": [],
+            "fields": []
+          },
+          {
+            "name": "metadata_storage_content_md5",
+            "type": "Edm.String",
+            "facetable": false,
+            "filterable": false,
+            "key": false,
+            "retrievable": false,
+            "searchable": false,
+            "sortable": false,
+            "analyzer": null,
+            "indexAnalyzer": null,
+            "searchAnalyzer": null,
+            "synonymMaps": [],
+            "fields": []
+          },
+          {
+            "name": "metadata_storage_name",
+            "type": "Edm.String",
+            "facetable": false,
+            "filterable": false,
+            "key": false,
+            "retrievable": false,
+            "searchable": false,
+            "sortable": false,
+            "analyzer": null,
+            "indexAnalyzer": null,
+            "searchAnalyzer": null,
+            "synonymMaps": [],
+            "fields": []
+          },
+          {
+            "name": "metadata_storage_path",
+            "type": "Edm.String",
+            "facetable": false,
+            "filterable": false,
+            "key": true,
+            "retrievable": true,
+            "searchable": false,
+            "sortable": false,
+            "analyzer": null,
+            "indexAnalyzer": null,
+            "searchAnalyzer": null,
+            "synonymMaps": [],
+            "fields": []
           }
-        ]
+        ],
+        "suggesters": [],
+        "scoringProfiles": [],
+        "defaultScoringProfile": "",
+        "corsOptions": null,
+        "analyzers": [],
+        "charFilters": [],
+        "tokenFilters": [],
+        "tokenizers": [],
+        "@odata.etag": "\"0x8D7226E5F8CFCA4\""
       }
 "@
 
   Invoke-RestMethod -Uri $url -Headers $headers -Method Put -Body $body | ConvertTo-Json
 
-  $url = "https://binding-hash-search.search.windows.net/indexers/binding-hash-indexer?api-version=2019-05-06"
+  $blobSearchIndexerName = $blobSearchServiceName + "indexer"
+
+  Write-Host "Creating blob binding hash search service indexer: " + $blobSearchIndexerName  -ForegroundColor "Green"
+
+  $url = "https://$blobSearchServiceName.search.windows.net/indexers/" + $blobSearchIndexerName + "?api-version=2019-05-06"
 
   $headers = @{
       'Content-Type' = 'application/json'
-      'api-key' = $blobSearchServiceKey }
-  
+      'api-key' = "$blobSearchServiceKey" }
+
   $body = @"
       {
-        "name" : "binding-hash-indexer",
-        "dataSourceName" : "binding-hash-datasource",
-        "targetIndexName" : "binding-hash-index",
-        "schedule" : { "interval" : "PT2H" }
+        "name" : "$blobSearchIndexerName",
+        "dataSourceName" : "$blobsearchdatasource",
+        "targetIndexName" : "$blobSearchIndexName",
+        "parameters" : { "maxFailedItems" : "15", "batchSize" : "100", "configuration" : { "parsingMode" : "json", "dataToExtract" : "contentAndMetadata" } }
       }
 "@
-  
-  Invoke-RestMethod -Uri $url -Headers $headers -Method Put -Body $body | ConvertTo-Json
+
+Invoke-RestMethod -Uri $url -Headers $headers -Method Put -Body $body | ConvertTo-Json
 
 }
 
@@ -331,12 +955,12 @@ az functionapp config appsettings set `
   --resource-group $frameworkResourceGroupName `
   --settings "confidenceJSONPath=$confidenceJSONPath"
 
-Write-Host "Creating app config setting: modelServiceEndpoint: " $modelServiceEndpoint -ForegroundColor "Green"
+Write-Host "Creating app config setting: DataEvaluationServiceEndpoint: " $dataEvaluationServiceEndpoint -ForegroundColor "Green"
 
 az functionapp config appsettings set `
   --name $frameworkFunctionAppName `
   --resource-group $frameworkResourceGroupName `
-  --settings "modelServiceEndpoint=$modelServiceEndpoint"
+  --settings "DataEvaluationServiceEndpoint=$dataEvaluationServiceEndpoint"
 
 Write-Host "Creating app config setting: evaluationDataParameterName: " $evaluationDataParameterName -ForegroundColor "Green"
 
@@ -344,6 +968,10 @@ az functionapp config appsettings set `
   --name $frameworkFunctionAppName `
   --resource-group $frameworkResourceGroupName `
   --settings "evaluationDataParameterName=$evaluationDataParameterName"
+
+#These environment variables are only used for trained models
+if ($modelType -eq "Trained")
+{
 
 Write-Host "Creating app config setting: blobSearchEndpoint: " $frameworkFunctionAppName -ForegroundColor "Green"
 
@@ -366,24 +994,28 @@ az functionapp config appsettings set `
   --resource-group $frameworkResourceGroupName `
   --settings "blobSearchIndexName=$blobSearchIndexName"
 
-Write-Host "Creating app config setting: blobSearchIndexName: " $blobSearchServiceName -ForegroundColor "Green"
+Write-Host "Creating app config setting: blobSearchServiceName: " $blobSearchServiceName -ForegroundColor "Green"
 
 az functionapp config appsettings set `
   --name $frameworkFunctionAppName `
   --resource-group $frameworkResourceGroupName `
-  --settings "blobSearchIndexName=$blobSearchServiceName"
+  --settings "blobSearchServiceName=$blobSearchServiceName"
 
-Write-Host "Creating app config setting: DataEvaluationServiceEndpoint: " $dataEvaluationServiceEndpoint -ForegroundColor "Green"
+Write-Host "Creating app config setting: blobsearchdatasource: " $blobsearchdatasource -ForegroundColor "Green"
 
 az functionapp config appsettings set `
   --name $frameworkFunctionAppName `
   --resource-group $frameworkResourceGroupName `
-  --settings "DataEvaluationServiceEndpoint=$dataEvaluationServiceEndpoint"
+  --settings "blobsearchdatasource=$blobsearchdatasource"
 
-#These environment variables are only used for trained models
-if ($modelType -eq "Trained")
-{
-  Write-Host "Creating app config setting: labeledDataStorageContainerName: " $labeledDataStorageContainerName -ForegroundColor "Green"
+Write-Host "Creating app config setting: blobSearchIndexerName: " $blobSearchIndexerName -ForegroundColor "Green"
+
+az functionapp config appsettings set `
+  --name $frameworkFunctionAppName `
+  --resource-group $frameworkResourceGroupName `
+  --settings "blobSearchIndexerName=$blobSearchIndexerName"
+    
+Write-Host "Creating app config setting: labeledDataStorageContainerName: " $labeledDataStorageContainerName -ForegroundColor "Green"
 
 az functionapp config appsettings set `
     --name $frameworkFunctionAppName `
@@ -445,4 +1077,4 @@ az functionapp config appsettings set `
     --name $frameworkFunctionAppName `
     --resource-group $frameworkResourceGroupName `
     --settings "labelingTagsBlobName=$labelingTagsBlobName"  
-  }
+}

@@ -45,6 +45,9 @@ namespace semisupervisedFramework
         public static async Task RunAsync([BlobTrigger("pendingevaluation/{blobName}", Connection = "AzureWebJobsStorage")]Stream myBlob, string blobName, ILogger log)
         {
             Engine engine = new Engine(log);
+
+            log.LogInformation($"\nInitiating evaluation of: {blobName}");
+
             Search search = new Search(engine, log);
             Model model = new Model(engine, search, log);
             try

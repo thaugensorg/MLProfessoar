@@ -41,7 +41,7 @@ namespace semisupervisedFramework
             _Engine = engine;
         }
 
-        // *****TODO***** should search be static or instanciable?
+        // *****TODO***** update index to track deleted items or we will get duplicate hash entries if the json data is reloaded.
         public FrameworkBlob GetBlob(string Type, string dataBlobMD5)
         {
             switch (Type)
@@ -84,14 +84,16 @@ namespace semisupervisedFramework
             ILoggerFactory logger = (ILoggerFactory)new LoggerFactory();
             ILogger log = logger.CreateLogger("Search");
             string SearchApiKey = _Engine.GetEnvironmentVariable("blobSearchKey", log);
-            string indexName = _Engine.GetEnvironmentVariable("bindinghash", log);
+            string indexName = _Engine.GetEnvironmentVariable("blobSearchIndexName", log);
+            string searchName = _Engine.GetEnvironmentVariable("blobSearchServiceName", log);
+            string searchDataSourceName = _Engine.GetEnvironmentVariable("blobsearchdatasource", log);
 
             //instanciates a serch client and creates the index.
-            SearchServiceClient serviceClient = Initialize("semisupervisedblobsearch", "blobindex", SearchApiKey);
+            SearchServiceClient serviceClient = Initialize(searchName, indexName, SearchApiKey);
             DataSource JsonBlob = CreateBlobSearchDataSource(log);
             serviceClient.DataSources.CreateOrUpdateAsync(JsonBlob).Wait();
-            Index BlobIndex = CreateIndex(serviceClient, "blobindex");
-            Indexer BlobIndexer = CreateBlobIndexer(serviceClient, BlobIndex, "json-blob");
+            Index BlobIndex = CreateIndex(serviceClient, indexName);
+            Indexer BlobIndexer = CreateBlobIndexer(serviceClient, BlobIndex, searchDataSourceName);
             serviceClient.Indexers.RunAsync(BlobIndexer.Name).Wait();
 
         }
@@ -146,19 +148,23 @@ namespace semisupervisedFramework
 
         public DataSource CreateBlobSearchDataSource(ILogger log)
         {
-            string StorageConnection = _Engine.GetEnvironmentVariable("AzureWebJobsStorage", log);
+            string storageConnection = _Engine.GetEnvironmentVariable("AzureWebJobsStorage", log);
+            string searchDataSourceName = _Engine.GetEnvironmentVariable("blobsearchdatasource", log);
+            string jsonStorageContainerName = _Engine.GetEnvironmentVariable("jsonStorageContainerName", log);
 
             DataSource dataSource = DataSource.AzureBlobStorage(
-                name: "json-blob",
-                storageConnectionString: StorageConnection,
-                containerName: "json");
+                name: searchDataSourceName,
+                storageConnectionString: storageConnection,
+                containerName: jsonStorageContainerName);
             return dataSource;
         }
 
         public Indexer CreateBlobIndexer(SearchServiceClient searchService, Index index, string dataSourceName)
         {
+            string blobSearchIndexerName = _Engine.GetEnvironmentVariable("blobSearchIndexerName", _Log);
+
             Indexer indexer = new Indexer(
-                name: "blob-indexer",
+                name: blobSearchIndexerName,
                 dataSourceName: dataSourceName,
                 targetIndexName: index.Name,
                 schedule: new IndexingSchedule(TimeSpan.FromMinutes(5)));
@@ -181,7 +187,7 @@ namespace semisupervisedFramework
         public SearchIndexClient CreateSearchIndexClient(string indexName, ILogger log)
         {
             string SearchApiKey = _Engine.GetEnvironmentVariable("blobSearchKey", log);
-            string SearchServiceName = _Engine.GetEnvironmentVariable("SearchServiceName", log);
+            string SearchServiceName = _Engine.GetEnvironmentVariable("blobSearchServiceName", log);
 
             SearchIndexClient indexClient = new SearchIndexClient(SearchServiceName, indexName, new SearchCredentials(SearchApiKey));
             return indexClient;

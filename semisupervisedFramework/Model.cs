@@ -42,17 +42,22 @@ namespace semisupervisedFramework
             _Client = new HttpClient();
             _Engine = engine;
             _Search = search;
-            _TrainModelUrl = _Engine.GetEnvironmentVariable("TrainModelServiceEndpoint", _Log);
-            if (string.IsNullOrEmpty(_TrainModelUrl)) throw (new EnvironmentVariableNotSetException("TrainModelServiceEndpoint environment variable not set"));
+            string modelType = _Engine.GetEnvironmentVariable("modelType", _Log);
+            if (modelType == "Trained")
+            {
+                _TrainModelUrl = _Engine.GetEnvironmentVariable("TrainModelServiceEndpoint", _Log);
+            }
         }
 
         public string AddLabeledData()
         {
             string TrainingDataUrl;
+            string labeledDataStorageContainerName = _Engine.GetEnvironmentVariable("labeledDataStorageContainerName", _Log);
+
             CloudStorageAccount StorageAccount = _Engine.StorageAccount;
             CloudBlobClient BlobClient = StorageAccount.CreateCloudBlobClient();
             //*****TODO***** externalize labeled data container name.
-            CloudBlobContainer LabeledDataContainer = BlobClient.GetContainerReference("labeleddata");
+            CloudBlobContainer LabeledDataContainer = BlobClient.GetContainerReference(labeledDataStorageContainerName);
 
             foreach (IListBlobItem item in LabeledDataContainer.ListBlobs(null, false))
             {
@@ -64,7 +69,7 @@ namespace semisupervisedFramework
                     if (BindingHash == null)
                     {
                         //compute the file hash as this will be added to the meta data to allow for file version validation
-                        string BlobMd5 = new DataBlob(dataCloudBlockBlob, _Search, _Log).CalculateMD5Hash().ToString();
+                        string BlobMd5 = new DataBlob(dataCloudBlockBlob, _Engine, _Search, _Log).CalculateMD5Hash().ToString();
                         if (BlobMd5 == null)
                         {
                             _Log.LogInformation("\nWarning: Blob Hash calculation failed and will not be included in file information blob, continuing operation.");
@@ -94,8 +99,6 @@ namespace semisupervisedFramework
                     // http://localhost:7071/api/LoadImageTags/?projectID=8d9d12d1-5d5c-4893-b915-4b5b3201f78e&labelsJson={%22Labels%22:[%22Hemlock%22,%22Japanese%20Cherry%22]}
 
                     string labeledDataServiceEndpoint = _Engine.GetEnvironmentVariable("LabeledDataServiceEndpoint", _Log);
-                    if (string.IsNullOrEmpty(labeledDataServiceEndpoint)) throw (new EnvironmentVariableNotSetException("LabeledDataServiceEndpoint environment variable not set"));
-
                     string addLabeledDataUrl = _Engine.ConstructModelRequestUrl(labeledDataServiceEndpoint, addLabeledDataParameters);
                     _Response = _Client.GetAsync(addLabeledDataUrl).Result;
                     _ResponseString = _Response.Content.ReadAsStringAsync().Result;
@@ -138,14 +141,10 @@ namespace semisupervisedFramework
 
             //Construct a blob storage container given a name string and a storage account
             string jsonDataContainerName = _Engine.GetEnvironmentVariable("jsonStorageContainerName", _Log);
-            if (string.IsNullOrEmpty(jsonDataContainerName)) throw (new EnvironmentVariableNotSetException("jsonStorageContainerName environment variable not set"));
-
             CloudBlobContainer Container = LabelsBlobClient.GetContainerReference(jsonDataContainerName);
 
             //get the training tags json blob from the container
             string labelingTagsBlobName = _Engine.GetEnvironmentVariable("labelingTagsBlobName", _Log);
-            if (string.IsNullOrEmpty(labelingTagsBlobName)) throw (new EnvironmentVariableNotSetException("labelingTagsBlobName environment variable not set"));
-
             CloudBlockBlob DataTagsBlob = Container.GetBlockBlobReference(labelingTagsBlobName);
 
             //the blob has to be "touched" or the properties will all be null
@@ -162,7 +161,6 @@ namespace semisupervisedFramework
             {
                 //format the http call to load labeling tags
                 string AddLabelingTagsEndpoint = _Engine.GetEnvironmentVariable("TagsUploadServiceEndpoint", _Log);
-                if (string.IsNullOrEmpty(AddLabelingTagsEndpoint)) throw (new EnvironmentVariableNotSetException("TagsUploadServiceEndpoint environment variable not set"));
                 string LabelingTagsParamatersName = _Engine.GetEnvironmentVariable("labelingTagsBlobName", _Log);
                 string LabelingTags = DataTagsBlob.DownloadText(Encoding.UTF8);
                 HttpContent LabelingTagsContent = new StringContent(LabelingTags);
@@ -199,18 +197,26 @@ namespace semisupervisedFramework
         {
             try
             {
+                double ModelVerificationPercent = 0;
+                string ModelValidationStorageContainerName = "";
+
+                string StorageConnection = _Engine.GetEnvironmentVariable("AzureWebJobsStorage", _Log);
                 string PendingEvaluationStorageContainerName = _Engine.GetEnvironmentVariable("pendingEvaluationStorageContainerName", _Log);
                 string EvaluatedDataStorageContainerName = _Engine.GetEnvironmentVariable("evaluatedDataStorageContainerName", _Log);
                 string JsonStorageContainerName = _Engine.GetEnvironmentVariable("jsonStorageContainerName", _Log);
                 string PendingSupervisionStorageContainerName = _Engine.GetEnvironmentVariable("pendingSupervisionStorageContainerName", _Log);
-                string LabeledDataStorageContainerName = _Engine.GetEnvironmentVariable("labeledDataStorageContainerName", _Log);
-                string ModelValidationStorageContainerName = _Engine.GetEnvironmentVariable("modelValidationStorageContainerName", _Log);
-                string PendingNewModelStorageContainerName = _Engine.GetEnvironmentVariable("pendingNewModelStorageContainerName", _Log);
-                string StorageConnection = _Engine.GetEnvironmentVariable("AzureWebJobsStorage", _Log);
                 string ConfidenceJsonPath = _Engine.GetEnvironmentVariable("confidenceJSONPath", _Log);
-                string DataTagsBlobName = _Engine.GetEnvironmentVariable("dataTagsBlobName", _Log);
                 double ConfidenceThreshold = Convert.ToDouble(_Engine.GetEnvironmentVariable("confidenceThreshold", _Log));
-                double ModelVerificationPercent = Convert.ToDouble(_Engine.GetEnvironmentVariable("modelVerificationPercentage", _Log));
+
+                string modelType = _Engine.GetEnvironmentVariable("modelType", _Log);
+                if (modelType == "Trained")
+                {
+                    string LabeledDataStorageContainerName = _Engine.GetEnvironmentVariable("labeledDataStorageContainerName", _Log);
+                    ModelValidationStorageContainerName = _Engine.GetEnvironmentVariable("modelValidationStorageContainerName", _Log);
+                    string PendingNewModelStorageContainerName = _Engine.GetEnvironmentVariable("pendingNewModelStorageContainerName", _Log);
+                    string DataTagsBlobName = _Engine.GetEnvironmentVariable("dataTagsBlobName", _Log);
+                    ModelVerificationPercent = Convert.ToDouble(_Engine.GetEnvironmentVariable("modelVerificationPercentage", _Log));
+                }
 
                 //------------------------This section retrieves the blob needing evaluation and calls the evaluation service for processing.-----------------------
 
@@ -219,7 +225,7 @@ namespace semisupervisedFramework
                 CloudBlobClient BlobClient = StorageAccount.CreateCloudBlobClient();
                 CloudBlobContainer Container = BlobClient.GetContainerReference(PendingEvaluationStorageContainerName);
                 CloudBlockBlob rawDataBlob = Container.GetBlockBlobReference(blobName);
-                DataBlob dataEvaluating = new DataBlob(rawDataBlob, _Search, _Log);
+                DataBlob dataEvaluating = new DataBlob(rawDataBlob, _Engine, _Search, _Log);
                 //CloudBlockBlob RawDataBlob = _Search.GetBlob(StorageAccount, JsonStorageContainerName, blobName, _Log);
                 //DataBlob DataEvaluating = new DataBlob(RawDataBlob.Properties.ContentMD5, _Engine, _Search, _Log);
                 if (dataEvaluating == null)
@@ -253,18 +259,7 @@ namespace semisupervisedFramework
 
                 //get environment variables used to construct the model request URL
                 string dataEvaluationServiceEndpoint = _Engine.GetEnvironmentVariable("DataEvaluationServiceEndpoint", _Log);
-
-                if (dataEvaluationServiceEndpoint == null || dataEvaluationServiceEndpoint == "")
-                {
-                    throw (new EnvironmentVariableNotSetException("DataEvaluationServiceEndpoint environment variable not set"));
-                }
-
                 string evaluationDataParameterName = _Engine.GetEnvironmentVariable("evaluationDataParameterName", _Log);
-                if (evaluationDataParameterName == null || evaluationDataParameterName == "")
-                {
-                    throw (new EnvironmentVariableNotSetException("evaluationDataParameterName environment variable not set"));
-                }
-
                 string parameters = $"?{evaluationDataParameterName}={DataEvaluatingUrl}";
                 string evaluateDataUrl = _Engine.ConstructModelRequestUrl(dataEvaluationServiceEndpoint, parameters);
 
@@ -274,17 +269,31 @@ namespace semisupervisedFramework
                 {
                     throw (new MissingRequiredObject("\nresponseString not generated from URL: " + evaluateDataUrl));
                 }
+                _Log.LogInformation($"\nEvaluation response: {ResponseString}.");
 
-                //deserialize response JSON, get confidence score and compare with confidence threshold
-                JObject AnalysisJson = JObject.Parse(ResponseString);
-                string StrConfidence = (string)AnalysisJson.SelectToken(ConfidenceJsonPath);
-                if (StrConfidence == null)
+                string StrConfidence = null;
+                double Confidence = 0;
+                JObject AnalysisJson = new JObject(new JProperty("Response", ResponseString));
+
+                if (ResponseString == "404 - No such host is known")
                 {
-                    throw (new MissingRequiredObject("\nNo confidence value at " + ConfidenceJsonPath + " from environment variable ConfidenceJSONPath."));
+                    StrConfidence = "0";
                 }
-                double Confidence = (double)AnalysisJson.SelectToken(ConfidenceJsonPath);
+                else
+                {
+                    //deserialize response JSON, get confidence score and compare with confidence threshold
+                    AnalysisJson = JObject.Parse(ResponseString);
+                    StrConfidence = (string)AnalysisJson.SelectToken(ConfidenceJsonPath);
+                    if (StrConfidence == null)
+                    {
+                        throw (new MissingRequiredObject("\nNo confidence value at " + ConfidenceJsonPath + " from environment variable ConfidenceJSONPath."));
+                    }
+                    Confidence = (double)AnalysisJson.SelectToken(ConfidenceJsonPath);
+                }
 
                 //--------------------------------This section processes the results of the analysis and transferes the blob to the container responsible for the next appropriate stage of processing.-------------------------------
+
+                _Log.LogInformation("\nStarting analysis of results.");
 
                 //model successfully analyzed content
                 if (Confidence >= ConfidenceThreshold)
@@ -325,7 +334,9 @@ namespace semisupervisedFramework
                     _Engine.MoveAzureBlobToAzureBlob(StorageAccount, dataEvaluating.AzureBlob, PendingSupervision, _Log).Wait();
                 }
 
-                //----------------------------This section collects information about the blob being analyzied and packages it in JSON that is then written to blob storage for later processing-----------------------------------
+                //----------------------------This section collects information about the blob being analyzed and packages it in JSON that is then written to blob storage for later processing-----------------------------------
+
+                _Log.LogInformation("\nStarting construction of json blob.");
 
                 JObject BlobAnalysis =
                     new JObject(
@@ -347,7 +358,7 @@ namespace semisupervisedFramework
                 BlobAnalysis.Merge(AnalysisJson);
 
                 //Note: all json files get writted to the same container as they are all accessed either by discrete name or by azure search index either GUID or Hash.
-                CloudBlockBlob JsonBlob = _Search.GetBlob(StorageAccount, JsonStorageContainerName, (string)BlobAnalysis.SelectToken("blobInfo.id") + ".json", _Log);
+                CloudBlockBlob JsonBlob = _Search.GetBlob(StorageAccount, JsonStorageContainerName, (string)BlobAnalysis.SelectToken("id") + ".json", _Log);
                 JsonBlob.Properties.ContentType = "application/json";
                 string SerializedJson = JsonConvert.SerializeObject(BlobAnalysis, Newtonsoft.Json.Formatting.Indented, new JsonSerializerSettings { });
                 Stream MemStream = new MemoryStream(Encoding.UTF8.GetBytes(SerializedJson));

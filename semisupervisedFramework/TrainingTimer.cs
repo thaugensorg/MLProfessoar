@@ -50,49 +50,63 @@ namespace semisupervisedFramework
         {
 
             Engine engine = new Engine(log);
-            try
+
+            //if the model is not type trained then skip the training loop.
+            string modelType = engine.GetEnvironmentVariable("modelType", log);
+            if (modelType == "Trained")
             {
-                string responseString = "";
-                CloudStorageAccount storageAccount = engine.StorageAccount;
-                CloudBlobClient blobClient = storageAccount.CreateCloudBlobClient();
-                //*****TODO***** externalize labeled data container name.
-                CloudBlobContainer labeledDataContainer = blobClient.GetContainerReference("labeleddata");
 
-                //*****TODO***** update this to check if there are any new files not just files
-                // Check if there are any files in the labeled data container before loading labeling tags follwed by labeled data followed by training the model.
-                if (labeledDataContainer.ListBlobs(null, false) != null)
+                try
                 {
-                    Search search = new Search(engine, log);
-                    Model model = new Model(engine, search, log);
 
-                    //*****TODO***** Where should search be initialized?  Azure search does not offer CLI calls to configure all of search so it needs to be initialized befor it can be used as a service.  Look at putting it in engine.  Recognize this is not the same thing as migrating search to a non-static mode and then newing it up.
-                    //Search.InitializeSearch();
+                    string responseString = "";
+                    string labeledDataStorageContainerName = engine.GetEnvironmentVariable("labeledDataStorageContainerName", log);
 
-                    //Load the list of valid training tags to ensure all data labels are valid.
-                    string loadTrainingTagsResult = model.LoadTrainingTags();
+                    CloudStorageAccount storageAccount = engine.StorageAccount;
+                    CloudBlobClient blobClient = storageAccount.CreateCloudBlobClient();
+                    //*****TODO***** externalize labeled data container name.
+                    CloudBlobContainer labeledDataContainer = blobClient.GetContainerReference(labeledDataStorageContainerName);
 
-                    //Add full set set of labeled training data to the model
-                    //*****TODO***** add logic to only add incremental labeled data to model
-                    string addLabeledDataResult = model.AddLabeledData();
+                    //*****TODO***** update this to check if there are any new files not just files
+                    // Check if there are any files in the labeled data container before loading labeling tags follwed by labeled data followed by training the model.
+                    if (labeledDataContainer.ListBlobs(null, false) != null)
+                    {
+                        Search search = new Search(engine, log);
+                        Model model = new Model(engine, search, log);
 
-                    //Train model using latest labeled training data.
-                    string trainingResultsString = model.Train();
+                        //*****TODO***** Where should search be initialized?  Azure search does not offer CLI calls to configure all of search so it needs to be initialized befor it can be used as a service.  Look at putting it in engine.  Recognize this is not the same thing as migrating search to a non-static mode and then newing it up.
+                        //Search.InitializeSearch();
 
-                    //Construct response string for system logging.
-                    responseString = $"\nModel training complete with the following result:" +
-                        $"\nLoading Training Tags results: {loadTrainingTagsResult}" +
-                        $"\nAdding Labeled Data results: {addLabeledDataResult}" +
-                        $"\nTraining Results: {trainingResultsString}";
+                        //Load the list of valid training tags to ensure all data labels are valid.
+                        string loadTrainingTagsResult = model.LoadTrainingTags();
+
+                        //Add full set set of labeled training data to the model
+                        //*****TODO***** add logic to only add incremental labeled data to model
+                        string addLabeledDataResult = model.AddLabeledData();
+
+                        //Train model using latest labeled training data.
+                        string trainingResultsString = model.Train();
+
+                        //Construct response string for system logging.
+                        responseString = $"\nModel training complete with the following result:" +
+                            $"\nLoading Training Tags results: {loadTrainingTagsResult}" +
+                            $"\nAdding Labeled Data results: {addLabeledDataResult}" +
+                            $"\nTraining Results: {trainingResultsString}";
+                    }
+                    else
+                    {
+                        throw (new MissingRequiredObject($"\n LabeledDataContainer was empty at {DateTime.Now} no model training action taken"));
+                    }
+                    log.LogInformation($"C# Timer trigger function executed at: {DateTime.Now}{responseString}");
                 }
-                else
+                catch (Exception e)
                 {
-                    throw(new MissingRequiredObject($"\n LabeledDataContainer was empty at {DateTime.Now} no model training action taken"));
+                    log.LogInformation($"\nError processing training timer: {e.Message}");
                 }
-                log.LogInformation($"C# Timer trigger function executed at: {DateTime.Now}{responseString}");
             }
-            catch (Exception e)
+            else
             {
-                log.LogInformation($"\nError processing training timer: {e.Message}");
+                log.LogInformation($"\nModel set to 'Static' execiution of training logic suspended.  If you would like to change this to a trained model please update appropriate environment variables.  If you were waiting for the pending evaluation blob trigger to fire and it is not firing then you probably do not have the right storage key set in your local.setting.json file.");
             }
         }
     }

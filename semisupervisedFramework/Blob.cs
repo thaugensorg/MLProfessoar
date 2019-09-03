@@ -58,12 +58,14 @@ namespace semisupervisedFramework
         public CloudBlockBlob AzureBlob { get; set; }
         virtual public ILogger Log { get; set; } //*****TODO*****should this be abstract or virtual?
         virtual public Search Search { get; set; }
+        virtual public Engine Engine { get; set; }
 
         // encapsulates the GetBlobByHash behavior which is reused between both DataBlob and JsonBlob subclasses
-        public FrameworkBlob(Search search, ILogger log)
+        public FrameworkBlob(Engine engine, Search search, ILogger log)
         {
             Log = log;
             Search = search;
+            Engine = engine;
         }
 
         //calculates a blob hash to join JSON to a specific version of a file.
@@ -163,7 +165,8 @@ namespace semisupervisedFramework
 
         public SearchIndexClient GetJsonBindingSearchIndex()
         {
-            return Search.CreateSearchIndexClient("data-labels-index", Log);
+            string blobSearchIndexName = Engine.GetEnvironmentVariable("blobSearchIndexName", Log);
+            return Search.CreateSearchIndexClient(blobSearchIndexName, Log);
         }
 
         public JObject JsonBindingSearchResult(SearchIndexClient indexClient, string md5Hash)
@@ -185,7 +188,6 @@ namespace semisupervisedFramework
     class DataBlob : FrameworkBlob
     {
         //public Log;
-        private Engine _Engine;
         private JsonBlob _jsonBlob;
         public JsonBlob BoundJsonBlob
         {
@@ -193,7 +195,7 @@ namespace semisupervisedFramework
             {
                 if (_jsonBlob == null)
                 {
-                    _jsonBlob = new JsonBlob(AzureBlob.Properties.ContentMD5, _Engine, Search, Log);
+                    _jsonBlob = new JsonBlob(AzureBlob.Properties.ContentMD5, Engine, Search, Log);
                     return _jsonBlob;
                 }
                 else
@@ -205,20 +207,22 @@ namespace semisupervisedFramework
             set => BoundJsonBlob = value;
         }
 
-        public DataBlob(string md5Hash, Engine engine, Search search, ILogger log) : base(search, log)
+        public DataBlob(string md5Hash, Engine engine, Search search, ILogger log) : base(engine, search, log)
         {
             Log = log;
-            _Engine = engine;
+            Engine = engine;
+            Search = search;
             Uri DataBlobUri = GetDataBlobUriFromJson(md5Hash);
-            CloudStorageAccount StorageAccount = _Engine.StorageAccount;
+            CloudStorageAccount StorageAccount = Engine.StorageAccount;
             CloudBlobClient BlobClient = StorageAccount.CreateCloudBlobClient();
             AzureBlob = new CloudBlockBlob(DataBlobUri, BlobClient);
         }
 
-        public DataBlob(CloudBlockBlob azureBlob, Search search, ILogger log) : base(search, log)
+        public DataBlob(CloudBlockBlob azureBlob, Engine engine, Search search, ILogger log) : base(engine, search, log)
         {
             Log = log;
-            Search = search; 
+            Search = search;
+            Engine = engine;
             AzureBlob = azureBlob;
         }
 
@@ -273,7 +277,7 @@ namespace semisupervisedFramework
             {
                 if (_DataBlob == null)
                 {
-                    DataBlob dataBlob = new DataBlob(BlobInfo.Md5Hash, _Engine, Search, Log);
+                    DataBlob dataBlob = new DataBlob(BlobInfo.Md5Hash, Engine, Search, Log);
                     if (dataBlob == null)
                     {
                         throw (new MissingRequiredObject($"\nNo data blob found with MD% hash {BlobInfo.Md5Hash}."));
@@ -285,13 +289,12 @@ namespace semisupervisedFramework
             }
             set => DataBlob = value;
         }
-        private Engine _Engine;
 
-        public JsonBlob(string md5Hash, Engine engine, Search search, ILogger log) : base(search, log)
+        public JsonBlob(string md5Hash, Engine engine, Search search, ILogger log) : base(engine, search, log)
         {
             Log = log;
             Search = search;
-            _Engine = engine;
+            Engine = engine;
             BlobInfo = new BlobInfo();
             JObject jsonBlobJson = GetJsonBlobJson(md5Hash);
             //JsonBlob BoundJson = dataBlob.GetBoundJson(log);

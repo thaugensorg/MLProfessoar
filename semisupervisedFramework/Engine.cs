@@ -78,7 +78,6 @@ namespace semisupervisedFramework
             JProperty BlobEnvironment =
                 new JProperty("environment",
                     new JObject(
-                        new JProperty("endpoint", GetEnvironmentVariable("modelServiceEndpoint", log)),
                         new JProperty("parameter", GetEnvironmentVariable("evaluationDataParameterName", log)),
                         new JProperty("pendingEvaluationStorage", GetEnvironmentVariable("pendingEvaluationStorageContainerName", log)),
                         new JProperty("evaluatedDataStorage", GetEnvironmentVariable("evaluatedDataStorageContainerName", log)),
@@ -144,11 +143,22 @@ namespace semisupervisedFramework
                 Uri TargetUri = new Uri(targetUrl);
                 HttpResponseMessage Response = Client.PostAsync(TargetUri, postData).Result;
                 ResponseString = Response.Content.ReadAsStringAsync().Result;
+                if ((ResponseString == null) && (Response.StatusCode.ToString() == "InternalServerError"))
+                {
+                    ResponseString = new JObject(new JProperty("500 - InternalServerError")).ToString();
+                }
             }
             catch (Exception e)
             {
                 log.LogInformation("\nFailed HTTP request for URL" + targetUrl + " in application environment variables", e.Message);
-                return "";
+                if (e.InnerException.Message == "No such host is known")
+                {
+                    return "404 - " + e.InnerException.Message;
+                }
+                else
+                {
+                    return "";
+                }
             }
 
             //log the http elapsed time
