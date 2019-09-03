@@ -1071,6 +1071,13 @@ az functionapp config appsettings set `
     --resource-group $frameworkResourceGroupName `
     --settings "TagsUploadServiceEndpoint=$tagsUploadServiceEndpoint"
 
+Write-Host "Creating app config setting: LabeledDataServiceEndpoint: " $LabeledDataServiceEndpoint -ForegroundColor "Green"
+
+az functionapp config appsettings set `
+    --name $frameworkFunctionAppName `
+    --resource-group $frameworkResourceGroupName `
+    --settings "LabeledDataServiceEndpoint=$LabeledDataServiceEndpoint"
+    
 Write-Host "Creating app config setting: labelingTagsBlobName: " $labelingTagsBlobName -ForegroundColor "Green"
 
 az functionapp config appsettings set `
