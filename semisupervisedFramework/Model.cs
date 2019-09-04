@@ -162,7 +162,7 @@ namespace semisupervisedFramework
                 //format the http call to load labeling tags
                 string LabelingTags = DataTagsBlob.DownloadText(Encoding.UTF8);
                 HttpContent LabelingTagsContent = new StringContent(LabelingTags);
-                var content = new MultipartFormDataContent();
+                MultipartFormDataContent content = new MultipartFormDataContent();
                 string LabelingTagsParamatersName = _Engine.GetEnvironmentVariable("labelingTagsParameterName", _Log);
                 content.Add(LabelingTagsContent, LabelingTagsParamatersName);
 
@@ -173,7 +173,7 @@ namespace semisupervisedFramework
 
                 //Make a request to the model service load labeling tags function passing the tags.
                 string AddLabelingTagsEndpoint = _Engine.GetEnvironmentVariable("TagsUploadServiceEndpoint", _Log);
-                responseString = _Engine.GetEvaluationResponseString(AddLabelingTagsEndpoint, content, _Log);
+                responseString = _Engine.GetHttpResponseString(AddLabelingTagsEndpoint, content);
                 if (string.IsNullOrEmpty(responseString)) throw (new MissingRequiredObject("\nresponseString not generated from URL: " + AddLabelingTagsEndpoint));
 
                 //save the hash of this version of the labeling tags file so that we can avoid running load labeling tags if the file has not changed.
@@ -263,7 +263,7 @@ namespace semisupervisedFramework
                 string evaluateDataUrl = _Engine.ConstructModelRequestUrl(dataEvaluationServiceEndpoint, parameters);
 
                 //Make a request to the model service passing the file URL
-                string ResponseString = _Engine.GetEvaluationResponseString(evaluateDataUrl, content, _Log);
+                string ResponseString = _Engine.GetHttpResponseString(evaluateDataUrl, content);
                 if (ResponseString == "")
                 {
                     throw (new MissingRequiredObject("\nresponseString not generated from URL: " + evaluateDataUrl));

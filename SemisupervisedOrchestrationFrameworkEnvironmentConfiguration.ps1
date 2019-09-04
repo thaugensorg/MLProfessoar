@@ -38,26 +38,19 @@ $type=$host.ui.PromptForChoice($title, $message, $options, 0)
 if ($type -eq 1) {$modelType = "Trained"} else {$modelType = "Static"}
 
 #These environment variables are used for both static and trained models.
-$pendingEvaluationStorageContainerName = Read-Host -Prompt 'Input the name of the storage container for blobs to be evaluated by the model configured in this framework (default=pendingevaluation)'
-if ([string]::IsNullOrWhiteSpace($pendingEvaluationStorageContainerName)) {$pendingEvaluationStorageContainerName = "pendingevaluation"}
+$pendingEvaluationStorageContainerName = "pendingevaluation"
 
-$evaluatedDataStorageContainerName = Read-Host -Prompt 'Input the name of the storage container for blobs after they are evaluated by the model (default=evaluateddata)'
-if ([string]::IsNullOrWhiteSpace($evaluatedDataStorageContainerName)) {$evaluatedDataStorageContainerName = "evaluateddata"}
+$evaluatedDataStorageContainerName = "evaluateddata"
 
-$jsonStorageContainerName = Read-Host -Prompt 'Input the name of the storage container for JSON blobs containing data generated from the blobs evaluated by this model (default=json)'
-if ([string]::IsNullOrWhiteSpace($jsonStorageContainerName)) {$jsonStorageContainerName = "json"}
+$jsonStorageContainerName = "json"
 
-$pendingSupervisionStorageContainerName = Read-Host -Prompt 'Input the name of the storage container for blobs that require supervision after they have been evaluated by the model (default=pendingsupervision)'
-if ([string]::IsNullOrWhiteSpace($pendingSupervisionStorageContainerName)) {$pendingSupervisionStorageContainerName = "pendingsupervision"}
+$pendingSupervisionStorageContainerName = "pendingsupervision"
 
-$evaluationDataParameterName = Read-Host -Prompt 'Input the parameter name of the asset that will be passed into the azure function model (defaule=dataBlobURL)'
-if ([string]::IsNullOrWhiteSpace($evaluationDataParameterName)) {$evaluationDataParameterName = "dataBlobUrl"}
+$evaluationDataParameterName = "dataBlobUrl"
 
-$confidenceJSONPath = Read-Host -Prompt 'Input the JSON path where the blob analysis confidence value will be found in the JSON document found in the model analysis response.  By default confidence is expected as a root value in the response JSON (default=confidence)'
-if ([string]::IsNullOrWhiteSpace($confidenceJSONPath)) {$confidenceJSONPath = "confidence"}
+$confidenceJSONPath = "confidence"
 
-$confidenceThreshold = Read-Host -Prompt 'Input the decimal value in the format of a C# Double that specifies the confidence threshold the model must return to indicate the model blob analysis is acceptable (default=.95)'
-if ([string]::IsNullOrWhiteSpace($confidenceThreshold)) {$confidenceThreshold = .95}
+$confidenceThreshold = .95
 
 $dataEvaluationServiceEndpoint = Read-Host -Prompt 'Input the http address of the evaluate data endpoint for your app. (default="https://mlprofessoarsamplemodelapp.azurewebsites.net/api/EvaluateData")'
 if ([string]::IsNullOrWhiteSpace($dataEvaluationServiceEndpoint)) {$dataEvaluationServiceEndpoint = "https://mlprofessoarsamplemodelapp.azurewebsites.net/api/EvaluateData"}
@@ -65,20 +58,17 @@ if ([string]::IsNullOrWhiteSpace($dataEvaluationServiceEndpoint)) {$dataEvaluati
 #These environment variables are only used for trained models
 if ($modelType -eq "Trained")
 {
-  $labeledDataStorageContainerName = Read-Host -Prompt 'Input the name of the storage container for blobs that will store labeled data for training the model (default=labeleddata)'
-  if ([string]::IsNullOrWhiteSpace($labeledDataStorageContainerName)) {$labeledDataStorageContainerName = "labeleddata"}
+  $labeledDataStorageContainerName = "labeleddata"
 
-  $modelValidationStorageContainerName = Read-Host -Prompt 'Input the name of the storage container for blobs that will be used to validate the model after they have been evaluated by the model (default=modelvalidation)'
-  if ([string]::IsNullOrWhiteSpace($modelValidationStorageContainerName)) {$modelValidationStorageContainerName = "modelvalidation"}
+  $modelValidationStorageContainerName = "modelvalidation"
 
-  $pendingNewModelStorageContainerName = Read-Host -Prompt 'Input the name of the storage container for blobs that need to be re-evaluated after a new mode has been published (default=pendingnewmodelevaluation)'
-  if ([string]::IsNullOrWhiteSpace($pendingNewModelStorageContainerName)) {$pendingNewModelStorageContainerName = "pendingnewmodelevaluation"}
+  $pendingNewModelStorageContainerName = "pendingnewmodelevaluation"
 
-  $modelVerificationPercentage = Read-Host -Prompt 'Input the decimal value in the format of a C# Double that specifies the percentage of successfully evaluated blobs to be routed to a verification queue (default=.05)'
-  if ([string]::IsNullOrWhiteSpace($modelVerificationPercentage)) {$modelVerificationPercentage = .05}
+  $modelVerificationPercentage = .05
 
-  $labelingTagsFileHash = Read-Host -Prompt 'This environment variable cannot be set at configuration time. (default=hash not initialized)'
-  if ([string]::IsNullOrWhiteSpace($labelingTagsFileHash)) {$labelingTagsFileHash = 'hash not initialized'}
+  $labelingTagsParameterName = "labelsJson"
+  
+  $labelingTagsFileHash = 'hash not initialized'
   
   $trainModelServiceEndpoint = Read-Host -Prompt 'Input the http address of the services endpoint to initiate training of the model. (default=https://mlprofessoarsamplemodelapp.azurewebsites.net/api/TrainModel)'
   if ([string]::IsNullOrWhiteSpace($trainModelServiceEndpoint)) {$trainModelServiceEndpoint = 'https://mlprofessoarsamplemodelapp.azurewebsites.net/api/TrainModel'}
@@ -89,16 +79,15 @@ if ($modelType -eq "Trained")
   $LabeledDataServiceEndpoint = Read-Host -Prompt 'Input the http address of the service endpoint to upload labeled data that will train the model. (default=https://mlprofessoarsamplemodelapp.azurewebsites.net/api/AddLabeledDataClient)'
   if ([string]::IsNullOrWhiteSpace($LabeledDataServiceEndpoint)) {$LabeledDataServiceEndpoint = 'https://mlprofessoarsamplemodelapp.azurewebsites.net/api/AddLabeledDataClient'}
 
-  $labelingTagsBlobName = Read-Host -Prompt 'Input the name of the josn file that contains all of the valid labeling tags that can be used in labeling training data.. (default=LabelingTags.json)'
-  if ([string]::IsNullOrWhiteSpace($labelingTagsBlobName)) {$labelingTagsBlobName = 'LabelingTags.json'}
+  $labelingTagsBlobName = 'LabelingTags.json'
 
   while([string]::IsNullOrWhiteSpace($blobSearchServiceName))
   {$blobSearchServiceName = Read-Host -Prompt 'Input the name of the search service that will be used to access the blob binding hash. (default="bindinghashsearch")'
   if ([string]::IsNullOrWhiteSpace($blobSearchServiceName)) {$blobSearchServiceName = 'bindinghashsearch'}
   if ($blobSearchServiceName.length -gt 60){$blobSearchServiceName=$null
-    Write-Host "Storage account name cannot be shortern than 2 characters and no longer than 60 charaters." -ForegroundColor "Red"}
+    Write-Host "Search service name cannot be shorter than 2 characters and no longer than 60 charaters." -ForegroundColor "Red"}
   if ($blobSearchServiceName -cmatch '[A-Z]') {$blobSearchServiceName=$null
-    Write-Host "Service name must only contain lowercase letters, digits or dashes, cannot use dash as the first two or last one characters, cannot contain consecutive dashes, and is limited between 2 and 60 characters in length." -ForegroundColor "Red"}
+    Write-Host "Search service name must only contain lowercase letters, digits or dashes, cannot use dash as the first two or last one characters, cannot contain consecutive dashes, and is limited between 2 and 60 characters in length." -ForegroundColor "Red"}
   }
 
   $blobsearchdatasource = $blobSearchServiceName + "datasource"
@@ -980,6 +969,13 @@ az functionapp config appsettings set `
   --resource-group $frameworkResourceGroupName `
   --settings "blobSearchEndpoint=$blobSearchEndpointUrl"
 
+  Write-Host "Creating app config setting: labelingTagsParameterName: " $labelingTagsParameterName -ForegroundColor "Green"
+
+  az functionapp config appsettings set `
+    --name $frameworkFunctionAppName `
+    --resource-group $frameworkResourceGroupName `
+    --settings "labelingTagsParameterName=$labelingTagsParameterName"
+  
 Write-Host "Creating app config setting: blobSearchKey: null" -ForegroundColor "Green"
 
 az functionapp config appsettings set `

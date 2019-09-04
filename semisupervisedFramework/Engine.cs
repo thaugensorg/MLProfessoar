@@ -130,7 +130,7 @@ namespace semisupervisedFramework
         }
 
         //Returns a response string for a given URL.
-        public string GetEvaluationResponseString(string targetUrl, MultipartFormDataContent postData, ILogger log)
+        public string GetHttpResponseString(string targetUrl, MultipartFormDataContent postData)
         {
             //initialize variables
             Stopwatch StopWatch = Stopwatch.StartNew();
@@ -150,7 +150,7 @@ namespace semisupervisedFramework
             }
             catch (Exception e)
             {
-                log.LogInformation("\nFailed HTTP request for URL" + targetUrl + " in application environment variables", e.Message);
+                _Log.LogInformation("\nFailed HTTP request for URL" + targetUrl + " in application environment variables", e.Message);
                 if (e.InnerException.Message == "No such host is known")
                 {
                     return "404 - " + e.InnerException.Message;
@@ -163,7 +163,7 @@ namespace semisupervisedFramework
 
             //log the http elapsed time
             StopWatch.Stop();
-            log.LogInformation("\nHTTP call to " + targetUrl + " completed in:" + StopWatch.Elapsed.TotalSeconds + " seconds.");
+            _Log.LogInformation("\nHTTP call to " + targetUrl + " completed in:" + StopWatch.Elapsed.TotalSeconds + " seconds.");
             return ResponseString;
         }
 
