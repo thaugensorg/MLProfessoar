@@ -150,22 +150,21 @@ namespace semisupervisedFramework
             //the blob has to be "touched" or the properties will all be null
             if (DataTagsBlob.Exists() != true)
             {
-                _Log.LogInformation("The labeling tags blob exists");
+                throw new MissingRequiredObject($"\ndataTagsBlob not found using {labelingTagsBlobName}");
             };
 
             //get the environment variable specifying the MD5 hash of the last run tags file
-            string LkgDataTagsFileHash = _Engine.GetEnvironmentVariable("labelingTagsFileHash", _Log);
+            string LkgDataTagsFileHash = _Engine.GetEnvironmentVariable("dataTagsFileHash", _Log);
 
             //Check if there is a new version of the tags json file and if so load them into the environment
             if (DataTagsBlob.Properties.ContentMD5 != LkgDataTagsFileHash)
             {
                 //format the http call to load labeling tags
-                string AddLabelingTagsEndpoint = _Engine.GetEnvironmentVariable("TagsUploadServiceEndpoint", _Log);
-                string LabelingTagsParamatersName = _Engine.GetEnvironmentVariable("labelingTagsBlobName", _Log);
                 string LabelingTags = DataTagsBlob.DownloadText(Encoding.UTF8);
                 HttpContent LabelingTagsContent = new StringContent(LabelingTags);
                 var content = new MultipartFormDataContent();
-                content.Add(LabelingTagsContent, "LabelsJson");
+                string LabelingTagsParamatersName = _Engine.GetEnvironmentVariable("labelingTagsParameterName", _Log);
+                content.Add(LabelingTagsContent, LabelingTagsParamatersName);
 
                 //****Currently only working with public access set on blob folders
                 //Generate a URL with SAS token to submit to analyze image API
@@ -173,6 +172,7 @@ namespace semisupervisedFramework
                 //string DataTagsUrl = DataTagsBlob.Uri.ToString(); //+ dataEvaluatingSas;
 
                 //Make a request to the model service load labeling tags function passing the tags.
+                string AddLabelingTagsEndpoint = _Engine.GetEnvironmentVariable("TagsUploadServiceEndpoint", _Log);
                 responseString = _Engine.GetEvaluationResponseString(AddLabelingTagsEndpoint, content, _Log);
                 if (string.IsNullOrEmpty(responseString)) throw (new MissingRequiredObject("\nresponseString not generated from URL: " + AddLabelingTagsEndpoint));
 
@@ -214,7 +214,6 @@ namespace semisupervisedFramework
                     string LabeledDataStorageContainerName = _Engine.GetEnvironmentVariable("labeledDataStorageContainerName", _Log);
                     ModelValidationStorageContainerName = _Engine.GetEnvironmentVariable("modelValidationStorageContainerName", _Log);
                     string PendingNewModelStorageContainerName = _Engine.GetEnvironmentVariable("pendingNewModelStorageContainerName", _Log);
-                    string DataTagsBlobName = _Engine.GetEnvironmentVariable("dataTagsBlobName", _Log);
                     ModelVerificationPercent = Convert.ToDouble(_Engine.GetEnvironmentVariable("modelVerificationPercentage", _Log));
                 }
 
