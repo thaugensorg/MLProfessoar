@@ -264,9 +264,9 @@ namespace semisupervisedFramework
 
                 //Make a request to the model service passing the file URL
                 string ResponseString = _Engine.GetHttpResponseString(evaluateDataUrl, content);
-                if (ResponseString == "")
+                if (ResponseString == "" || ResponseString == "404 - No such host is known")
                 {
-                    throw (new MissingRequiredObject("\nresponseString not generated from URL: " + evaluateDataUrl));
+                    throw (new MissingRequiredObject("\nExpected Response String not generated from URL: " + evaluateDataUrl));
                 }
                 _Log.LogInformation($"\nEvaluation response: {ResponseString}.");
 
@@ -274,9 +274,9 @@ namespace semisupervisedFramework
                 double Confidence = 0;
                 JObject AnalysisJson = new JObject(new JProperty("Response", ResponseString));
 
-                if (ResponseString == "404 - No such host is known")
+                if (ResponseString == "Model not trained.")
                 {
-                    StrConfidence = "0";
+                    Confidence = 0;
                 }
                 else
                 {
@@ -297,40 +297,13 @@ namespace semisupervisedFramework
                 //model successfully analyzed content
                 if (Confidence >= ConfidenceThreshold)
                 {
-                    CloudBlockBlob EvaluatedData = _Search.GetBlob(StorageAccount, EvaluatedDataStorageContainerName, blobName, _Log);
-                    if (EvaluatedData == null)
-                    {
-                        throw (new MissingRequiredObject("\nMissing evaluatedData " + blobName + " destination blob in container " + EvaluatedDataStorageContainerName));
-                    }
-                    _Engine.CopyAzureBlobToAzureBlob(StorageAccount, dataEvaluating.AzureBlob, EvaluatedData, _Log).Wait();
-
-                    //pick a random number of successfully analyzed content blobs and submit them for supervision verification.
-                    Random Rnd = new Random();
-                    if (Math.Round(Rnd.NextDouble(), 2) <= ModelVerificationPercent)
-                    {
-                        CloudBlockBlob ModelValidation = _Search.GetBlob(StorageAccount, ModelValidationStorageContainerName, blobName, _Log);
-                        if (ModelValidation == null)
-                        {
-                            _Log.LogInformation("\nWarning: Model validation skipped for " + blobName + " because of missing evaluatedData " + blobName + " destination blob in container " + ModelValidationStorageContainerName);
-                        }
-                        else
-                        {
-                            _Engine.MoveAzureBlobToAzureBlob(StorageAccount, dataEvaluating.AzureBlob, ModelValidation, _Log).Wait();
-                        }
-                    }
-                    dataEvaluating.AzureBlob.DeleteIfExistsAsync();
+                    EvaluationPassed(blobName, ModelVerificationPercent, ModelValidationStorageContainerName, EvaluatedDataStorageContainerName, StorageAccount, dataEvaluating);
                 }
 
                 //model was not sufficiently confident in its analysis
                 else
                 {
-                    CloudBlockBlob PendingSupervision = _Search.GetBlob(StorageAccount, PendingSupervisionStorageContainerName, blobName, _Log);
-                    if (PendingSupervision == null)
-                    {
-                        throw (new MissingRequiredObject("\nMissing pendingSupervision " + blobName + " destination blob in container " + PendingSupervisionStorageContainerName));
-                    }
-
-                    _Engine.MoveAzureBlobToAzureBlob(StorageAccount, dataEvaluating.AzureBlob, PendingSupervision, _Log).Wait();
+                    EvaluationFailed(blobName, PendingSupervisionStorageContainerName, StorageAccount, dataEvaluating);
                 }
 
                 //----------------------------This section collects information about the blob being analyzed and packages it in JSON that is then written to blob storage for later processing-----------------------------------
@@ -380,6 +353,43 @@ namespace semisupervisedFramework
                 _Log.LogInformation("\n" + blobName + " could not be analyzed with message: " + e.Message);
             }
             return $"Evaluate data completed evaluating data blob: {blobName}";
+        }
+
+        private void EvaluationPassed(string blobName, double ModelVerificationPercent, string ModelValidationStorageContainerName, string EvaluatedDataStorageContainerName, CloudStorageAccount StorageAccount, DataBlob dataEvaluating)
+        {
+            CloudBlockBlob EvaluatedData = _Search.GetBlob(StorageAccount, EvaluatedDataStorageContainerName, blobName, _Log);
+            if (EvaluatedData == null)
+            {
+                throw (new MissingRequiredObject("\nMissing evaluatedData " + blobName + " destination blob in container " + EvaluatedDataStorageContainerName));
+            }
+            _Engine.CopyAzureBlobToAzureBlob(StorageAccount, dataEvaluating.AzureBlob, EvaluatedData, _Log).Wait();
+
+            //pick a random number of successfully analyzed content blobs and submit them for supervision verification.
+            Random Rnd = new Random();
+            if (Math.Round(Rnd.NextDouble(), 2) <= ModelVerificationPercent)
+            {
+                CloudBlockBlob ModelValidation = _Search.GetBlob(StorageAccount, ModelValidationStorageContainerName, blobName, _Log);
+                if (ModelValidation == null)
+                {
+                    _Log.LogInformation("\nWarning: Model validation skipped for " + blobName + " because of missing evaluatedData " + blobName + " destination blob in container " + ModelValidationStorageContainerName);
+                }
+                else
+                {
+                    _Engine.MoveAzureBlobToAzureBlob(StorageAccount, dataEvaluating.AzureBlob, ModelValidation, _Log).Wait();
+                }
+            }
+            dataEvaluating.AzureBlob.DeleteIfExistsAsync();
+        }
+
+        private void EvaluationFailed(string blobName, string PendingSupervisionStorageContainerName, CloudStorageAccount StorageAccount, DataBlob dataEvaluating)
+        {
+            CloudBlockBlob PendingSupervision = _Search.GetBlob(StorageAccount, PendingSupervisionStorageContainerName, blobName, _Log);
+            if (PendingSupervision == null)
+            {
+                throw (new MissingRequiredObject("\nMissing pendingSupervision " + blobName + " destination blob in container " + PendingSupervisionStorageContainerName));
+            }
+
+            _Engine.MoveAzureBlobToAzureBlob(StorageAccount, dataEvaluating.AzureBlob, PendingSupervision, _Log).Wait();
         }
     }
 }
