@@ -1,16 +1,17 @@
 ﻿using System;
+using System.Net;
 using System.Collections.Generic;
 using System.Text;
 using System.Threading.Tasks;
 
-using Microsoft.Azure.Search;
-using Microsoft.Azure.Search.Models;
 using Microsoft.Spatial;
 using Microsoft.Extensions.Logging;
-
+using Microsoft.Azure.Search;
+using Microsoft.Azure.Search.Models;
 using Microsoft.Azure.Storage;
 using Microsoft.Azure.Storage.Blob;
 using Microsoft.Azure.Storage.DataMovement;
+using Microsoft.Rest.Azure;
 
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -34,11 +35,15 @@ namespace semisupervisedFramework
     {
         private ILogger _Log;
         private Engine _Engine;
+        private SearchServiceClient _ServiceClient;
 
         public Search(Engine engine, ILogger log)
         {
             _Log = log;
             _Engine = engine;
+            string SearchApiKey = _Engine.GetEnvironmentVariable("blobSearchKey", log);
+            string searchName = _Engine.GetEnvironmentVariable("blobSearchServiceName", log);
+            _ServiceClient = Initialize(searchName, SearchApiKey);
         }
 
         // *****TODO***** update index to track deleted items or we will get duplicate hash entries if the json data is reloaded.
@@ -78,6 +83,19 @@ namespace semisupervisedFramework
             }
         }
 
+        public void RunIndexer()
+        {
+            try
+            {
+                string blobSearchIndexerName = _Engine.GetEnvironmentVariable("blobSearchIndexerName", _Log);
+                //Indexer blobSearchIndexer = _ServiceClient.Indexers.Get(blobSearchIndexerName);
+                _ServiceClient.Indexers.RunAsync(blobSearchIndexerName);
+            }
+            catch (CloudException e) when (e.Response.StatusCode == (HttpStatusCode)429)
+            {
+                Console.WriteLine($"Failed to run indexer: {0}", e.Response.Content);
+            }
+        }
 
         public void InitializeSearch()
         {
@@ -89,7 +107,7 @@ namespace semisupervisedFramework
             string searchDataSourceName = _Engine.GetEnvironmentVariable("blobsearchdatasource", log);
 
             //instanciates a serch client and creates the index.
-            SearchServiceClient serviceClient = Initialize(searchName, indexName, SearchApiKey);
+            SearchServiceClient serviceClient = Initialize(searchName, SearchApiKey);
             DataSource JsonBlob = CreateBlobSearchDataSource(log);
             serviceClient.DataSources.CreateOrUpdateAsync(JsonBlob).Wait();
             Index BlobIndex = CreateIndex(serviceClient, indexName);
@@ -99,7 +117,7 @@ namespace semisupervisedFramework
         }
 
         // https://cmatskas.com/indexing-and-searching-sql-server-data-with-azure-search/
-        public SearchServiceClient Initialize(string serviceName, string indexName, string apiKey)
+        public SearchServiceClient Initialize(string serviceName, string apiKey)
         {
             SearchServiceClient serviceClient = new SearchServiceClient(serviceName, new SearchCredentials(apiKey));
 

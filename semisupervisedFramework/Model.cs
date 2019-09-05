@@ -313,6 +313,7 @@ namespace semisupervisedFramework
                 JObject BlobAnalysis =
                     new JObject(
                         new JProperty("id", Guid.NewGuid().ToString()),
+                        new JProperty("IsDeleted", false),
                         new JProperty("blobInfo",
                             new JObject(
                                 new JProperty("name", blobName),

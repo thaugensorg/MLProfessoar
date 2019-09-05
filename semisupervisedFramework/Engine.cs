@@ -140,8 +140,7 @@ namespace semisupervisedFramework
             {
                 //construct and call model URL then fetch response
                 HttpClient Client = new HttpClient();
-                //Uri TargetUri = new Uri(targetUrl);
-                Uri TargetUri = new Uri("https://mlprofessoarsamplemodelapp.azurewebsites.net/api/EvaluateData/");
+                Uri TargetUri = new Uri(targetUrl);
                 HttpResponseMessage Response = Client.PostAsync(TargetUri, postData).Result;
                 ResponseString = Response.Content.ReadAsStringAsync().Result;
                 if ((ResponseString == null) && (Response.StatusCode.ToString() == "InternalServerError"))
