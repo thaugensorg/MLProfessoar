@@ -29,7 +29,6 @@ namespace semisupervisedFramework
     class Model
     {
         private ILogger _Log;
-        private string _TrainModelUrl;
         private HttpClient _Client;
         private HttpResponseMessage _Response;
         private string _ResponseString = "";
@@ -43,10 +42,6 @@ namespace semisupervisedFramework
             _Engine = engine;
             _Search = search;
             string modelType = _Engine.GetEnvironmentVariable("modelType", _Log);
-            if (modelType == "Trained")
-            {
-                _TrainModelUrl = _Engine.GetEnvironmentVariable("TrainModelServiceEndpoint", _Log);
-            }
         }
 
         public string AddLabeledData()
@@ -186,9 +181,10 @@ namespace semisupervisedFramework
         public string Train()
         {
             //Invoke the train model web service call
-            _Response = _Client.GetAsync(_TrainModelUrl).Result;
+            string trainModelUrl = _Engine.GetEnvironmentVariable("TrainModelServiceEndpoint", _Log);
+            _Response = _Client.GetAsync(trainModelUrl).Result;
             _ResponseString = _Response.Content.ReadAsStringAsync().Result;
-            if (string.IsNullOrEmpty(_ResponseString)) throw (new MissingRequiredObject($"\nresponseString not generated from URL: {_TrainModelUrl}"));
+            if (string.IsNullOrEmpty(_ResponseString)) throw (new MissingRequiredObject($"\nresponseString not generated from URL: {trainModelUrl}"));
             return _ResponseString;
 
         }
@@ -331,18 +327,33 @@ namespace semisupervisedFramework
                 BlobAnalysis.Merge(AnalysisJson);
 
                 //Note: all json files get writted to the same container as they are all accessed either by discrete name or by azure search index either GUID or Hash.
-                CloudBlockBlob JsonBlob = _Search.GetBlob(StorageAccount, JsonStorageContainerName, (string)BlobAnalysis.SelectToken("id") + ".json", _Log);
-                JsonBlob.Properties.ContentType = "application/json";
-                string SerializedJson = JsonConvert.SerializeObject(BlobAnalysis, Newtonsoft.Json.Formatting.Indented, new JsonSerializerSettings { });
-                Stream MemStream = new MemoryStream(Encoding.UTF8.GetBytes(SerializedJson));
-                if (MemStream.Length != 0)
+                //CloudBlockBlob JsonBlob = _Search.GetBlob(StorageAccount, JsonStorageContainerName, (string)BlobAnalysis.SelectToken("id") + ".json", _Log);
+                try
                 {
-                    JsonBlob.UploadFromStreamAsync(MemStream);
+                    JsonBlob jsonBlob = new JsonBlob(blobMd5, _Engine, _Search, _Log);
                 }
-                else
+                catch
                 {
-                    throw (new ZeroLengthFileException("\nencoded JSON memory stream is zero length and cannot be writted to blob storage"));
+                    _Log.LogInformation($"\nNo JSON blob found in seach index, creating new JSON blob for blob {dataEvaluating.AzureBlob.Name}.");
+                    CloudBlockBlob JsonBlob = _Search.GetBlob(StorageAccount, JsonStorageContainerName, (string)BlobAnalysis.SelectToken("id") + ".json");
+                    JsonBlob.Properties.ContentType = "application/json";
+                    string SerializedJson = JsonConvert.SerializeObject(BlobAnalysis, Newtonsoft.Json.Formatting.Indented, new JsonSerializerSettings { });
+                    Stream MemStream = new MemoryStream(Encoding.UTF8.GetBytes(SerializedJson));
+                    if (MemStream.Length != 0)
+                    {
+                        JsonBlob.UploadFromStreamAsync(MemStream);
+                    }
+                    else
+                    {
+                        throw (new ZeroLengthFileException("\nencoded JSON memory stream is zero length and cannot be writted to blob storage"));
+                    }
                 }
+
+
+                JObject AnalysisJson = new JObject(new JProperty("Response", ResponseString));
+
+                JObject jsonBlobJson = JObject.
+
                 _Log.LogInformation($"C# Blob trigger function Processed blob\n Name:{blobName}");
             }
             catch (MissingRequiredObject e)

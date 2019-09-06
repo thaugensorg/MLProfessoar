@@ -18,8 +18,8 @@ while([string]::IsNullOrWhiteSpace($frameworkStorageAccountName))
     Write-Host "Storage account name must not have upper case letters." -ForegroundColor "Red"}
   }
 
-$frameworkFunctionAppName = Read-Host -Prompt 'Input the name for the azure function app you want to create for this installation of the orchestration framework.  By default this value is MLProfessoarApp'
-if ([string]::IsNullOrWhiteSpace($frameworkFunctionAppName)) {$frameworkFunctionAppName = "MLProfessoarApp"}
+while([string]::IsNullOrWhiteSpace($frameworkFunctionAppName))
+  {$frameworkFunctionAppName = Read-Host -Prompt 'Input the name for the azure function app you want to create for this installation of the orchestration framework.  Note this has to be unique across all of Azure.'}
 
 $frameworkStorageAccountKey = $null #the script retrieves this at run time and populates it.
 #these values we should try and get automatically and write to environment variables.
@@ -52,7 +52,7 @@ $confidenceJSONPath = "confidence"
 
 $confidenceThreshold = .95
 
-$dataEvaluationServiceEndpoint = Read-Host -Prompt 'Input the http address of the evaluate data endpoint for your app. (default="https://mlprofessoarsamplemodelapp.azurewebsites.net/api/EvaluateData")'
+$dataEvaluationServiceEndpoint = Read-Host -Prompt 'Input the http address of the evaluate data endpoint for your app. Note this has to match the endpoint of the model you have to will deploy.  It has to be unique across all of Azure. (default="https://mlprofessoarsamplemodelapp.azurewebsites.net/api/EvaluateData")'
 if ([string]::IsNullOrWhiteSpace($dataEvaluationServiceEndpoint)) {$dataEvaluationServiceEndpoint = "https://mlprofessoarsamplemodelapp.azurewebsites.net/api/EvaluateData"}
 
 #These environment variables are only used for trained models
@@ -70,13 +70,13 @@ if ($modelType -eq "Trained")
   
   $labelingTagsFileHash = 'hash not initialized'
   
-  $trainModelServiceEndpoint = Read-Host -Prompt 'Input the http address of the services endpoint to initiate training of the model. (default=https://mlprofessoarsamplemodelapp.azurewebsites.net/api/TrainModel)'
+  $trainModelServiceEndpoint = Read-Host -Prompt 'Input the http address of the services endpoint to initiate training of the model. Note this has to match the endpoint of the model you have to will deploy.  It has to be unique across all of Azure. (default=https://mlprofessoarsamplemodelapp.azurewebsites.net/api/TrainModel)'
   if ([string]::IsNullOrWhiteSpace($trainModelServiceEndpoint)) {$trainModelServiceEndpoint = 'https://mlprofessoarsamplemodelapp.azurewebsites.net/api/TrainModel'}
 
-  $tagsUploadServiceEndpoint = Read-Host -Prompt 'Input the http address of the service endpoint to upload valid labeling tags to the model. (default=https://mlprofessoarsamplemodelapp.azurewebsites.net/api/LoadLabelingTags)'
+  $tagsUploadServiceEndpoint = Read-Host -Prompt 'Input the http address of the service endpoint to upload valid labeling tags to the model. Note this has to match the endpoint of the model you have to will deploy.  It has to be unique across all of Azure. (default=https://mlprofessoarsamplemodelapp.azurewebsites.net/api/LoadLabelingTags)'
   if ([string]::IsNullOrWhiteSpace($tagsUploadServiceEndpoint)) {$tagsUploadServiceEndpoint = 'https://mlprofessoarsamplemodelapp.azurewebsites.net/api/LoadLabelingTags'}
 
-  $LabeledDataServiceEndpoint = Read-Host -Prompt 'Input the http address of the service endpoint to upload labeled data that will train the model. (default=https://mlprofessoarsamplemodelapp.azurewebsites.net/api/AddLabeledDataClient)'
+  $LabeledDataServiceEndpoint = Read-Host -Prompt 'Input the http address of the service endpoint to upload labeled data that will train the model. Note this has to match the endpoint of the model you have to will deploy.  It has to be unique across all of Azure. (default=https://mlprofessoarsamplemodelapp.azurewebsites.net/api/AddLabeledDataClient)'
   if ([string]::IsNullOrWhiteSpace($LabeledDataServiceEndpoint)) {$LabeledDataServiceEndpoint = 'https://mlprofessoarsamplemodelapp.azurewebsites.net/api/AddLabeledDataClient'}
 
   $labelingTagsBlobName = 'LabelingTags.json'
@@ -887,7 +887,8 @@ if ($modelType -eq "Trained")
         "name" : "$blobSearchIndexerName",
         "dataSourceName" : "$blobsearchdatasource",
         "targetIndexName" : "$blobSearchIndexName",
-        "parameters" : { "maxFailedItems" : "15", "batchSize" : "100", "configuration" : { "parsingMode" : "json", "dataToExtract" : "contentAndMetadata" } }
+        "parameters" : { "maxFailedItems" : "15", "batchSize" : "100", "configuration" : { "parsingMode" : "json", "dataToExtract" : "contentAndMetadata" } },
+        "fieldMappings" : [{"sourceFieldName" : "metadata_storage_path", "targetFieldName" : "metadata_storage_path", "mappingFunction" : { "name" : "base64Encode", "parameters" : { "useHttpServerUtilityUrlTokenEncode" : false }}}]
       }
 "@
 

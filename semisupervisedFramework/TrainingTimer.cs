@@ -43,7 +43,7 @@ namespace semisupervisedFramework
 
             //This setting causes the timer job to immediately run when you press F5 rather than having to wait for the timer to fire after n minutes.  Set the line below to true if you want to debug the timer process.
 #if DEBUG
-            , RunOnStartup = true
+            , RunOnStartup = false
 #endif            
 
             )]TimerInfo myTimer, ILogger log)

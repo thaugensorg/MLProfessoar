@@ -298,7 +298,7 @@ namespace semisupervisedFramework
             BlobInfo = new BlobInfo();
             JObject jsonBlobJson = GetJsonBlobJson(md5Hash);
             //JsonBlob BoundJson = dataBlob.GetBoundJson(log);
-            //*****TODO***** get the url to the actual blob and down load the JOSON full JSON content not just what was indexed
+            //*****TODO***** get the url to the actual blob and down load the full JSON content not just what was indexed
             JToken idToken = jsonBlobJson.SelectToken("id");
             if (idToken != null)
             {

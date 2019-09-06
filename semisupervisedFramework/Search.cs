@@ -64,7 +64,7 @@ namespace semisupervisedFramework
         }
 
         //Gets a reference to a specific blob using container and blob names as strings
-        public CloudBlockBlob GetBlob(CloudStorageAccount account, string containerName, string blobName, ILogger log)
+        public CloudBlockBlob GetBlob(CloudStorageAccount account, string containerName, string blobName)
         {
             try
             {
@@ -78,7 +78,7 @@ namespace semisupervisedFramework
             }
             catch (Exception e)
             {
-                log.LogInformation("\nNo blob " + blobName + " found in " + containerName + " ", e.Message);
+                _Log.LogInformation("\nNo blob " + blobName + " found in " + containerName + " ", e.Message);
                 return null;
             }
         }
