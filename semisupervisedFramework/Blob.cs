@@ -309,6 +309,11 @@ namespace semisupervisedFramework
                 throw (new MissingRequiredObject($"\nBound JSON for {md5Hash} does not contain an id name."));
             }
 
+            CloudStorageAccount StorageAccount = Engine.StorageAccount;
+            CloudBlobClient blobClient = StorageAccount.CreateCloudBlobClient();
+            CloudBlobContainer jsonContainer = blobClient.GetContainerReference(Engine.GetEnvironmentVariable("jsonStorageContainerName", Log));
+            AzureBlob = jsonContainer.GetBlockBlobReference(Id + ".json");
+
             JToken labelsToken = jsonBlobJson.SelectToken("labels");
             if (idToken != null)
             {

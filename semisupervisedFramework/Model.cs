@@ -51,7 +51,6 @@ namespace semisupervisedFramework
 
             CloudStorageAccount StorageAccount = _Engine.StorageAccount;
             CloudBlobClient BlobClient = StorageAccount.CreateCloudBlobClient();
-            //*****TODO***** externalize labeled data container name.
             CloudBlobContainer LabeledDataContainer = BlobClient.GetContainerReference(labeledDataStorageContainerName);
 
             foreach (IListBlobItem item in LabeledDataContainer.ListBlobs(null, false))
@@ -229,14 +228,24 @@ namespace semisupervisedFramework
                 }
 
                 //compute the file hash as this will be added to the meta data to allow for file version validation
-                string blobMd5 = dataEvaluating.CalculateMD5Hash().ToString();
+                //the blob has to be "touched" or the properties will all be null
+                if (dataEvaluating.AzureBlob.Exists() != true)
+                {
+                    throw new MissingRequiredObject($"\ndataEvaluating does not exist {dataEvaluating.AzureBlob.Name}");
+                };
+
+                string blobMd5 = dataEvaluating.AzureBlob.Properties.ContentMD5;
                 if (blobMd5 == null)
                 {
-                    _Log.LogInformation("\nWarning: Blob Hash calculation failed and will not be included in file information blob, continuing operation.");
-                }
-                else
-                {
-                    dataEvaluating.AzureBlob.Properties.ContentMD5 = blobMd5;
+                    blobMd5 = dataEvaluating.CalculateMD5Hash().ToString();
+                    if (blobMd5 == null)
+                    {
+                        throw (new MissingRequiredObject("\nMD5 calculation failed for " + dataEvaluating.AzureBlob.Name));
+                    }
+                    else
+                    {
+                        dataEvaluating.AzureBlob.Properties.ContentMD5 = blobMd5;
+                    }
                 }
 
                 //****Currently only working with public access set on blob folders
@@ -268,7 +277,7 @@ namespace semisupervisedFramework
 
                 string StrConfidence = null;
                 double Confidence = 0;
-                JObject AnalysisJson = new JObject(new JProperty("Response", ResponseString));
+                JProperty responseProperty = new JProperty("Response", ResponseString);
 
                 if (ResponseString == "Model not trained.")
                 {
@@ -277,29 +286,13 @@ namespace semisupervisedFramework
                 else
                 {
                     //deserialize response JSON, get confidence score and compare with confidence threshold
-                    AnalysisJson = JObject.Parse(ResponseString);
-                    StrConfidence = (string)AnalysisJson.SelectToken(ConfidenceJsonPath);
+                    JObject analysisJson = JObject.Parse(ResponseString);
+                    StrConfidence = (string)analysisJson.SelectToken(ConfidenceJsonPath);
                     if (StrConfidence == null)
                     {
                         throw (new MissingRequiredObject("\nNo confidence value at " + ConfidenceJsonPath + " from environment variable ConfidenceJSONPath."));
                     }
-                    Confidence = (double)AnalysisJson.SelectToken(ConfidenceJsonPath);
-                }
-
-                //--------------------------------This section processes the results of the analysis and transferes the blob to the container responsible for the next appropriate stage of processing.-------------------------------
-
-                _Log.LogInformation("\nStarting analysis of results.");
-
-                //model successfully analyzed content
-                if (Confidence >= ConfidenceThreshold)
-                {
-                    EvaluationPassed(blobName, ModelVerificationPercent, ModelValidationStorageContainerName, EvaluatedDataStorageContainerName, StorageAccount, dataEvaluating);
-                }
-
-                //model was not sufficiently confident in its analysis
-                else
-                {
-                    EvaluationFailed(blobName, PendingSupervisionStorageContainerName, StorageAccount, dataEvaluating);
+                    Confidence = (double)analysisJson.SelectToken(ConfidenceJsonPath);
                 }
 
                 //----------------------------This section collects information about the blob being analyzed and packages it in JSON that is then written to blob storage for later processing-----------------------------------
@@ -321,27 +314,68 @@ namespace semisupervisedFramework
                     );
 
                 //create environment JSON object
-                JProperty BlobEnvironment = _Engine.GetEnvironmentJson(_Log);
-
-                BlobAnalysis.Add(BlobEnvironment);
-                BlobAnalysis.Merge(AnalysisJson);
+                JProperty environmentProperty = _Engine.GetEnvironmentJson(_Log);
+                JProperty evaluationPass = new JProperty("pass",
+                    new JObject(
+                            new JProperty("date", DateTime.Now),
+                            environmentProperty,
+                            responseProperty
+                        )
+                    );
 
                 //Note: all json files get writted to the same container as they are all accessed either by discrete name or by azure search index either GUID or Hash.
                 //CloudBlockBlob JsonBlob = _Search.GetBlob(StorageAccount, JsonStorageContainerName, (string)BlobAnalysis.SelectToken("id") + ".json", _Log);
+                bool jsonBlobExists;
                 try
                 {
-                    JsonBlob jsonBlob = new JsonBlob(blobMd5, _Engine, _Search, _Log);
+                    //does the json blob exist?  if not error is thrown and we catch it and create a new json blob file.
+                    JsonBlob jsonBlobTest = new JsonBlob(blobMd5, _Engine, _Search, _Log);
+                    jsonBlobExists = true;
                 }
                 catch
                 {
                     _Log.LogInformation($"\nNo JSON blob found in seach index, creating new JSON blob for blob {dataEvaluating.AzureBlob.Name}.");
-                    CloudBlockBlob JsonBlob = _Search.GetBlob(StorageAccount, JsonStorageContainerName, (string)BlobAnalysis.SelectToken("id") + ".json");
-                    JsonBlob.Properties.ContentType = "application/json";
-                    string SerializedJson = JsonConvert.SerializeObject(BlobAnalysis, Newtonsoft.Json.Formatting.Indented, new JsonSerializerSettings { });
-                    Stream MemStream = new MemoryStream(Encoding.UTF8.GetBytes(SerializedJson));
+                    jsonBlobExists = false;
+                }
+
+                if (jsonBlobExists)
+                {
+                    JsonBlob jsonBlob = new JsonBlob(blobMd5, _Engine, _Search, _Log);
+                    JObject jsonBlobJObject = JObject.Parse(jsonBlob.AzureBlob.DownloadText());
+                    JArray evaluationHistory = (JArray)jsonBlobJObject.SelectToken("passes");
+                    JObject evaluationsObject = new JObject
+                    {
+                        evaluationPass
+                    };
+                    evaluationHistory.Add(evaluationsObject);
+                    string serializedJsonBlob = JsonConvert.SerializeObject(jsonBlobJObject, Newtonsoft.Json.Formatting.Indented, new JsonSerializerSettings { });
+                    Stream jsonBlobMemStream = new MemoryStream(Encoding.UTF8.GetBytes(serializedJsonBlob));
+                    if (jsonBlobMemStream.Length != 0)
+                    {
+                        jsonBlob.AzureBlob.UploadFromStreamAsync(jsonBlobMemStream);
+                    }
+                    else
+                    {
+                        throw (new ZeroLengthFileException("\nencoded JSON memory stream is zero length and cannot be writted to blob storage"));
+                    }
+                }
+                else
+                {
+                    JArray evaluations = new JArray();
+                    JObject evaluationsObject = new JObject
+                    {
+                        evaluationPass
+                    };
+                    evaluations.Add(evaluationsObject);
+                    JProperty evaluationPasses = new JProperty("passes", evaluations);
+                    BlobAnalysis.Add(evaluationPasses);
+                    CloudBlockBlob JsonCloudBlob = _Search.GetBlob(StorageAccount, JsonStorageContainerName, (string)BlobAnalysis.SelectToken("id") + ".json");
+                    JsonCloudBlob.Properties.ContentType = "application/json";
+                    string serializedJson = JsonConvert.SerializeObject(BlobAnalysis, Newtonsoft.Json.Formatting.Indented, new JsonSerializerSettings { });
+                    Stream MemStream = new MemoryStream(Encoding.UTF8.GetBytes(serializedJson));
                     if (MemStream.Length != 0)
                     {
-                        JsonBlob.UploadFromStreamAsync(MemStream);
+                        JsonCloudBlob.UploadFromStream(MemStream);
                     }
                     else
                     {
@@ -350,9 +384,19 @@ namespace semisupervisedFramework
                 }
 
 
-                JObject AnalysisJson = new JObject(new JProperty("Response", ResponseString));
+                //--------------------------------This section processes the results of the analysis and transferes the blob to the container responsible for the next appropriate stage of processing.-------------------------------
 
-                JObject jsonBlobJson = JObject.
+                //model successfully analyzed content
+                if (Confidence >= ConfidenceThreshold)
+                {
+                    EvaluationPassed(blobName, ModelVerificationPercent, ModelValidationStorageContainerName, EvaluatedDataStorageContainerName, StorageAccount, dataEvaluating);
+                }
+
+                //model was not sufficiently confident in its analysis
+                else
+                {
+                    EvaluationFailed(blobName, PendingSupervisionStorageContainerName, StorageAccount, dataEvaluating);
+                }
 
                 _Log.LogInformation($"C# Blob trigger function Processed blob\n Name:{blobName}");
             }
@@ -369,7 +413,7 @@ namespace semisupervisedFramework
 
         private void EvaluationPassed(string blobName, double ModelVerificationPercent, string ModelValidationStorageContainerName, string EvaluatedDataStorageContainerName, CloudStorageAccount StorageAccount, DataBlob dataEvaluating)
         {
-            CloudBlockBlob EvaluatedData = _Search.GetBlob(StorageAccount, EvaluatedDataStorageContainerName, blobName, _Log);
+            CloudBlockBlob EvaluatedData = _Search.GetBlob(StorageAccount, EvaluatedDataStorageContainerName, blobName);
             if (EvaluatedData == null)
             {
                 throw (new MissingRequiredObject("\nMissing evaluatedData " + blobName + " destination blob in container " + EvaluatedDataStorageContainerName));
@@ -380,14 +424,14 @@ namespace semisupervisedFramework
             Random Rnd = new Random();
             if (Math.Round(Rnd.NextDouble(), 2) <= ModelVerificationPercent)
             {
-                CloudBlockBlob ModelValidation = _Search.GetBlob(StorageAccount, ModelValidationStorageContainerName, blobName, _Log);
+                CloudBlockBlob ModelValidation = _Search.GetBlob(StorageAccount, ModelValidationStorageContainerName, blobName);
                 if (ModelValidation == null)
                 {
                     _Log.LogInformation("\nWarning: Model validation skipped for " + blobName + " because of missing evaluatedData " + blobName + " destination blob in container " + ModelValidationStorageContainerName);
                 }
                 else
                 {
-                    _Engine.MoveAzureBlobToAzureBlob(StorageAccount, dataEvaluating.AzureBlob, ModelValidation, _Log).Wait();
+                    _Engine.CopyAzureBlobToAzureBlob(StorageAccount, dataEvaluating.AzureBlob, ModelValidation, _Log).Wait();
                 }
             }
             dataEvaluating.AzureBlob.DeleteIfExistsAsync();
@@ -395,7 +439,7 @@ namespace semisupervisedFramework
 
         private void EvaluationFailed(string blobName, string PendingSupervisionStorageContainerName, CloudStorageAccount StorageAccount, DataBlob dataEvaluating)
         {
-            CloudBlockBlob PendingSupervision = _Search.GetBlob(StorageAccount, PendingSupervisionStorageContainerName, blobName, _Log);
+            CloudBlockBlob PendingSupervision = _Search.GetBlob(StorageAccount, PendingSupervisionStorageContainerName, blobName);
             if (PendingSupervision == null)
             {
                 throw (new MissingRequiredObject("\nMissing pendingSupervision " + blobName + " destination blob in container " + PendingSupervisionStorageContainerName));

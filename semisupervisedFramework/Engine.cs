@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Web;
 
 
 using Microsoft.Extensions.Logging;
@@ -198,6 +199,10 @@ namespace semisupervisedFramework
                 e.Data.Add("destinationBlocName", destinationBlob);
                 throw;
             }
+            catch (TransferException e)
+            {
+                log.LogInformation("The Azure Blob " + sourceBlob + " already exists in " + destinationBlob.Parent.Container.Name);
+            }
             catch (Exception e)
             {
                 e.Data.Add("sourceBlobName", sourceBlob);
@@ -265,6 +270,13 @@ namespace semisupervisedFramework
 
             SasContainerToken = cloudBlockBlob.GetSharedAccessSignature(SharedPolicy);
             return SasContainerToken;
+        }
+
+        public string DecodeBase64String(string encodedString)
+        {
+            var encodedStringWithoutTrailingCharacter = encodedString.Substring(0, encodedString.Length - 1);
+            var encodedBytes = Microsoft.AspNetCore.WebUtilities.WebEncoders.Base64UrlDecode(encodedStringWithoutTrailingCharacter);
+            return HttpUtility.UrlDecode(encodedBytes, Encoding.UTF8);
         }
     }
     public class EnvironmentVariableNotSetException : Exception
