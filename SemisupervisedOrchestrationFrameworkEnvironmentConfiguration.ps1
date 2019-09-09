@@ -138,7 +138,7 @@ az functionapp create `
 
 $StorageContext = New-AzureStorageContext -ConnectionString $connectionString
 
-$staticStorageContainers = "$pendingEvaluationStorageContainerName $evaluatedDataStorageContainerName $pendingSupervisionStorageContainerName $jsonStorageContainerName" 
+$staticStorageContainers = "$pendingEvaluationStorageContainerName $evaluatedDataStorageContainerName $pendingSupervisionStorageContainerName $jsonStorageContainerName testinvokation testcommands testdata" 
 Write-Host "Creating static model storage containers: " $staticStorageContainers  -ForegroundColor "Green"
 $staticStorageContainers.split() | New-AzStorageContainer -Permission Container -Context $StorageContext
 

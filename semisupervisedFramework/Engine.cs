@@ -169,21 +169,21 @@ namespace semisupervisedFramework
         }
 
         //Moves a blob between two azure containers.
-        public async Task MoveAzureBlobToAzureBlob(CloudStorageAccount account, CloudBlockBlob sourceBlob, CloudBlockBlob destinationBlob, ILogger log)
+        public async Task MoveAzureBlobToAzureBlob(CloudStorageAccount account, CloudBlockBlob sourceBlob, CloudBlockBlob destinationBlob)
         {
-            await CopyAzureBlobToAzureBlob(account, sourceBlob, destinationBlob, log);
+            await CopyAzureBlobToAzureBlob(account, sourceBlob, destinationBlob);
 
             Stopwatch StopWatch = Stopwatch.StartNew();
             await sourceBlob.DeleteIfExistsAsync();
             StopWatch.Stop();
-            log.LogInformation("The Azure Blob " + sourceBlob + " deleted in: " + StopWatch.Elapsed.TotalSeconds + " seconds.");
+            _Log.LogInformation("The Azure Blob " + sourceBlob + " deleted in: " + StopWatch.Elapsed.TotalSeconds + " seconds.");
         }
 
         //Copies a blob between two azure containers.
-        public async Task CopyAzureBlobToAzureBlob(CloudStorageAccount account, CloudBlockBlob sourceBlob, CloudBlockBlob destinationBlob, ILogger log)
+        public async Task CopyAzureBlobToAzureBlob(CloudStorageAccount account, CloudBlockBlob sourceBlob, CloudBlockBlob destinationBlob)
         {
             TransferCheckpoint Checkpoint = null;
-            SingleTransferContext Context = GetSingleTransferContext(Checkpoint, log);
+            SingleTransferContext Context = GetSingleTransferContext(Checkpoint);
             CancellationTokenSource CancellationSource = new CancellationTokenSource();
 
             Stopwatch StopWatch = Stopwatch.StartNew();
@@ -201,7 +201,7 @@ namespace semisupervisedFramework
             }
             catch (TransferException e)
             {
-                log.LogInformation("The Azure Blob " + sourceBlob + " already exists in " + destinationBlob.Parent.Container.Name);
+                _Log.LogInformation("The Azure Blob " + sourceBlob + " already exists in " + destinationBlob.Parent.Container.Name);
             }
             catch (Exception e)
             {
@@ -211,7 +211,7 @@ namespace semisupervisedFramework
             }
 
             StopWatch.Stop();
-            log.LogInformation("The Azure Blob " + sourceBlob + " transfer to " + destinationBlob + " completed in:" + StopWatch.Elapsed.TotalSeconds + " seconds.");
+            _Log.LogInformation("The Azure Blob " + sourceBlob + " transfer to " + destinationBlob + " completed in:" + StopWatch.Elapsed.TotalSeconds + " seconds.");
         }
 
         //Gets a reference to a specific blob using container and blob names as strings
@@ -235,7 +235,7 @@ namespace semisupervisedFramework
         }
 
         //returns an Azure file transfer context for making a single file transfer.
-        public SingleTransferContext GetSingleTransferContext(TransferCheckpoint checkpoint, ILogger log)
+        public SingleTransferContext GetSingleTransferContext(TransferCheckpoint checkpoint)
         {
             try
             {
@@ -243,14 +243,14 @@ namespace semisupervisedFramework
 
                 Context.ProgressHandler = new Progress<TransferStatus>((Progress) =>
                 {
-                    log.LogInformation("\rBytes transferred: {0}", Progress.BytesTransferred);
+                    _Log.LogInformation("\rBytes transferred: {0}", Progress.BytesTransferred);
                 });
 
                 return Context;
             }
             catch (Exception e)
             {
-                log.LogInformation("\nGet transfer progress update fails.", e.Message);
+                _Log.LogInformation("\nGet transfer progress update fails.", e.Message);
                 return null;
             }
         }

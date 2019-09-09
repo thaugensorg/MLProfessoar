@@ -97,109 +97,12 @@ namespace semisupervisedFramework
             }
         }
 
-        public void InitializeSearch()
-        {
-            ILoggerFactory logger = (ILoggerFactory)new LoggerFactory();
-            ILogger log = logger.CreateLogger("Search");
-            string SearchApiKey = _Engine.GetEnvironmentVariable("blobSearchKey", log);
-            string indexName = _Engine.GetEnvironmentVariable("blobSearchIndexName", log);
-            string searchName = _Engine.GetEnvironmentVariable("blobSearchServiceName", log);
-            string searchDataSourceName = _Engine.GetEnvironmentVariable("blobsearchdatasource", log);
-
-            //instanciates a serch client and creates the index.
-            SearchServiceClient serviceClient = Initialize(searchName, SearchApiKey);
-            DataSource JsonBlob = CreateBlobSearchDataSource(log);
-            serviceClient.DataSources.CreateOrUpdateAsync(JsonBlob).Wait();
-            Index BlobIndex = CreateIndex(serviceClient, indexName);
-            Indexer BlobIndexer = CreateBlobIndexer(serviceClient, BlobIndex, searchDataSourceName);
-            serviceClient.Indexers.RunAsync(BlobIndexer.Name).Wait();
-
-        }
-
         // https://cmatskas.com/indexing-and-searching-sql-server-data-with-azure-search/
         public SearchServiceClient Initialize(string serviceName, string apiKey)
         {
             SearchServiceClient serviceClient = new SearchServiceClient(serviceName, new SearchCredentials(apiKey));
 
             return serviceClient;
-        }
-
-        public Index CreateIndex(SearchServiceClient client, string indexName)
-        {
-            // https://docs.microsoft.com/en-us/rest/api/searchservice/create-index
-
-            var indexDefinition = new Index()
-            {
-                Name = indexName,
-
-                Fields = FieldBuilder.BuildForType<JsonBlob>()
-            };
-
-            //new Field("blobInfo", DataType.Complex),
-            //Fields = new []
-            //{
-            //    new Field("id", DataType.String)                  { IsKey = true, IsRetrievable = true},
-            //},
-            //new Field("name", DataType.String)                { IsRetrievable = true},
-            //new Field("url", DataType.String)                 { IsRetrievable = true},
-            //new Field("hash", DataType.String)                { IsRetrievable = true, IsSearchable = true},
-            //new Field("modified", DataType.DateTimeOffset)    { IsRetrievable = true},
-            //}
-            //};
-
-            indexDefinition.Validate();
-
-            DeleteIfIndexExist(client, indexName);
-
-            client.Indexes.Create(indexDefinition);
-
-            return client.Indexes.Get(indexName);
-        }
-
-        private void DeleteIfIndexExist(SearchServiceClient client, string indexName)
-        {
-            if (client.Indexes.Exists(indexName))
-            {
-                client.Indexes.Delete(indexName);
-            }
-        }
-
-        public DataSource CreateBlobSearchDataSource(ILogger log)
-        {
-            string storageConnection = _Engine.GetEnvironmentVariable("AzureWebJobsStorage", log);
-            string searchDataSourceName = _Engine.GetEnvironmentVariable("blobsearchdatasource", log);
-            string jsonStorageContainerName = _Engine.GetEnvironmentVariable("jsonStorageContainerName", log);
-
-            DataSource dataSource = DataSource.AzureBlobStorage(
-                name: searchDataSourceName,
-                storageConnectionString: storageConnection,
-                containerName: jsonStorageContainerName);
-            return dataSource;
-        }
-
-        public Indexer CreateBlobIndexer(SearchServiceClient searchService, Index index, string dataSourceName)
-        {
-            string blobSearchIndexerName = _Engine.GetEnvironmentVariable("blobSearchIndexerName", _Log);
-
-            Indexer indexer = new Indexer(
-                name: blobSearchIndexerName,
-                dataSourceName: dataSourceName,
-                targetIndexName: index.Name,
-                schedule: new IndexingSchedule(TimeSpan.FromMinutes(5)));
-
-            bool exists = searchService.Indexers.Exists(indexer.Name);
-            if (exists)
-            {
-                searchService.Indexers.ResetAsync(indexer.Name);
-            }
-            else
-            {
-                // this line seems to error if the indexer is reset
-                //searchService.Indexers.CreateOrUpdateAsync(indexer);
-                searchService.Indexers.CreateOrUpdate(indexer);
-            }
-
-            return indexer;
         }
 
         public SearchIndexClient CreateSearchIndexClient(string indexName, ILogger log)

@@ -20,14 +20,6 @@ using Newtonsoft.Json.Linq;
 
 namespace semisupervisedFramework
 {
-    public class Startup : IExtensionConfigProvider
-    {
-        private Search _Search;
-
-        // *****todo***** why doesn't this run???
-        public void Initialize(ExtensionConfigContext context) => _Search.InitializeSearch();
-    }
-
     //**********************************************************************************************************
     //                      CLASS DESCRIPTION
     // This class is the timer that launches the model training process using labeled data from the labeleddata
@@ -43,7 +35,7 @@ namespace semisupervisedFramework
 
             //This setting causes the timer job to immediately run when you press F5 rather than having to wait for the timer to fire after n minutes.  Set the line below to true if you want to debug the timer process.
 #if DEBUG
-            , RunOnStartup = false
+            , RunOnStartup = true
 #endif            
 
             )]TimerInfo myTimer, ILogger log)
@@ -55,16 +47,12 @@ namespace semisupervisedFramework
             string modelType = engine.GetEnvironmentVariable("modelType", log);
             if (modelType == "Trained")
             {
-
                 try
                 {
-
                     string responseString = "";
                     string labeledDataStorageContainerName = engine.GetEnvironmentVariable("labeledDataStorageContainerName", log);
-
                     CloudStorageAccount storageAccount = engine.StorageAccount;
                     CloudBlobClient blobClient = storageAccount.CreateCloudBlobClient();
-                    //*****TODO***** externalize labeled data container name.
                     CloudBlobContainer labeledDataContainer = blobClient.GetContainerReference(labeledDataStorageContainerName);
 
                     //*****TODO***** update this to check if there are any new files not just files
@@ -73,9 +61,6 @@ namespace semisupervisedFramework
                     {
                         Search search = new Search(engine, log);
                         Model model = new Model(engine, search, log);
-
-                        //*****TODO***** Where should search be initialized?  Azure search does not offer CLI calls to configure all of search so it needs to be initialized befor it can be used as a service.  Look at putting it in engine.  Recognize this is not the same thing as migrating search to a non-static mode and then newing it up.
-                        //Search.InitializeSearch();
 
                         //Load the list of valid training tags to ensure all data labels are valid.
                         string loadTrainingTagsResult = model.LoadTrainingTags();

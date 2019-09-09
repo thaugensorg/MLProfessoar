@@ -319,6 +319,7 @@ namespace semisupervisedFramework
                     new JObject(
                             new JProperty("date", DateTime.Now),
                             environmentProperty,
+                            new JProperty("request", evaluateDataUrl),
                             responseProperty
                         )
                     );
@@ -402,7 +403,7 @@ namespace semisupervisedFramework
             }
             catch (MissingRequiredObject e)
             {
-                _Log.LogInformation("\n" + blobName + " could not be analyzed with message: " + e.Message);
+                _Log.LogInformation("\n" + blobName + " could not be analyzed because of a MissingRequiredObject with message: " + e.Message);
             }
             catch (Exception e)
             {
@@ -418,7 +419,7 @@ namespace semisupervisedFramework
             {
                 throw (new MissingRequiredObject("\nMissing evaluatedData " + blobName + " destination blob in container " + EvaluatedDataStorageContainerName));
             }
-            _Engine.CopyAzureBlobToAzureBlob(StorageAccount, dataEvaluating.AzureBlob, EvaluatedData, _Log).Wait();
+            _Engine.CopyAzureBlobToAzureBlob(StorageAccount, dataEvaluating.AzureBlob, EvaluatedData).Wait();
 
             //pick a random number of successfully analyzed content blobs and submit them for supervision verification.
             Random Rnd = new Random();
@@ -431,7 +432,7 @@ namespace semisupervisedFramework
                 }
                 else
                 {
-                    _Engine.CopyAzureBlobToAzureBlob(StorageAccount, dataEvaluating.AzureBlob, ModelValidation, _Log).Wait();
+                    _Engine.CopyAzureBlobToAzureBlob(StorageAccount, dataEvaluating.AzureBlob, ModelValidation).Wait();
                 }
             }
             dataEvaluating.AzureBlob.DeleteIfExistsAsync();
@@ -445,7 +446,7 @@ namespace semisupervisedFramework
                 throw (new MissingRequiredObject("\nMissing pendingSupervision " + blobName + " destination blob in container " + PendingSupervisionStorageContainerName));
             }
 
-            _Engine.MoveAzureBlobToAzureBlob(StorageAccount, dataEvaluating.AzureBlob, PendingSupervision, _Log).Wait();
+            _Engine.MoveAzureBlobToAzureBlob(StorageAccount, dataEvaluating.AzureBlob, PendingSupervision).Wait();
         }
     }
 }
