@@ -220,8 +220,6 @@ namespace semisupervisedFramework
                 CloudBlobContainer Container = BlobClient.GetContainerReference(PendingEvaluationStorageContainerName);
                 CloudBlockBlob rawDataBlob = Container.GetBlockBlobReference(blobName);
                 DataBlob dataEvaluating = new DataBlob(rawDataBlob, _Engine, _Search, _Log);
-                //CloudBlockBlob RawDataBlob = _Search.GetBlob(StorageAccount, JsonStorageContainerName, blobName, _Log);
-                //DataBlob DataEvaluating = new DataBlob(RawDataBlob.Properties.ContentMD5, _Engine, _Search, _Log);
                 if (dataEvaluating == null)
                 {
                     throw (new MissingRequiredObject("\nMissing dataEvaluating blob object."));
@@ -271,7 +269,6 @@ namespace semisupervisedFramework
                 string ResponseString = _Engine.GetHttpResponseString(evaluateDataUrl, content);
                 _Log.LogInformation($"\nEvaluation response: {ResponseString}.");
 
-                JObject analysisJson = JObject.Parse(ResponseString);
                 string StrConfidence = null;
                 double Confidence = 0;
                 JProperty responseProperty = new JProperty("Response", ResponseString);
@@ -283,6 +280,7 @@ namespace semisupervisedFramework
                 else
                 {
                     //deserialize response JSON, get confidence score and compare with confidence threshold
+                    JObject analysisJson = JObject.Parse(ResponseString);
                     try
                     {
                         StrConfidence = (string)analysisJson.SelectToken(ConfidenceJsonPath);
@@ -315,7 +313,6 @@ namespace semisupervisedFramework
                     );
 
                 //Note: all json files get writted to the same container as they are all accessed either by discrete name or by azure search index either GUID or Hash.
-                //CloudBlockBlob JsonBlob = _Search.GetBlob(StorageAccount, JsonStorageContainerName, (string)BlobAnalysis.SelectToken("id") + ".json", _Log);
                 bool jsonBlobExists;
                 try
                 {
