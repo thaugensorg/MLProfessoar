@@ -143,9 +143,12 @@ namespace semisupervisedFramework
                 HttpClient Client = new HttpClient();
                 Uri TargetUri = new Uri(targetUrl);
                 HttpResponseMessage Response = Client.PostAsync(TargetUri, postData).Result;
-                ResponseString = Response.Content.ReadAsStringAsync().Result;
-                if ((ResponseString == null) && (Response.StatusCode.ToString() == "InternalServerError"))
+                if (Response.StatusCode.ToString() == "OK")
                 {
+                    ResponseString = Response.Content.ReadAsStringAsync().Result;
+                }
+                else
+                { 
                     ResponseString = new JObject(new JProperty("500 - InternalServerError")).ToString();
                 }
             }
@@ -154,11 +157,11 @@ namespace semisupervisedFramework
                 _Log.LogInformation("\nFailed HTTP request for URL" + targetUrl + " in application environment variables", e.Message);
                 if (e.InnerException.Message == "No such host is known")
                 {
-                    return "404 - " + e.InnerException.Message;
+                    return new JObject(new JProperty("404 - " + e.InnerException.Message)).ToString();
                 }
                 else
                 {
-                    return "";
+                    return new JObject(new JProperty(e.InnerException.Message)).ToString();
                 }
             }
 

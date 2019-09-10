@@ -46,6 +46,20 @@ namespace semisupervisedFramework
                 }
             }
 
+            int numberOfPasses = 0;
+            int countOfBlobs = 0;
+            do
+            {
+                numberOfPasses++;
+                countOfBlobs = 0;
+                foreach (IListBlobItem item in pendingEvaluationContainer.ListBlobs(null, false))
+                {
+                    countOfBlobs++;
+                    await Task.Delay(1000);
+                }
+                _Log.LogInformation($"\nOn pass {numberOfPasses}, {countOfBlobs} blobs were found in pending evaluation container {pendingEvaluationStorageContainerName}.");
+            } while (countOfBlobs > 0 || numberOfPasses > 10);
+
             //check that all items have been moved to the pending supervision container
             string pendingSupervisionStorageContainerName = _Engine.GetEnvironmentVariable("pendingSupervisionStorageContainerName", _Log);
             CloudBlobContainer pendingSupervisionStorageContainer = blobClient.GetContainerReference(pendingSupervisionStorageContainerName);
@@ -64,7 +78,7 @@ namespace semisupervisedFramework
                             verifiedBlobs++;
                             if (verifiedBlobs == 20)
                             {
-                                return "";
+                                return $"Passed: 20 blobs verified in {pendingSupervisionStorageContainer}";
                             }
                         }
 
@@ -78,7 +92,7 @@ namespace semisupervisedFramework
 
             } while (verifiedBlobs <= 20 && checkLoops <= 10);
 
-            return $"NoTrainedModelTest only found {verifiedBlobs} in pending supervision container";
+            return $"Failed: NoTrainedModelTest only found {verifiedBlobs} in {pendingSupervisionStorageContainer} but 20 were expected.";
         }
     }
 }

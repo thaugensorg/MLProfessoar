@@ -269,12 +269,9 @@ namespace semisupervisedFramework
 
                 //Make a request to the model service passing the file URL
                 string ResponseString = _Engine.GetHttpResponseString(evaluateDataUrl, content);
-                if (ResponseString == "" || ResponseString == "404 - No such host is known")
-                {
-                    throw (new MissingRequiredObject("\nExpected Response String not generated from URL: " + evaluateDataUrl));
-                }
                 _Log.LogInformation($"\nEvaluation response: {ResponseString}.");
 
+                JObject analysisJson = JObject.Parse(ResponseString);
                 string StrConfidence = null;
                 double Confidence = 0;
                 JProperty responseProperty = new JProperty("Response", ResponseString);
@@ -286,8 +283,15 @@ namespace semisupervisedFramework
                 else
                 {
                     //deserialize response JSON, get confidence score and compare with confidence threshold
-                    JObject analysisJson = JObject.Parse(ResponseString);
-                    StrConfidence = (string)analysisJson.SelectToken(ConfidenceJsonPath);
+                    try
+                    {
+                        StrConfidence = (string)analysisJson.SelectToken(ConfidenceJsonPath);
+                    }
+                    catch
+                    {
+                        throw (new MissingRequiredObject($"\nInvalid response string {ResponseString} generated from URL: {evaluateDataUrl}."));
+                    }
+
                     if (StrConfidence == null)
                     {
                         throw (new MissingRequiredObject("\nNo confidence value at " + ConfidenceJsonPath + " from environment variable ConfidenceJSONPath."));
@@ -298,20 +302,6 @@ namespace semisupervisedFramework
                 //----------------------------This section collects information about the blob being analyzed and packages it in JSON that is then written to blob storage for later processing-----------------------------------
 
                 _Log.LogInformation("\nStarting construction of json blob.");
-
-                JObject BlobAnalysis =
-                    new JObject(
-                        new JProperty("id", Guid.NewGuid().ToString()),
-                        new JProperty("IsDeleted", false),
-                        new JProperty("blobInfo",
-                            new JObject(
-                                new JProperty("name", blobName),
-                                new JProperty("url", dataEvaluating.AzureBlob.Uri.ToString()),
-                                new JProperty("modified", dataEvaluating.AzureBlob.Properties.LastModified.ToString()),
-                                new JProperty("hash", blobMd5)
-                            )
-                        )
-                    );
 
                 //create environment JSON object
                 JProperty environmentProperty = _Engine.GetEnvironmentJson(_Log);
@@ -362,6 +352,21 @@ namespace semisupervisedFramework
                 }
                 else
                 {
+
+                    JObject BlobAnalysis =
+                        new JObject(
+                            new JProperty("id", Guid.NewGuid().ToString()),
+                            new JProperty("IsDeleted", false),
+                            new JProperty("blobInfo",
+                                new JObject(
+                                    new JProperty("name", blobName),
+                                    new JProperty("url", dataEvaluating.AzureBlob.Uri.ToString()),
+                                    new JProperty("modified", dataEvaluating.AzureBlob.Properties.LastModified.ToString()),
+                                    new JProperty("hash", blobMd5)
+                                )
+                            )
+                        );
+
                     JArray evaluations = new JArray();
                     JObject evaluationsObject = new JObject
                     {

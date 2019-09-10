@@ -82,7 +82,7 @@ if ($modelType -eq "Trained")
   $labelingTagsBlobName = 'LabelingTags.json'
 
   while([string]::IsNullOrWhiteSpace($blobSearchServiceName))
-  {$blobSearchServiceName = Read-Host -Prompt 'Input the name of the search service that will be used to access the blob binding hash. (default="bindinghashsearch")'
+  {$blobSearchServiceName = Read-Host -Prompt 'Input the name of the search service that will be used to access the blob binding hash. This name must be globally unique across Azure consist only of lowercase letters and dashes and cannot be longer than 60 characters.  (default="bindinghashsearch")'
   if ([string]::IsNullOrWhiteSpace($blobSearchServiceName)) {$blobSearchServiceName = 'bindinghashsearch'}
   if ($blobSearchServiceName.length -gt 60){$blobSearchServiceName=$null
     Write-Host "Search service name cannot be shorter than 2 characters and no longer than 60 charaters." -ForegroundColor "Red"}
@@ -166,7 +166,7 @@ if ($modelType -eq "Trained")
 
   Write-Host "Creating blob binding hash search service data source: " $blobsearchdatasource  -ForegroundColor "Green"
 
-  $blobSearchServiceKey = (Invoke-AzureRmResourceAction -Action listAdminKeys -ResourceType "Microsoft.Search/searchServices" -ResourceGroupName 'MLProfessoar' -ResourceName 'bindinghashsearch' -ApiVersion 2015-08-19).primaryKey
+  $blobSearchServiceKey = (Invoke-AzureRmResourceAction -Action listAdminKeys -ResourceType "Microsoft.Search/searchServices" -ResourceGroupName 'MLProfessoar' -ResourceName 'bindinghashsearch' -ApiVersion 2015-08-19 -Force).primaryKey
 
   $url = "https://$blobSearchServiceName.search.windows.net/datasources/" + $blobsearchdatasource + "?api-version=2019-05-06"
   
