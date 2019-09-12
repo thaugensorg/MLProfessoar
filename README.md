@@ -82,5 +82,8 @@ Get your storage account end point by navigating to your storage account in http
 - Add a confidence threshold and verification percentage
 - Finally add the root heep address for your model and the name of the parameter the model expects to contain the file name.
 
+# Testing
+To run the test framework for this project copy the TestData directory to your Azure storage account using storage explorer.  Start testing by either running the project locally or having the functions deployed to your Azure Function App.  Once you have the functions running simply copy the appropriate test command from your local TestCommands directory in your local repo to the testinvocation container in your azure storage account.  Normally you will simply use the TestAll.test blob to test the full ML Professoar framework.  Placing this blob in the testinvocation container will launch the TestTrigger Azure Function Blob Trigger in the project.  The results of the test will be saved in a blob in the testinvocation container with the name TestResult-GUID.txt.  Use the date time stamp on the file to determine which file corresponds to your latest test run.
+
 By participating in this project, you
 agree to abide by the [Microsoft Open Source Code of Conduct](https://opensource.microsoft.com/codeofconduct/)
