@@ -113,7 +113,7 @@ namespace semisupervisedFramework
                 //} while (waitingAttempts <= 30);
 
 
-                CloudBlockBlob testResultsCloudBlob = testDataContainer.GetBlockBlobReference("TestTesults-" + Guid.NewGuid().ToString() + ".txt");
+                CloudBlockBlob testResultsCloudBlob = testDataContainer.GetBlockBlobReference("TestResults-" + Guid.NewGuid().ToString() + ".txt");
                 Stream MemStream = new MemoryStream(Encoding.UTF8.GetBytes(testResults));
                 if (MemStream.Length != 0)
                 {
