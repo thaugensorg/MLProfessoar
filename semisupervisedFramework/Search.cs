@@ -1,20 +1,11 @@
 ﻿using System;
 using System.Net;
-using System.Collections.Generic;
-using System.Text;
-using System.Threading.Tasks;
 
-using Microsoft.Spatial;
 using Microsoft.Extensions.Logging;
 using Microsoft.Azure.Search;
-using Microsoft.Azure.Search.Models;
 using Microsoft.Azure.Storage;
 using Microsoft.Azure.Storage.Blob;
-using Microsoft.Azure.Storage.DataMovement;
 using Microsoft.Rest.Azure;
-
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
 
 
 // This sample shows how to delete, create, upload documents and query an index

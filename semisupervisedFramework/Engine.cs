@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Text;
 using System.Diagnostics;
 using System.Net.Http;
@@ -13,7 +12,6 @@ using Microsoft.Azure.Storage;
 using Microsoft.Azure.Storage.Blob;
 using Microsoft.Azure.Storage.DataMovement;
 
-using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
 
@@ -174,9 +172,8 @@ namespace semisupervisedFramework
         //Moves a blob between two azure containers.
         public async Task MoveAzureBlobToAzureBlob(CloudStorageAccount account, CloudBlockBlob sourceBlob, CloudBlockBlob destinationBlob)
         {
-            await CopyAzureBlobToAzureBlob(account, sourceBlob, destinationBlob);
-
             Stopwatch StopWatch = Stopwatch.StartNew();
+            await CopyAzureBlobToAzureBlob(account, sourceBlob, destinationBlob);
             await sourceBlob.DeleteIfExistsAsync();
             StopWatch.Stop();
             _Log.LogInformation("The Azure Blob " + sourceBlob + " deleted in: " + StopWatch.Elapsed.TotalSeconds + " seconds.");
@@ -204,7 +201,7 @@ namespace semisupervisedFramework
             }
             catch (TransferException e)
             {
-                _Log.LogInformation("The Azure Blob " + sourceBlob + " already exists in " + destinationBlob.Parent.Container.Name);
+                _Log.LogInformation($"The Azure Blob {sourceBlob.Name} already exists in {destinationBlob.Parent.Container.Name}");
             }
             catch (Exception e)
             {
@@ -214,7 +211,7 @@ namespace semisupervisedFramework
             }
 
             StopWatch.Stop();
-            _Log.LogInformation("The Azure Blob " + sourceBlob + " transfer to " + destinationBlob + " completed in:" + StopWatch.Elapsed.TotalSeconds + " seconds.");
+            _Log.LogInformation($"The Azure Blob {sourceBlob.Name} transfer to {destinationBlob.Name} completed in: {StopWatch.Elapsed.TotalSeconds} seconds.");
         }
 
         //Gets a reference to a specific blob using container and blob names as strings

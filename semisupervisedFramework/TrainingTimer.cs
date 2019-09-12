@@ -1,22 +1,10 @@
 using System;
-using System.IO;
-using System.Collections.Generic;
-using System.Net.Http;
-using System.Text;
-using System.Diagnostics;
-
 
 using Microsoft.Azure.Storage;
 using Microsoft.Azure.Storage.Blob;
-using Microsoft.Azure.Storage.DataMovement;
 
 using Microsoft.Azure.WebJobs;
-using Microsoft.Azure.WebJobs.Host;
-using Microsoft.Azure.WebJobs.Host.Config;
 using Microsoft.Extensions.Logging;
-
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
 
 namespace semisupervisedFramework
 {
@@ -45,50 +33,13 @@ namespace semisupervisedFramework
 
             //if the model is not type trained then skip the training loop.
             string modelType = engine.GetEnvironmentVariable("modelType", log);
-            log.LogInformation($"ModelType is set to foo to blobk execution of model training logic.");
-            if (modelType == "foo")  //"Trained")
+            log.LogInformation($"\nBranck condition set to foo blocking training proces from running while developing.  Must be set to Trained for release build.");
+
+            if (modelType == "foo")  // make this foo to stop the process from running while in development "Trained")
             {
-                try
-                {
-                    string responseString = "";
-                    string labeledDataStorageContainerName = engine.GetEnvironmentVariable("labeledDataStorageContainerName", log);
-                    CloudStorageAccount storageAccount = engine.StorageAccount;
-                    CloudBlobClient blobClient = storageAccount.CreateCloudBlobClient();
-                    CloudBlobContainer labeledDataContainer = blobClient.GetContainerReference(labeledDataStorageContainerName);
-
-                    //*****TODO***** update this to check if there are any new files not just files
-                    // Check if there are any files in the labeled data container before loading labeling tags follwed by labeled data followed by training the model.
-                    if (labeledDataContainer.ListBlobs(null, false) != null)
-                    {
-                        Search search = new Search(engine, log);
-                        Model model = new Model(engine, search, log);
-
-                        //Load the list of valid training tags to ensure all data labels are valid.
-                        string loadTrainingTagsResult = model.LoadTrainingTags();
-
-                        //Add full set set of labeled training data to the model
-                        //*****TODO***** add logic to only add incremental labeled data to model
-                        string addLabeledDataResult = model.AddLabeledData();
-
-                        //Train model using latest labeled training data.
-                        string trainingResultsString = model.Train();
-
-                        //Construct response string for system logging.
-                        responseString = $"\nModel training complete with the following result:" +
-                            $"\nLoading Training Tags results: {loadTrainingTagsResult}" +
-                            $"\nAdding Labeled Data results: {addLabeledDataResult}" +
-                            $"\nTraining Results: {trainingResultsString}";
-                    }
-                    else
-                    {
-                        throw (new MissingRequiredObject($"\n LabeledDataContainer was empty at {DateTime.Now} no model training action taken"));
-                    }
-                    log.LogInformation($"C# Timer trigger function executed at: {DateTime.Now}{responseString}");
-                }
-                catch (Exception e)
-                {
-                    log.LogInformation($"\nError processing training timer: {e.Message}");
-                }
+                Search search = new Search(engine, log);
+                Model model = new Model(engine, search, log);
+                model.TrainingProcess();
             }
             else
             {

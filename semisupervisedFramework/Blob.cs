@@ -4,14 +4,12 @@ using System.Text;
 using System.Buffers;
 using System.Security.Cryptography;
 using System.IO;
-using System.Threading;
 using System.Threading.Tasks;
 using System.Globalization;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Azure.Storage;
 using Microsoft.Azure.Storage.Blob;
-using Microsoft.Azure.Storage.DataMovement;
 using Microsoft.Azure.Search;
 using Microsoft.Azure.Search.Models;
 
@@ -266,8 +264,9 @@ namespace semisupervisedFramework
     class JsonBlob : FrameworkBlob
     {
         [System.ComponentModel.DataAnnotations.Key]
+        private string _Id;
         public string Id { get; set; }
-        //private BlobInfo _blobInfo;
+        private BlobInfo _blobInfo;
         public BlobInfo BlobInfo;
         public IList<string> Labels { get; set; }
         private DataBlob _DataBlob;
@@ -315,14 +314,10 @@ namespace semisupervisedFramework
             AzureBlob = jsonContainer.GetBlockBlobReference(Id + ".json");
 
             JToken labelsToken = jsonBlobJson.SelectToken("labels");
-            if (idToken != null)
+            if (labelsToken.HasValues)
             {
                 string labelsJson = labelsToken.ToString();
                 Labels = JsonConvert.DeserializeObject<IList<string>>(labelsJson);
-            }
-            else
-            {
-                throw (new MissingRequiredObject($"\nBound JSON for {md5Hash} does not contain an labels name."));
             }
 
             JToken md5HashToken = jsonBlobJson.SelectToken("blobInfo.hash");
@@ -350,10 +345,6 @@ namespace semisupervisedFramework
                 {
                     throw (new FormatException($"\nThe following date: {dateJsonToken} does not match the format: {dateTimeFormat}."));
                 }
-            }
-            else
-            {
-                throw (new MissingRequiredObject($"\nBound JSON for {md5Hash} does not contain an blobInfo.modified name."));
             }
 
             JToken nameToken = jsonBlobJson.SelectToken("blobInfo.name");

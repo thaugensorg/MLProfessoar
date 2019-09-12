@@ -1,34 +1,9 @@
 using System;
-using System.Configuration;
 using System.IO;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.Routing;
-using Microsoft.Azure.WebJobs;
-using Microsoft.Azure.WebJobs.Host;
-using Microsoft.Extensions.Logging;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading;
 using System.Threading.Tasks;
-using System.Diagnostics;
-using Microsoft.Azure;
-using System.Net;
-using System.Net.Http;
-using System.Net.Http.Headers;
-using System.Web;
-using System.Security.Cryptography;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Azure.Storage;
-using Microsoft.Azure.Storage.Blob;
-using Microsoft.Azure.Storage.DataMovement;
-using Microsoft.Azure.Storage.Auth;
-using Microsoft.Azure.Management.CognitiveServices.Models;
-using Microsoft.Azure.CognitiveServices.Vision.ComputerVision;
-using Microsoft.Azure.CognitiveServices.Vision.ComputerVision.Models;
-using Microsoft.AspNetCore.Http;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
+
+using Microsoft.Azure.WebJobs;
+using Microsoft.Extensions.Logging;
 
 namespace semisupervisedFramework
 {
@@ -52,7 +27,7 @@ namespace semisupervisedFramework
             Model model = new Model(engine, search, log);
             try
             {
-                string result = model.EvaluateData(blobName);
+                string result = model.EvaluateData(blobName).Result;
             }
             catch
             {

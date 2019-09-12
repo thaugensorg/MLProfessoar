@@ -1,13 +1,12 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Text;
 using System.Net.Http;
 using System.IO;
+using System.Threading.Tasks;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Azure.Storage;
 using Microsoft.Azure.Storage.Blob;
-using Microsoft.Azure.Storage.DataMovement;
 
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -79,7 +78,8 @@ namespace semisupervisedFramework
 
                     //Get the content from the bound JSON file and instanciate a JsonBlob class then retrieve the labels collection from the Json to add to the image.
                     JsonBlob boundJson = (JsonBlob)_Search.GetBlob("json", BindingHash);
-                    string labeledDataUrl = boundJson.BlobInfo.Url;
+                    //Note you cannot pull the URL from the JSON blob because it will have the original URL from the first container when the blob was added to ML Professoar
+                    string labeledDataUrl = dataCloudBlockBlob.StorageUri.PrimaryUri.ToString();
                     string addLabeledDataParameters = $"?dataBlobUrl={labeledDataUrl}";
                     string trainingDataLabels = Uri.EscapeDataString(JsonConvert.SerializeObject(boundJson.Labels));
                     addLabeledDataParameters = $"{addLabeledDataParameters}&imageLabels={trainingDataLabels}";
@@ -94,6 +94,7 @@ namespace semisupervisedFramework
 
                     string labeledDataServiceEndpoint = _Engine.GetEnvironmentVariable("LabeledDataServiceEndpoint", _Log);
                     string addLabeledDataUrl = _Engine.ConstructModelRequestUrl(labeledDataServiceEndpoint, addLabeledDataParameters);
+                    _Log.LogInformation($"\n Getting response from {addLabeledDataUrl}");
                     _Response = _Client.GetAsync(addLabeledDataUrl).Result;
                     _ResponseString = _Response.Content.ReadAsStringAsync().Result;
                     if (string.IsNullOrEmpty(_ResponseString)) throw (new MissingRequiredObject($"\nresponseString not generated from URL: {addLabeledDataUrl}"));
@@ -119,7 +120,7 @@ namespace semisupervisedFramework
                     //string ResponseString = Helper.GetEvaluationResponseString(AddLabelingTagsEndpoint, LabeledDataContent, log);
                     //if (string.IsNullOrEmpty(ResponseString)) throw (new MissingRequiredObject("\nresponseString not generated from URL: " + AddLabelingTagsEndpoint));
 
-                    _Log.LogInformation($"Successfully added blob: {dataCloudBlockBlob.Name} with labels: {JsonConvert.SerializeObject(boundJson.Labels)}");
+                    _Log.LogInformation($"Completed call to add blob: {dataCloudBlockBlob.Name} with labels: {JsonConvert.SerializeObject(boundJson.Labels)} to model.  The response string was: {_ResponseString}.");
                 }
             }
             return "Completed execution of AddLabeledData.  See logs for success/fail details.";
@@ -185,10 +186,54 @@ namespace semisupervisedFramework
             _ResponseString = _Response.Content.ReadAsStringAsync().Result;
             if (string.IsNullOrEmpty(_ResponseString)) throw (new MissingRequiredObject($"\nresponseString not generated from URL: {trainModelUrl}"));
             return _ResponseString;
+        }
+
+        public void TrainingProcess()
+        {
+            try
+            {
+                string responseString = "";
+                string labeledDataStorageContainerName = _Engine.GetEnvironmentVariable("labeledDataStorageContainerName", _Log);
+                CloudStorageAccount storageAccount = _Engine.StorageAccount;
+                CloudBlobClient blobClient = storageAccount.CreateCloudBlobClient();
+                CloudBlobContainer labeledDataContainer = blobClient.GetContainerReference(labeledDataStorageContainerName);
+
+                //*****TODO***** update this to check if there are any new files not just files
+                // Check if there are any files in the labeled data container before loading labeling tags follwed by labeled data followed by training the model.
+                if (labeledDataContainer.ListBlobs(null, false) != null)
+                {
+                    Search search = new Search(_Engine, _Log);
+
+                    //Load the list of valid training tags to ensure all data labels are valid.
+                    string loadTrainingTagsResult = LoadTrainingTags();
+
+                    //Add full set set of labeled training data to the model
+                    //*****TODO***** add logic to only add incremental labeled data to model
+                    string addLabeledDataResult = AddLabeledData();
+
+                    //Train model using latest labeled training data.
+                    string trainingResultsString = Train();
+
+                    //Construct response string for system logging.
+                    responseString = $"\nModel training complete with the following result:" +
+                        $"\nLoading Training Tags results: {loadTrainingTagsResult}" +
+                        $"\nAdding Labeled Data results: {addLabeledDataResult}" +
+                        $"\nTraining Results: {trainingResultsString}";
+                }
+                else
+                {
+                    throw (new MissingRequiredObject($"\n LabeledDataContainer was empty at {DateTime.Now} no model training action taken"));
+                }
+                _Log.LogInformation($"C# Timer trigger function executed at: {DateTime.Now}{responseString}");
+            }
+            catch (Exception e)
+            {
+                _Log.LogInformation($"\nError processing training timer: {e.Message}");
+            }
 
         }
 
-        public string EvaluateData(string blobName)
+        public async Task<string> EvaluateData(string blobName)
         {
             try
             {
@@ -265,29 +310,37 @@ namespace semisupervisedFramework
                 string parameters = $"?{evaluationDataParameterName}={DataEvaluatingUrl}";
                 string evaluateDataUrl = _Engine.ConstructModelRequestUrl(dataEvaluationServiceEndpoint, parameters);
 
-                //Make a request to the model service passing the file URL
-                string ResponseString = _Engine.GetHttpResponseString(evaluateDataUrl, content);
-                _Log.LogInformation($"\nEvaluation response: {ResponseString}.");
+                int retryLoops = 0;
+                string responseString = "";
+                do
+                {
+                    //Make a request to the model service passing the file URL
+                    responseString = _Engine.GetHttpResponseString(evaluateDataUrl, content);
+                    _Log.LogInformation($"\nEvaluation response: {responseString}.");
+                    retryLoops++;
+                    await Task.Delay(1000);
+
+                } while (retryLoops < 5);
 
                 string StrConfidence = null;
                 double Confidence = 0;
-                JProperty responseProperty = new JProperty("Response", ResponseString);
+                JProperty responseProperty = new JProperty("Response", responseString);
 
-                if (ResponseString == "Model not trained.")
+                if (responseString == "Model not trained.")
                 {
                     Confidence = 0;
                 }
                 else
                 {
                     //deserialize response JSON, get confidence score and compare with confidence threshold
-                    JObject analysisJson = JObject.Parse(ResponseString);
+                    JObject analysisJson = JObject.Parse(responseString);
                     try
                     {
                         StrConfidence = (string)analysisJson.SelectToken(ConfidenceJsonPath);
                     }
                     catch
                     {
-                        throw (new MissingRequiredObject($"\nInvalid response string {ResponseString} generated from URL: {evaluateDataUrl}."));
+                        throw (new MissingRequiredObject($"\nInvalid response string {responseString} generated from URL: {evaluateDataUrl}."));
                     }
 
                     if (StrConfidence == null)
@@ -336,7 +389,7 @@ namespace semisupervisedFramework
                         evaluationPass
                     };
                     evaluationHistory.Add(evaluationsObject);
-                    string serializedJsonBlob = JsonConvert.SerializeObject(jsonBlobJObject, Newtonsoft.Json.Formatting.Indented, new JsonSerializerSettings { });
+                    string serializedJsonBlob = JsonConvert.SerializeObject(jsonBlobJObject, Formatting.Indented, new JsonSerializerSettings { });
                     Stream jsonBlobMemStream = new MemoryStream(Encoding.UTF8.GetBytes(serializedJsonBlob));
                     if (jsonBlobMemStream.Length != 0)
                     {
