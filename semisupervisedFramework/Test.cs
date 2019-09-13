@@ -117,7 +117,7 @@ namespace semisupervisedFramework
             CloudBlockBlob testDataLabelingTagsBlob = testDataContainer.GetBlockBlobReference("LabelingTags.json");
 
             //copy the test labeling tags blob to the expected location.
-            dataLabelingTagsBlob.StartCopy(testDataLabelingTagsBlob);
+            await dataLabelingTagsBlob.StartCopyAsync(testDataLabelingTagsBlob);
 
             // mock the supervision loop by labeling data using the blob name hemlock or japenese cherry.
             LabelData();
@@ -321,7 +321,7 @@ namespace semisupervisedFramework
                         Stream jsonBlobMemStream = new MemoryStream(Encoding.UTF8.GetBytes(serializedJsonBlob));
                         if (jsonBlobMemStream.Length != 0)
                         {
-                            jsonBlob.AzureBlob.UploadFromStreamAsync(jsonBlobMemStream);
+                            await jsonBlob.AzureBlob.UploadFromStreamAsync(jsonBlobMemStream);
                             _Log.LogInformation($"\nJson blob {jsonBlob.AzureBlob.Name} updated with {labels.ToString()}");
                         }
                         else
@@ -333,8 +333,8 @@ namespace semisupervisedFramework
                     // copy current raw blob working file from pending supervision to labeled data AND pending new model containers
                     CloudBlockBlob destinationBlob = labeledDataStorageContainer.GetBlockBlobReference(rawDataBlob.Name);
                     CloudBlockBlob pendingNewModelDestinationBlob = pendingNewModelStorageContainer.GetBlockBlobReference(rawDataBlob.Name);
-                    _Engine.CopyAzureBlobToAzureBlob(storageAccount, rawDataBlob, pendingNewModelDestinationBlob);
-                    _Engine.MoveAzureBlobToAzureBlob(storageAccount, rawDataBlob, destinationBlob);
+                    await _Engine.CopyAzureBlobToAzureBlob(storageAccount, rawDataBlob, pendingNewModelDestinationBlob);
+                    await _Engine.MoveAzureBlobToAzureBlob(storageAccount, rawDataBlob, destinationBlob);
                     //*****TODO***** should this be using the start copy + delete if exists or the async versions in Engine.
                     //destinationBlob.StartCopy(rawDataBlob);
                     //*****TODO***** should this test validate the transfer to both directories?  Probably.

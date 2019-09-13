@@ -3,6 +3,7 @@ using System.Text;
 using System.Net.Http;
 using System.IO;
 using System.Threading.Tasks;
+using System.Management.Automation;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Azure.Storage;
@@ -46,10 +47,9 @@ namespace semisupervisedFramework
         public string AddLabeledData()
         {
             string TrainingDataUrl;
-            string labeledDataStorageContainerName = _Engine.GetEnvironmentVariable("labeledDataStorageContainerName", _Log);
-
             CloudStorageAccount StorageAccount = _Engine.StorageAccount;
             CloudBlobClient BlobClient = StorageAccount.CreateCloudBlobClient();
+            string labeledDataStorageContainerName = _Engine.GetEnvironmentVariable("labeledDataStorageContainerName", _Log);
             CloudBlobContainer LabeledDataContainer = BlobClient.GetContainerReference(labeledDataStorageContainerName);
 
             foreach (IListBlobItem item in LabeledDataContainer.ListBlobs(null, false))
@@ -172,23 +172,35 @@ namespace semisupervisedFramework
                 if (string.IsNullOrEmpty(responseString)) throw (new MissingRequiredObject("\nresponseString not generated from URL: " + AddLabelingTagsEndpoint));
 
                 //save the hash of this version of the labeling tags file so that we can avoid running load labeling tags if the file has not changed.
+                //*****TODO***** see if it is possible to persist the update using Powershell and passing in the name of the variable and the value as parameters
+                //https://stackoverflow.com/questions/13251076/calling-powershell-from-c-sharp
                 System.Environment.SetEnvironmentVariable("dataTagsFileHash", DataTagsBlob.Properties.ContentMD5);
                 _Log.LogInformation(responseString);
             }
             return $"Training tags process executed with response: {responseString}";
         }
 
-        public string Train()
+        public async Task<string> Train()
         {
             //Invoke the train model web service call
             string trainModelUrl = _Engine.GetEnvironmentVariable("TrainModelServiceEndpoint", _Log);
             _Response = _Client.GetAsync(trainModelUrl).Result;
             _ResponseString = _Response.Content.ReadAsStringAsync().Result;
             if (string.IsNullOrEmpty(_ResponseString)) throw (new MissingRequiredObject($"\nresponseString not generated from URL: {trainModelUrl}"));
+
+            // Since a new model has been trained copy all of the pending new model blobs to pending evaluation
+            CloudStorageAccount StorageAccount = _Engine.StorageAccount;
+            CloudBlobClient BlobClient = StorageAccount.CreateCloudBlobClient();
+            string pendingNewModelStorageContainerName = _Engine.GetEnvironmentVariable("pendingNewModelStorageContainerName", _Log);
+            CloudBlobContainer pendingNewModelStorageContainer = BlobClient.GetContainerReference(pendingNewModelStorageContainerName);
+            string pendingEvaluationStorageContainerName = _Engine.GetEnvironmentVariable("pendingEvaluationStorageContainerName", _Log);
+            CloudBlobContainer pendingEvaluationStorageContainer = BlobClient.GetContainerReference(pendingEvaluationStorageContainerName);
+            await _Engine.CopyAzureContainerToAzureContainer(pendingNewModelStorageContainer, pendingEvaluationStorageContainer);
+
             return _ResponseString;
         }
 
-        public void TrainingProcess()
+        public async void TrainingProcess()
         {
             try
             {
@@ -212,7 +224,7 @@ namespace semisupervisedFramework
                     string addLabeledDataResult = AddLabeledData();
 
                     //Train model using latest labeled training data.
-                    string trainingResultsString = Train();
+                    string trainingResultsString = await Train();
 
                     //Construct response string for system logging.
                     responseString = $"\nModel training complete with the following result:" +
@@ -277,19 +289,7 @@ namespace semisupervisedFramework
                     throw new MissingRequiredObject($"\ndataEvaluating does not exist {dataEvaluating.AzureBlob.Name}");
                 };
 
-                string blobMd5 = dataEvaluating.AzureBlob.Properties.ContentMD5;
-                if (blobMd5 == null)
-                {
-                    blobMd5 = dataEvaluating.CalculateMD5Hash().ToString();
-                    if (blobMd5 == null)
-                    {
-                        throw (new MissingRequiredObject("\nMD5 calculation failed for " + dataEvaluating.AzureBlob.Name));
-                    }
-                    else
-                    {
-                        dataEvaluating.AzureBlob.Properties.ContentMD5 = blobMd5;
-                    }
-                }
+                string blobMd5 = _Engine.EnsureMd5(dataEvaluating);
 
                 //****Currently only working with public access set on blob folders
                 //Generate a URL with SAS token to submit to analyze image API
@@ -316,9 +316,17 @@ namespace semisupervisedFramework
                 {
                     //Make a request to the model service passing the file URL
                     responseString = _Engine.GetHttpResponseString(evaluateDataUrl, content);
-                    _Log.LogInformation($"\nEvaluation response: {responseString}.");
+                    if (responseString.Contains("iteration"))
+                    {
+                        _Log.LogInformation($"\nEvaluation response: {responseString}.");
+                        break;
+                    }
                     retryLoops++;
                     await Task.Delay(1000);
+                    if (retryLoops == 5)
+                    {
+                        _Log.LogInformation($"\nEvaluation of {evaluateDataUrl} failed with 5 attempts.");
+                    }
 
                 } while (retryLoops < 5);
 
@@ -379,6 +387,7 @@ namespace semisupervisedFramework
                     jsonBlobExists = false;
                 }
 
+                // If the Json blob already exists then update the blob with this pass iteration information
                 if (jsonBlobExists)
                 {
                     JsonBlob jsonBlob = new JsonBlob(blobMd5, _Engine, _Search, _Log);
@@ -393,16 +402,19 @@ namespace semisupervisedFramework
                     Stream jsonBlobMemStream = new MemoryStream(Encoding.UTF8.GetBytes(serializedJsonBlob));
                     if (jsonBlobMemStream.Length != 0)
                     {
-                        jsonBlob.AzureBlob.UploadFromStreamAsync(jsonBlobMemStream);
+                        await jsonBlob.AzureBlob.UploadFromStreamAsync(jsonBlobMemStream);
                     }
                     else
                     {
                         throw (new ZeroLengthFileException("\nencoded JSON memory stream is zero length and cannot be writted to blob storage"));
                     }
                 }
+
+                // If the Json blob does not exist create one
                 else
                 {
 
+                    // Add blob info to Json
                     JObject BlobAnalysis =
                         new JObject(
                             new JProperty("id", Guid.NewGuid().ToString()),
@@ -417,6 +429,7 @@ namespace semisupervisedFramework
                             )
                         );
 
+                    // Add pass infromation to Json blob
                     JArray evaluations = new JArray();
                     JObject evaluationsObject = new JObject
                     {

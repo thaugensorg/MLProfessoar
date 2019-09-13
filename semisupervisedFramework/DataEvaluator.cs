@@ -27,7 +27,8 @@ namespace semisupervisedFramework
             Model model = new Model(engine, search, log);
             try
             {
-                string result = model.EvaluateData(blobName).Result;
+                string result = await model.EvaluateData(blobName);
+                log.LogInformation($"\nAzure Function, completed evaluation of data blob: {blobName}");
             }
             catch
             {

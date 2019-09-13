@@ -277,11 +277,7 @@ namespace semisupervisedFramework
                 if (_DataBlob == null)
                 {
                     DataBlob dataBlob = new DataBlob(BlobInfo.Md5Hash, Engine, Search, Log);
-                    if (dataBlob == null)
-                    {
-                        throw (new MissingRequiredObject($"\nNo data blob found with MD% hash {BlobInfo.Md5Hash}."));
-                    }
-                    _DataBlob = dataBlob;
+                    _DataBlob = dataBlob ?? throw new MissingRequiredObject($"\nNo data blob found with MD% hash {BlobInfo.Md5Hash}.");
                     return _DataBlob;
                 }
                 return _DataBlob;

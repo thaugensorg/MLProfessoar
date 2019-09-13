@@ -179,6 +179,19 @@ namespace semisupervisedFramework
             _Log.LogInformation("The Azure Blob " + sourceBlob + " deleted in: " + StopWatch.Elapsed.TotalSeconds + " seconds.");
         }
 
+        public async Task CopyAzureContainerToAzureContainer(CloudBlobContainer sourceContainer, CloudBlobContainer destinationContainer)
+        {
+            foreach (IListBlobItem item in sourceContainer.ListBlobs(null, false))
+            {
+                if (item is CloudBlockBlob sourceBlob)
+                {
+                    CloudBlockBlob destinationBlob = destinationContainer.GetBlockBlobReference(sourceBlob.Name);
+                    await destinationBlob.StartCopyAsync(sourceBlob);
+                }
+            }
+
+        }
+
         //Copies a blob between two azure containers.
         public async Task CopyAzureBlobToAzureBlob(CloudStorageAccount account, CloudBlockBlob sourceBlob, CloudBlockBlob destinationBlob)
         {
@@ -201,7 +214,7 @@ namespace semisupervisedFramework
             }
             catch (TransferException e)
             {
-                _Log.LogInformation($"The Azure Blob {sourceBlob.Name} already exists in {destinationBlob.Parent.Container.Name}");
+                _Log.LogInformation($"The Azure Blob {sourceBlob.Name} already exists in {destinationBlob.Parent.Container.Name} with message {e.Message}");
             }
             catch (Exception e)
             {
@@ -239,12 +252,13 @@ namespace semisupervisedFramework
         {
             try
             {
-                SingleTransferContext Context = new SingleTransferContext(checkpoint);
-
-                Context.ProgressHandler = new Progress<TransferStatus>((Progress) =>
+                SingleTransferContext Context = new SingleTransferContext(checkpoint)
                 {
-                    _Log.LogInformation("\rBytes transferred: {0}", Progress.BytesTransferred);
-                });
+                    ProgressHandler = new Progress<TransferStatus>((Progress) =>
+                    {
+                        _Log.LogInformation("\rBytes transferred: {0}", Progress.BytesTransferred);
+                    })
+                };
 
                 return Context;
             }
@@ -277,6 +291,24 @@ namespace semisupervisedFramework
             var encodedStringWithoutTrailingCharacter = encodedString.Substring(0, encodedString.Length - 1);
             var encodedBytes = Microsoft.AspNetCore.WebUtilities.WebEncoders.Base64UrlDecode(encodedStringWithoutTrailingCharacter);
             return HttpUtility.UrlDecode(encodedBytes, Encoding.UTF8);
+        }
+
+        public string EnsureMd5(DataBlob dataBlob)
+        {
+            string blobMd5 = dataBlob.AzureBlob.Properties.ContentMD5;
+            if (blobMd5 == null)
+            {
+                blobMd5 = dataBlob.CalculateMD5Hash().ToString();
+                if (blobMd5 == null)
+                {
+                    throw (new MissingRequiredObject("\nMD5 calculation failed for " + dataBlob.AzureBlob.Name));
+                }
+                else
+                {
+                    dataBlob.AzureBlob.Properties.ContentMD5 = blobMd5;
+                }
+            }
+            return blobMd5;
         }
     }
     public class EnvironmentVariableNotSetException : Exception
