@@ -20,6 +20,8 @@ This solution configures an Azure subscription to enable automated orchestation 
 # Dependencies
 This project is dependent on an externalized model, the model must be invocable via http that accepts a file URL and returns JSON content in the body of the response where a value in the JSON represents confidence in the model analysis.  All interface definition is via environment configuration values so the address, parameter names, and JSON path are not hardcoded dependencies for this project.  You can find a static model sample at [Brand Detection Model](https://github.com/thaugensorg/brandDetectionModel) and a trained model sample at [Semisupervised Data EvaluationModel](https://github.com/thaugensorg/SemisupervisedDataEvaluationModel)
 
+Additionally, the project requires the Azure Search CLI installed.  From your Cloud Shell run "Install-Module az.search" accept the warning prompt.  Once it installs you will be able to run the PS1 script to configure the ML Professoar Azure environment.
+
 # Getting started
 First, review the [architecture image](https://github.com/thaugensorg/semisupervisedFramework/blob/master/Architecture.jpg) included with the solution as it will help you understand the structure of the solution.
 
