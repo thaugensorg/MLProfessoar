@@ -30,9 +30,13 @@ namespace semisupervisedFramework
                 string result = await model.EvaluateData(blobName);
                 log.LogInformation($"\nAzure Function, completed evaluation of data blob: {blobName}");
             }
-            catch
+            catch (MissingRequiredObject e)
             {
-                log.LogInformation($"\nAzure Function, EvaluateData failed to evaluate data blob: {blobName}");
+                log.LogInformation($"\nAzure Function, EvaluateData failed to find data blob: {blobName} with error: {e.Message}");
+            }
+            catch (Exception e)
+            {
+                log.LogInformation($"\nAzure Function, EvaluateData failed to evaluate data blob: {blobName} with error: {e.Message}");
             }
         }
     }

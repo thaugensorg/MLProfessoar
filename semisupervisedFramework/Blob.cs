@@ -31,11 +31,11 @@ namespace semisupervisedFramework
 
         [IsSearchable]
         public string Md5Hash { get; set; }
-        public DateTimeOffset Modified { get; set; }
+        public DateTimeOffset StateChange { get; set; }
 
         public override string ToString()
         {
-            return $"Name: {Name}\tURL: {Url}\tHash: {Md5Hash}\tModified: {Modified}";
+            return $"Name: {Name}\tURL: {Url}\tHash: {Md5Hash}\tStateChanged: {StateChange}";
         }
     }
     
@@ -130,11 +130,11 @@ namespace semisupervisedFramework
             parameters =
                 new SearchParameters()
                 {
-                    //SearchFields = new[] { "hash" },
-                    Select = new[] { "id", "blobInfo/name", "blobInfo/url", "blobInfo/hash", "blobInfo/modified" }
+                    //SearchFields = new[] { "Hash" },
+                    Select = new[] { "Id", "Name", "Hash" }
                 };
 
-            //return indexClient.Documents.Search<BlobInfo>(hash, parameters);
+            //return indexClient.Documents.Search<BlobInfo>(Hash, parameters);
             DocumentSearchResult<JObject> result = indexClient.Documents.Search<JObject>(md5Hash);
             return result;
 
@@ -144,21 +144,28 @@ namespace semisupervisedFramework
         {
             SearchIndexClient indexClient = GetJsonBindingSearchIndex();
             JObject searchResult = JsonBindingSearchResult(indexClient, md5Hash);
-            JToken urlToken = searchResult.SelectToken("blobInfo.url");
+            JToken urlToken = searchResult.SelectToken("url");
             if (urlToken != null)
             {
                 return new Uri(urlToken.ToString());
             }
             else
             {
-                throw (new MissingRequiredObject($"\nBound JSON for {md5Hash} does not contain a blobInfo.url name."));
+                throw (new MissingRequiredObject($"\nBound JSON for {md5Hash} does not contain a url value."));
             }
         }
 
-        public JObject GetJsonBlobJson(string md5Hash)
+        public JObject SearchForBoundJson(string md5Hash)
         {
-            SearchIndexClient indexClient = GetJsonBindingSearchIndex();
-            return JsonBindingSearchResult(indexClient, md5Hash);
+            try
+            {
+                SearchIndexClient indexClient = GetJsonBindingSearchIndex();
+                return JsonBindingSearchResult(indexClient, md5Hash);
+            }
+            catch
+            {
+                throw;
+            }
         }
 
         public SearchIndexClient GetJsonBindingSearchIndex()
@@ -226,7 +233,7 @@ namespace semisupervisedFramework
 
         private async Task<string> CalculateMD5Async()
         {
-            //*****TODO***** it is not clear if the standard api for calculating the MD5 hash in Azure pages the hash calculation or if I have to do it manually.
+            //*****TODO***** it is not clear if the standard api for calculating the MD5 hash in Azure pages the hash calculation or if I have to do it manually to provide performance when working with very large data files.
             // https://stackoverflow.com/questions/2124468/possible-to-calculate-md5-or-other-hash-with-buffered-reads
             // http://www.infinitec.de/post/2007/06/09/Displaying-progress-updates-when-hashing-large-files.aspx
             // https://stackoverflow.com/questions/24312527/azure-blob-storage-downloadtobytearray-vs-downloadtostream
@@ -259,15 +266,16 @@ namespace semisupervisedFramework
 
     //**********************************************************************************************************
     //                      CLASS DESCRIPTION
-    //This class encapsulates the functionality for the json blob files that are bound to the data files.  These json files contain all of the meta data, labeling data, and results of every evaluation against the model
+    //This class encapsulates the functionality for the json blob files that are bound to the data files.  These
+    //json files contain all of the meta data, labeling data, and results of every evaluation against the model.
     //**********************************************************************************************************
     class JsonBlob : FrameworkBlob
     {
         [System.ComponentModel.DataAnnotations.Key]
-        private string _Id;
         public string Id { get; set; }
-        private BlobInfo _blobInfo;
-        public BlobInfo BlobInfo;
+        public string Name { get; set; }
+        public JObject Json { get; set; }
+        public string Md5Hash { get; set; }
         public IList<string> Labels { get; set; }
         private DataBlob _DataBlob;
         public DataBlob DataBlob
@@ -276,9 +284,8 @@ namespace semisupervisedFramework
             {
                 if (_DataBlob == null)
                 {
-                    DataBlob dataBlob = new DataBlob(BlobInfo.Md5Hash, Engine, Search, Log);
-                    _DataBlob = dataBlob ?? throw new MissingRequiredObject($"\nNo data blob found with MD% hash {BlobInfo.Md5Hash}.");
-                    return _DataBlob;
+                    DataBlob dataBlob = new DataBlob(Md5Hash, Engine, Search, Log);
+                    _DataBlob = dataBlob ?? throw new MissingRequiredObject($"\nNo data blob found with MD5 hash {Md5Hash}.");
                 }
                 return _DataBlob;
             }
@@ -290,77 +297,59 @@ namespace semisupervisedFramework
             Log = log;
             Search = search;
             Engine = engine;
-            BlobInfo = new BlobInfo();
-            JObject jsonBlobJson = GetJsonBlobJson(md5Hash);
-            //JsonBlob BoundJson = dataBlob.GetBoundJson(log);
-            //*****TODO***** get the url to the actual blob and down load the full JSON content not just what was indexed
-            JToken idToken = jsonBlobJson.SelectToken("id");
+            // Use azure search to return the id of the JSON blob which is also the blob name
+
+            // Get a reference to the json blob and hydrate it into the json blob class attributes.
+            //*****TODO***** there is a way to hydrate directly from a JObject to a C# object in one line, update this logic to simplify the code.
+            CloudStorageAccount StorageAccount = Engine.StorageAccount;
+            CloudBlobClient blobClient = StorageAccount.CreateCloudBlobClient();
+            CloudBlobContainer jsonContainer = blobClient.GetContainerReference(Engine.GetEnvironmentVariable("jsonStorageContainerName", Log));
+            AzureBlob = jsonContainer.GetBlockBlobReference(engine.EncodeMd5HashForFileName(md5Hash) + ".json");
+
+            if (!AzureBlob.Exists())
+            {
+                Log.LogInformation($"\nSearch did not find a Json blob using MD5 hash: {md5Hash} processing cannot continue.");
+                throw (new MissingRequiredObject($"\nBound JSON for {md5Hash} does not exist."));
+            }
+
+            // load the json blob into a JObject
+            Json = JObject.Parse(AzureBlob.DownloadText());
+
+            JToken idToken = Json.SelectToken("Id");
             if (idToken != null)
             {
                 Id = idToken.ToString();
             }
             else
             {
-                throw (new MissingRequiredObject($"\nBound JSON for {md5Hash} does not contain an id name."));
+                throw (new MissingRequiredObject($"\nBound JSON for {md5Hash} does not contain an id value."));
             }
 
-            CloudStorageAccount StorageAccount = Engine.StorageAccount;
-            CloudBlobClient blobClient = StorageAccount.CreateCloudBlobClient();
-            CloudBlobContainer jsonContainer = blobClient.GetContainerReference(Engine.GetEnvironmentVariable("jsonStorageContainerName", Log));
-            AzureBlob = jsonContainer.GetBlockBlobReference(Id + ".json");
-
-            JToken labelsToken = jsonBlobJson.SelectToken("labels");
-            if (labelsToken.HasValues)
+            JToken labelsToken = Json.SelectToken("labels");
+            if (labelsToken != null)
             {
                 string labelsJson = labelsToken.ToString();
                 Labels = JsonConvert.DeserializeObject<IList<string>>(labelsJson);
             }
 
-            JToken md5HashToken = jsonBlobJson.SelectToken("blobInfo.hash");
-            if (idToken != null)
+            JToken md5HashToken = Json.SelectToken("Hash");
+            if (md5HashToken != null)
             {
-                BlobInfo.Md5Hash = md5HashToken.ToString();
+                Md5Hash = md5HashToken.ToString();
             }
             else
             {
-                throw (new MissingRequiredObject($"\nBound JSON for {md5Hash} does not contain an blobInfo.hash name."));
+                throw (new MissingRequiredObject($"\nBound JSON for {md5Hash} does not contain an Hash value."));
             }
 
-            JToken modifiedToken = jsonBlobJson.SelectToken("blobInfo.modified");
-            if (idToken != null)
+            JToken nameToken = Json.SelectToken("Name");
+            if (nameToken != null)
             {
-               string dateTimeFormat = "MM'/'dd'/'yyyy hh':'mm':'ss tt zzzz";
-               string dateJsonToken = modifiedToken.ToString();
-               try
-                {
-                    //*****TODO***** update the format string to come from an environment variable that forces this date time format to align with the date time format used to create the value when the json is built.
-                    //*****TODO***** add culture handling using IFormatProvider so that this adjusts date time format in a single configuration location.
-                    BlobInfo.Modified = DateTime.Parse(dateJsonToken, CultureInfo.InvariantCulture);
-                }
-                catch (FormatException)
-                {
-                    throw (new FormatException($"\nThe following date: {dateJsonToken} does not match the format: {dateTimeFormat}."));
-                }
-            }
-
-            JToken nameToken = jsonBlobJson.SelectToken("blobInfo.name");
-            if (idToken != null)
-            {
-                BlobInfo.Name = nameToken.ToString();
+                Name = nameToken.ToString();
             }
             else
             {
-                throw (new MissingRequiredObject($"\nBound JSON for {md5Hash} does not contain an blobInfo.name name."));
-            }
-
-            JToken urlToken = jsonBlobJson.SelectToken("blobInfo.url");
-            if (idToken != null)
-            {
-                BlobInfo.Url = urlToken.ToString();
-            }
-            else
-            {
-                throw (new MissingRequiredObject($"\nBound JSON for {md5Hash} does not contain an blobInfo.url name."));
+                throw (new MissingRequiredObject($"\nBound JSON for {md5Hash} does not contain an Name value."));
             }
         }
     }

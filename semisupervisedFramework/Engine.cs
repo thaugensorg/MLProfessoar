@@ -147,12 +147,12 @@ namespace semisupervisedFramework
                 }
                 else
                 { 
-                    ResponseString = new JObject(new JProperty("500 - InternalServerError")).ToString();
+                    ResponseString = new JObject(new JProperty(Response.ReasonPhrase)).ToString();
                 }
             }
             catch (Exception e)
             {
-                _Log.LogInformation("\nFailed HTTP request for URL" + targetUrl + " in application environment variables", e.Message);
+                _Log.LogInformation($"\nFailed HTTP request for URL {targetUrl} in application environment variables with message: {e.Message}");
                 if (e.InnerException.Message == "No such host is known")
                 {
                     return new JObject(new JProperty("404 - " + e.InnerException.Message)).ToString();
@@ -309,6 +309,12 @@ namespace semisupervisedFramework
                 }
             }
             return blobMd5;
+        }
+
+        public string EncodeMd5HashForFileName(string md5Hash)
+        {
+            string md5HashNoPadding = md5Hash.Remove(md5Hash.Length - 2);
+            return Uri.EscapeDataString(md5HashNoPadding);
         }
     }
     public class EnvironmentVariableNotSetException : Exception
