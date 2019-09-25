@@ -62,8 +62,8 @@ namespace semisupervisedFramework
                     countOfBlobs++;
                     await Task.Delay(1000);
                 }
-                _Log.LogInformation($"\nOn pass {numberOfPasses}, {countOfBlobs} blobs were found in pending evaluation container {pendingEvaluationStorageContainerName}.");
-            } while (countOfBlobs > 0 || numberOfPasses > 10);
+                _Log.LogInformation($"\nOn pass {numberOfPasses}, {countOfBlobs} blobs were still pending evaluation container {pendingEvaluationStorageContainerName}.");
+            } while (countOfBlobs < 20 && numberOfPasses <=10);
 
             //check that all items have been moved to the pending supervision container
             string pendingSupervisionStorageContainerName = _Engine.GetEnvironmentVariable("pendingSupervisionStorageContainerName", _Log);
@@ -84,7 +84,7 @@ namespace semisupervisedFramework
                             verifiedBlobs++;
                             if (verifiedBlobs == 20)
                             {
-                                return $"Passed: 20 blobs verified in {pendingSupervisionStorageContainer}";
+                                return $"Passed: 20 blobs verified in {pendingSupervisionStorageContainerName}";
                             }
                         }
 
@@ -98,7 +98,7 @@ namespace semisupervisedFramework
 
             } while (verifiedBlobs <= 20 && checkLoops <= 10);
 
-            return $"Failed: NoTrainedModelTest only found {verifiedBlobs} in {pendingSupervisionStorageContainer} but 20 were expected.";
+            return $"Failed: NoTrainedModelTest only found {verifiedBlobs} in {pendingSupervisionStorageContainerName} but 20 were expected.";
         }
 
         public async Task<string> TrainModelTest()

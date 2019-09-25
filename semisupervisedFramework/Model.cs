@@ -195,7 +195,29 @@ namespace semisupervisedFramework
             CloudBlobContainer pendingNewModelStorageContainer = BlobClient.GetContainerReference(pendingNewModelStorageContainerName);
             string pendingEvaluationStorageContainerName = _Engine.GetEnvironmentVariable("pendingEvaluationStorageContainerName", _Log);
             CloudBlobContainer pendingEvaluationStorageContainer = BlobClient.GetContainerReference(pendingEvaluationStorageContainerName);
-            await _Engine.CopyAzureContainerToAzureContainer(pendingNewModelStorageContainer, pendingEvaluationStorageContainer);
+
+            foreach (IListBlobItem blob in pendingNewModelStorageContainer.ListBlobs(null, false))
+            {
+                if (blob.GetType() == typeof(CloudBlockBlob))
+                {
+                    CloudBlockBlob dataCloudBlockBlob = (CloudBlockBlob)blob;
+
+                    //Hydrate Json Blob
+                    JsonBlob jsonBlob = new JsonBlob(dataCloudBlockBlob.Properties.ContentMD5, _Engine, _Search, _Log);
+                    JObject jsonBlobJObject = JObject.Parse(jsonBlob.AzureBlob.DownloadText());
+
+                    // Add a state change too the Json Blob
+                    JArray stateHistory = (JArray)jsonBlobJObject.SelectToken("StateHistory");
+                    AddStateChange(pendingEvaluationStorageContainerName, stateHistory);
+
+                    // Upload blob changes to the cloud
+                    await UploadJsonBlob(jsonBlob.AzureBlob, jsonBlobJObject);
+
+                    // move blobs from pending neww model to pending evlaluation containers.
+                    await _Engine.MoveAzureBlobToAzureBlob(StorageAccount, dataCloudBlockBlob, pendingEvaluationStorageContainer.GetBlockBlobReference(dataCloudBlockBlob.Name));
+                }
+            }
+
 
             return _ResponseString;
         }
@@ -272,10 +294,10 @@ namespace semisupervisedFramework
                 //------------------------This section retrieves the blob needing evaluation and calls the evaluation service for processing.-----------------------
 
                 // Create Reference to Azure Storage Account and the container for data that is pending evaluation by the model.
-                CloudStorageAccount StorageAccount = CloudStorageAccount.Parse(StorageConnection);
-                CloudBlobClient BlobClient = StorageAccount.CreateCloudBlobClient();
-                CloudBlobContainer Container = BlobClient.GetContainerReference(PendingEvaluationStorageContainerName);
-                CloudBlockBlob rawDataBlob = Container.GetBlockBlobReference(blobName);
+                CloudStorageAccount storageAccount = CloudStorageAccount.Parse(StorageConnection);
+                CloudBlobClient blobClient = storageAccount.CreateCloudBlobClient();
+                CloudBlobContainer container = blobClient.GetContainerReference(PendingEvaluationStorageContainerName);
+                CloudBlockBlob rawDataBlob = container.GetBlockBlobReference(blobName);
                 DataBlob dataEvaluating = new DataBlob(rawDataBlob, _Engine, _Search, _Log);
                 if (dataEvaluating == null)
                 {
@@ -302,7 +324,7 @@ namespace semisupervisedFramework
                 //DataEvaluating.AzureBlob.DownloadToStreamAsync(DataEvaluatingContent);
                 //HttpContent DataEvaluatingStream = new StreamContent(DataEvaluatingContent);
                 var content = new MultipartFormDataContent();
-                //content.Add(DataEvaluatingStream, "name");
+                //content.Add(DataEvaluatingStream, "Name");
 
                 //get environment variables used to construct the model request URL
                 string dataEvaluationServiceEndpoint = _Engine.GetEnvironmentVariable("DataEvaluationServiceEndpoint", _Log);
@@ -316,6 +338,7 @@ namespace semisupervisedFramework
                 {
                     //Make a request to the model service passing the file URL
                     responseString = _Engine.GetHttpResponseString(evaluateDataUrl, content);
+                    //*****TODO***** "iteration" is a hard coded word that is specific to a model and needs to be a generic interface concept where the model must respond with an explicit success.
                     if (responseString.Contains("iteration"))
                     {
                         _Log.LogInformation($"\nEvaluation response: {responseString}.");
@@ -325,7 +348,7 @@ namespace semisupervisedFramework
                     await Task.Delay(1000);
                     if (retryLoops == 5)
                     {
-                        _Log.LogInformation($"\nEvaluation of {evaluateDataUrl} failed with 5 attempts.");
+                        _Log.LogInformation($"\nEvaluation of {evaluateDataUrl} failed 5 attempts with response: {responseString}");
                     }
 
                 } while (retryLoops < 5);
@@ -353,7 +376,8 @@ namespace semisupervisedFramework
 
                     if (StrConfidence == null)
                     {
-                        throw (new MissingRequiredObject("\nNo confidence value at " + ConfidenceJsonPath + " from environment variable ConfidenceJSONPath."));
+                        //*****TODO***** if this fails the file will sit in the pending evaluation state because the trigger will have processed the file but the file could not be processed.  Need to figure out how to tell if a file failed processing so that we can reprocesses the file at a latter time.
+                        throw (new MissingRequiredObject($"\nNo confidence value at {ConfidenceJsonPath} from environment variable ConfidenceJSONPath in response from model: {responseString}."));
                     }
                     Confidence = (double)analysisJson.SelectToken(ConfidenceJsonPath);
                 }
@@ -374,82 +398,52 @@ namespace semisupervisedFramework
                     );
 
                 //Note: all json files get writted to the same container as they are all accessed either by discrete name or by azure search index either GUID or Hash.
-                bool jsonBlobExists;
-                try
-                {
-                    //does the json blob exist?  if not error is thrown and we catch it and create a new json blob file.
-                    JsonBlob jsonBlobTest = new JsonBlob(blobMd5, _Engine, _Search, _Log);
-                    jsonBlobExists = true;
-                }
-                catch
-                {
-                    _Log.LogInformation($"\nNo JSON blob found in seach index, creating new JSON blob for blob {dataEvaluating.AzureBlob.Name}.");
-                    jsonBlobExists = false;
-                }
+                CloudBlobContainer jsonContainer = blobClient.GetContainerReference(JsonStorageContainerName);
+                CloudBlockBlob rawJsonBlob = jsonContainer.GetBlockBlobReference(_Engine.EncodeMd5HashForFileName(dataEvaluating.AzureBlob.Properties.ContentMD5.ToString()));
 
-                // If the Json blob already exists then update the blob with this pass iteration information
-                if (jsonBlobExists)
+                // If the Json blob already exists then update the blob with latest pass iteration information
+                if (rawJsonBlob.Exists())
                 {
+                    //Hydrate Json Blob
                     JsonBlob jsonBlob = new JsonBlob(blobMd5, _Engine, _Search, _Log);
                     JObject jsonBlobJObject = JObject.Parse(jsonBlob.AzureBlob.DownloadText());
-                    JArray evaluationHistory = (JArray)jsonBlobJObject.SelectToken("passes");
-                    JObject evaluationsObject = new JObject
-                    {
-                        evaluationPass
-                    };
-                    evaluationHistory.Add(evaluationsObject);
-                    string serializedJsonBlob = JsonConvert.SerializeObject(jsonBlobJObject, Formatting.Indented, new JsonSerializerSettings { });
-                    Stream jsonBlobMemStream = new MemoryStream(Encoding.UTF8.GetBytes(serializedJsonBlob));
-                    if (jsonBlobMemStream.Length != 0)
-                    {
-                        await jsonBlob.AzureBlob.UploadFromStreamAsync(jsonBlobMemStream);
-                    }
-                    else
-                    {
-                        throw (new ZeroLengthFileException("\nencoded JSON memory stream is zero length and cannot be writted to blob storage"));
-                    }
+
+                    // Add an evaluation pass to the Json blob
+                    JArray evaluationHistory = (JArray)jsonBlobJObject.SelectToken("Passes");
+                    AddEvaluationPass(evaluationPass, evaluationHistory);
+
+                    // Upload blob changes to the cloud
+                    await UploadJsonBlob(jsonBlob.AzureBlob, jsonBlobJObject);
                 }
 
-                // If the Json blob does not exist create one
+                // If the Json blob does not exist create one and include the latest pass iteration information
                 else
                 {
 
-                    // Add blob info to Json
                     JObject BlobAnalysis =
                         new JObject(
-                            new JProperty("id", Guid.NewGuid().ToString()),
+                            new JProperty("Id", Guid.NewGuid().ToString()),
                             new JProperty("IsDeleted", false),
-                            new JProperty("blobInfo",
-                                new JObject(
-                                    new JProperty("name", blobName),
-                                    new JProperty("url", dataEvaluating.AzureBlob.Uri.ToString()),
-                                    new JProperty("modified", dataEvaluating.AzureBlob.Properties.LastModified.ToString()),
-                                    new JProperty("hash", blobMd5)
-                                )
-                            )
+                            new JProperty("Name", blobName),
+                            new JProperty("Hash", blobMd5)
                         );
+
+                    // Add state history information to Json blob
+                    JArray stateChanges = new JArray();
+                    AddStateChange(PendingEvaluationStorageContainerName, stateChanges);
+                    JProperty stateHistory = new JProperty("StateHistory", stateChanges);
+                    BlobAnalysis.Add(stateHistory);
 
                     // Add pass infromation to Json blob
                     JArray evaluations = new JArray();
-                    JObject evaluationsObject = new JObject
-                    {
-                        evaluationPass
-                    };
-                    evaluations.Add(evaluationsObject);
-                    JProperty evaluationPasses = new JProperty("passes", evaluations);
+                    AddEvaluationPass(evaluationPass, evaluations);
+                    JProperty evaluationPasses = new JProperty("Passes", evaluations);
                     BlobAnalysis.Add(evaluationPasses);
-                    CloudBlockBlob JsonCloudBlob = _Search.GetBlob(StorageAccount, JsonStorageContainerName, (string)BlobAnalysis.SelectToken("id") + ".json");
+
+                    CloudBlockBlob JsonCloudBlob = _Search.GetBlob(storageAccount, JsonStorageContainerName, _Engine.EncodeMd5HashForFileName(blobMd5) + ".json");
                     JsonCloudBlob.Properties.ContentType = "application/json";
-                    string serializedJson = JsonConvert.SerializeObject(BlobAnalysis, Newtonsoft.Json.Formatting.Indented, new JsonSerializerSettings { });
-                    Stream MemStream = new MemoryStream(Encoding.UTF8.GetBytes(serializedJson));
-                    if (MemStream.Length != 0)
-                    {
-                        JsonCloudBlob.UploadFromStream(MemStream);
-                    }
-                    else
-                    {
-                        throw (new ZeroLengthFileException("\nencoded JSON memory stream is zero length and cannot be writted to blob storage"));
-                    }
+
+                    await UploadJsonBlob(JsonCloudBlob, BlobAnalysis);
                 }
 
 
@@ -458,55 +452,114 @@ namespace semisupervisedFramework
                 //model successfully analyzed content
                 if (Confidence >= ConfidenceThreshold)
                 {
-                    EvaluationPassed(blobName, ModelVerificationPercent, ModelValidationStorageContainerName, EvaluatedDataStorageContainerName, StorageAccount, dataEvaluating);
+                    EvaluationPassed(ModelVerificationPercent, ModelValidationStorageContainerName, EvaluatedDataStorageContainerName, storageAccount, dataEvaluating);
                 }
 
                 //model was not sufficiently confident in its analysis
                 else
                 {
-                    EvaluationFailed(blobName, PendingSupervisionStorageContainerName, StorageAccount, dataEvaluating);
+                    EvaluationFailed(blobName, PendingSupervisionStorageContainerName, storageAccount, dataEvaluating);
                 }
 
                 _Log.LogInformation($"C# Blob trigger function Processed blob\n Name:{blobName}");
             }
             catch (MissingRequiredObject e)
             {
-                _Log.LogInformation("\n" + blobName + " could not be analyzed because of a MissingRequiredObject with message: " + e.Message);
+                _Log.LogInformation($"\n{blobName} could not be analyzed because of a MissingRequiredObject with message: {e.Message}");
             }
             catch (Exception e)
             {
-                _Log.LogInformation("\n" + blobName + " could not be analyzed with message: " + e.Message);
+                _Log.LogInformation($"\n{blobName} could not be analyzed with message: {e.Message}");
             }
             return $"Evaluate data completed evaluating data blob: {blobName}";
         }
 
-        private void EvaluationPassed(string blobName, double ModelVerificationPercent, string ModelValidationStorageContainerName, string EvaluatedDataStorageContainerName, CloudStorageAccount StorageAccount, DataBlob dataEvaluating)
+        private static void AddEvaluationPass(JProperty evaluationPass, JArray evaluationHistory)
         {
-            CloudBlockBlob EvaluatedData = _Search.GetBlob(StorageAccount, EvaluatedDataStorageContainerName, blobName);
+            JObject evaluationsObject = new JObject
+                    {
+                        evaluationPass
+                    };
+            evaluationHistory.Add(evaluationsObject);
+        }
+
+        private static void AddStateChange(string newState, JArray stateHistory)
+        {
+            //Create state change property
+            JProperty stateChange = new JProperty("StateChange",
+                new JObject(
+                    new JProperty("State", newState),
+                    new JProperty("StateChangeDate", DateTime.Now)
+                )
+            );
+            JObject stateHistoryObject = new JObject
+                    {
+                        stateChange
+                    };
+            stateHistory.Add(stateHistoryObject);
+        }
+
+        private static async Task UploadJsonBlob(CloudBlockBlob jsonBlob, JObject jsonBlobJObject)
+        {
+            //upload updated Json blob to cloud container
+            string serializedJsonBlob = JsonConvert.SerializeObject(jsonBlobJObject, Formatting.Indented, new JsonSerializerSettings { });
+            Stream jsonBlobMemStream = new MemoryStream(Encoding.UTF8.GetBytes(serializedJsonBlob));
+            if (jsonBlobMemStream.Length != 0)
+            {
+                await jsonBlob.UploadFromStreamAsync(jsonBlobMemStream);
+            }
+            else
+            {
+                throw (new ZeroLengthFileException("\nEncoded JSON memory stream is zero length and cannot be writted to blob storage"));
+            }
+        }
+
+        private async void EvaluationPassed(double ModelVerificationPercent, string ModelValidationStorageContainerName, string EvaluatedDataStorageContainerName, CloudStorageAccount StorageAccount, DataBlob dataEvaluating)
+        {
+            CloudBlockBlob EvaluatedData = _Search.GetBlob(StorageAccount, EvaluatedDataStorageContainerName, dataEvaluating.AzureBlob.Name);
             if (EvaluatedData == null)
             {
-                throw (new MissingRequiredObject("\nMissing evaluatedData " + blobName + " destination blob in container " + EvaluatedDataStorageContainerName));
+                throw (new MissingRequiredObject("\nevaluatedData blob " + dataEvaluating.AzureBlob.Name + " destination blob not created in container " + EvaluatedDataStorageContainerName));
             }
+
             _Engine.CopyAzureBlobToAzureBlob(StorageAccount, dataEvaluating.AzureBlob, EvaluatedData).Wait();
+
+            try
+            {
+                //Hydrate Json Blob
+                JsonBlob jsonBlob = new JsonBlob(dataEvaluating.AzureBlob.Properties.ContentMD5, _Engine, _Search, _Log);
+                JObject jsonBlobJObject = JObject.Parse(jsonBlob.AzureBlob.DownloadText());
+
+                // Add a state change too the Json Blob
+                JArray stateHistory = (JArray)jsonBlobJObject.SelectToken("StateHistory");
+                AddStateChange(EvaluatedDataStorageContainerName, stateHistory);
+
+                // Upload blob changes to the cloud
+                await UploadJsonBlob(jsonBlob.AzureBlob, jsonBlobJObject);
+            }
+            catch
+            {
+                throw;
+            }
 
             //pick a random number of successfully analyzed content blobs and submit them for supervision verification.
             Random Rnd = new Random();
             if (Math.Round(Rnd.NextDouble(), 2) <= ModelVerificationPercent)
             {
-                CloudBlockBlob ModelValidation = _Search.GetBlob(StorageAccount, ModelValidationStorageContainerName, blobName);
+                CloudBlockBlob ModelValidation = _Search.GetBlob(StorageAccount, ModelValidationStorageContainerName, dataEvaluating.AzureBlob.Name);
                 if (ModelValidation == null)
                 {
-                    _Log.LogInformation("\nWarning: Model validation skipped for " + blobName + " because of missing evaluatedData " + blobName + " destination blob in container " + ModelValidationStorageContainerName);
+                    _Log.LogInformation("\nWarning: Model validation skipped for " + dataEvaluating.AzureBlob.Name + " because " + dataEvaluating.AzureBlob.Name + " not created in destination blob in container " + ModelValidationStorageContainerName);
                 }
                 else
                 {
                     _Engine.CopyAzureBlobToAzureBlob(StorageAccount, dataEvaluating.AzureBlob, ModelValidation).Wait();
                 }
             }
-            dataEvaluating.AzureBlob.DeleteIfExistsAsync();
+            await dataEvaluating.AzureBlob.DeleteIfExistsAsync();
         }
 
-        private void EvaluationFailed(string blobName, string PendingSupervisionStorageContainerName, CloudStorageAccount StorageAccount, DataBlob dataEvaluating)
+        private async void EvaluationFailed(string blobName, string PendingSupervisionStorageContainerName, CloudStorageAccount StorageAccount, DataBlob dataEvaluating)
         {
             CloudBlockBlob PendingSupervision = _Search.GetBlob(StorageAccount, PendingSupervisionStorageContainerName, blobName);
             if (PendingSupervision == null)
@@ -514,7 +567,26 @@ namespace semisupervisedFramework
                 throw (new MissingRequiredObject("\nMissing pendingSupervision " + blobName + " destination blob in container " + PendingSupervisionStorageContainerName));
             }
 
-            _Engine.MoveAzureBlobToAzureBlob(StorageAccount, dataEvaluating.AzureBlob, PendingSupervision).Wait();
+            try
+            {
+                _Engine.MoveAzureBlobToAzureBlob(StorageAccount, dataEvaluating.AzureBlob, PendingSupervision).Wait();
+            }
+            catch
+            {
+                throw;
+            }
+
+            //Hydrate Json Blob
+            JsonBlob jsonBlob = new JsonBlob(dataEvaluating.AzureBlob.Properties.ContentMD5, _Engine, _Search, _Log);
+            JObject jsonBlobJObject = JObject.Parse(jsonBlob.AzureBlob.DownloadText());
+
+            // Add a state change too the Json Blob
+            JArray stateHistory = (JArray)jsonBlobJObject.SelectToken("StateHistory");
+            AddStateChange(PendingSupervisionStorageContainerName, stateHistory);
+
+            // Upload blob changes to the cloud
+            await UploadJsonBlob(jsonBlob.AzureBlob, jsonBlobJObject);
+
         }
     }
 }
