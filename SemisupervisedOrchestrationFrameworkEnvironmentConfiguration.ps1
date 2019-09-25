@@ -77,7 +77,7 @@ if ($modelType -eq "Trained")
   if ([string]::IsNullOrWhiteSpace($tagsUploadServiceEndpoint)) {$tagsUploadServiceEndpoint = 'https://mlprofessoarsamplemodelapp.azurewebsites.net/api/LoadLabelingTags'}
 
   $LabeledDataServiceEndpoint = Read-Host -Prompt 'Input the http address of the service endpoint to upload labeled data that will train the model. Note this has to match the endpoint of the model you have to will deploy.  It has to be unique across all of Azure. (default=https://mlprofessoarsamplemodelapp.azurewebsites.net/api/AddLabeledDataClient)'
-  if ([string]::IsNullOrWhiteSpace($LabeledDataServiceEndpoint)) {$LabeledDataServiceEndpoint = 'https://mlprofessoarsamplemodelapp.azurewebsites.net/api/AddLabeledDataClient'}
+  if ([string]::IsNullOrWhiteSpace($LabeledDataServiceEndpoint)) {$LabeledDataServiceEndpoint = 'https://mlprofessoarsamplemodelapp.azurewebsites.net/api/AddLabeledData'}
 
   $labelingTagsBlobName = 'LabelingTags.json'
 
