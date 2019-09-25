@@ -276,7 +276,7 @@ namespace semisupervisedFramework
         public string Name { get; set; }
         public JObject Json { get; set; }
         public string Md5Hash { get; set; }
-        public IList<string> Labels { get; set; }
+        public List<string> Labels { get; set; }
         private DataBlob _DataBlob;
         public DataBlob DataBlob
         {
@@ -297,6 +297,7 @@ namespace semisupervisedFramework
             Log = log;
             Search = search;
             Engine = engine;
+            Labels = new List<string>();
             // Use azure search to return the id of the JSON blob which is also the blob name
 
             // Get a reference to the json blob and hydrate it into the json blob class attributes.
@@ -325,11 +326,19 @@ namespace semisupervisedFramework
                 throw (new MissingRequiredObject($"\nBound JSON for {md5Hash} does not contain an id value."));
             }
 
-            JToken labelsToken = Json.SelectToken("labels");
+            JArray labelsToken = (JArray)Json.SelectToken("labels");
             if (labelsToken != null)
             {
-                string labelsJson = labelsToken.ToString();
-                Labels = JsonConvert.DeserializeObject<IList<string>>(labelsJson);
+                //string labelsJson = labelsToken.ToString();
+                //Labels = JsonConvert.DeserializeObject<List<string>>(labelsJson);
+
+                foreach (JObject label in labelsToken)
+                {
+                    Labels.Add(label["label"].ToString());
+                    //Labels = JsonConvert.DeserializeObject<IList<string>>(labelsToken.ToString());
+                    //string labelsJson = labelsToken.ToString();
+                    //Labels = (IList<string>)JsonConvert.DeserializeObject<IEnumerable<string>>(labelsJson);
+                }
             }
 
             JToken md5HashToken = Json.SelectToken("Hash");

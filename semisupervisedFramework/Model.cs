@@ -399,7 +399,8 @@ namespace semisupervisedFramework
 
                 //Note: all json files get writted to the same container as they are all accessed either by discrete name or by azure search index either GUID or Hash.
                 CloudBlobContainer jsonContainer = blobClient.GetContainerReference(JsonStorageContainerName);
-                CloudBlockBlob rawJsonBlob = jsonContainer.GetBlockBlobReference(_Engine.EncodeMd5HashForFileName(dataEvaluating.AzureBlob.Properties.ContentMD5.ToString()));
+                string hashFileName = _Engine.EncodeMd5HashForFileName(dataEvaluating.AzureBlob.Properties.ContentMD5.ToString());
+                CloudBlockBlob rawJsonBlob = jsonContainer.GetBlockBlobReference(hashFileName + ".json");
 
                 // If the Json blob already exists then update the blob with latest pass iteration information
                 if (rawJsonBlob.Exists())
