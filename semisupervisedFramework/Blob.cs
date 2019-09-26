@@ -305,7 +305,7 @@ namespace semisupervisedFramework
             CloudStorageAccount StorageAccount = Engine.StorageAccount;
             CloudBlobClient blobClient = StorageAccount.CreateCloudBlobClient();
             CloudBlobContainer jsonContainer = blobClient.GetContainerReference(Engine.GetEnvironmentVariable("jsonStorageContainerName", Log));
-            AzureBlob = jsonContainer.GetBlockBlobReference(engine.EncodeMd5HashForFileName(md5Hash) + ".json");
+            AzureBlob = jsonContainer.GetBlockBlobReference(engine.GetEncodedHashFileName(md5Hash));
 
             if (!AzureBlob.Exists())
             {

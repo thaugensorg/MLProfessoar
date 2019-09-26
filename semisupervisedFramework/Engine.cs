@@ -313,8 +313,19 @@ namespace semisupervisedFramework
 
         public string EncodeMd5HashForFileName(string md5Hash)
         {
-            string md5HashNoPadding = md5Hash.Remove(md5Hash.Length - 2);
+            string md5HashNoPadding = md5Hash;
+            do
+            {
+                md5HashNoPadding = (md5HashNoPadding[md5HashNoPadding.Length - 1].ToString() == "=") ? md5HashNoPadding.Remove(md5HashNoPadding.Length - 1) : md5HashNoPadding;
+            } while (md5HashNoPadding[md5HashNoPadding.Length - 1].ToString() == "=");
+
             return Uri.EscapeDataString(md5HashNoPadding);
+        }
+
+        public string GetEncodedHashFileName(string md5Hash)
+        {
+            string encodedHash = EncodeMd5HashForFileName(md5Hash);
+            return encodedHash + ".json";
         }
     }
     public class EnvironmentVariableNotSetException : Exception

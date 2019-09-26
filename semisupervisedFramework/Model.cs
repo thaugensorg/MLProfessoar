@@ -58,8 +58,8 @@ namespace semisupervisedFramework
                 {
                     CloudBlockBlob dataCloudBlockBlob = (CloudBlockBlob)item;
                     TrainingDataUrl = dataCloudBlockBlob.Uri.ToString();
-                    string BindingHash = dataCloudBlockBlob.Properties.ContentMD5.ToString();
-                    if (BindingHash == null)
+                    string bindingHash = dataCloudBlockBlob.Properties.ContentMD5.ToString();
+                    if (bindingHash == null)
                     {
                         //compute the file hash as this will be added to the meta data to allow for file version validation
                         string BlobMd5 = new DataBlob(dataCloudBlockBlob, _Engine, _Search, _Log).CalculateMD5Hash().ToString();
@@ -69,15 +69,16 @@ namespace semisupervisedFramework
                         }
                         else
                         {
+                            //*****TODO***** update this to calculate the hash as the code looks to ppopulate the hash from what is either null or already correct...
                             dataCloudBlockBlob.Properties.ContentMD5 = BlobMd5;
                         }
 
                     }
                     //trim the 2 "equals" off the trailing end of the hash or the http send will fail either using the client or raw http calls.
-                    BindingHash = BindingHash.Substring(0, BindingHash.Length - 2);
+                    bindingHash = _Engine.EncodeMd5HashForFileName(bindingHash);
 
                     //Get the content from the bound JSON file and instanciate a JsonBlob class then retrieve the labels collection from the Json to add to the image.
-                    JsonBlob boundJson = (JsonBlob)_Search.GetBlob("json", BindingHash);
+                    JsonBlob boundJson = (JsonBlob)_Search.GetBlob("json", bindingHash);
                     //Note you cannot pull the URL from the JSON blob because it will have the original URL from the first container when the blob was added to ML Professoar
                     string labeledDataUrl = dataCloudBlockBlob.StorageUri.PrimaryUri.ToString();
                     string addLabeledDataParameters = $"?dataBlobUrl={labeledDataUrl}";
@@ -222,7 +223,7 @@ namespace semisupervisedFramework
             return _ResponseString;
         }
 
-        public async void TrainingProcess()
+        public async Task TrainingProcess()
         {
             try
             {
@@ -399,8 +400,7 @@ namespace semisupervisedFramework
 
                 //Note: all json files get writted to the same container as they are all accessed either by discrete name or by azure search index either GUID or Hash.
                 CloudBlobContainer jsonContainer = blobClient.GetContainerReference(JsonStorageContainerName);
-                string hashFileName = _Engine.EncodeMd5HashForFileName(dataEvaluating.AzureBlob.Properties.ContentMD5.ToString());
-                CloudBlockBlob rawJsonBlob = jsonContainer.GetBlockBlobReference(hashFileName + ".json");
+                CloudBlockBlob rawJsonBlob = jsonContainer.GetBlockBlobReference(_Engine.GetEncodedHashFileName(dataEvaluating.AzureBlob.Properties.ContentMD5.ToString()));
 
                 // If the Json blob already exists then update the blob with latest pass iteration information
                 if (rawJsonBlob.Exists())
@@ -441,7 +441,7 @@ namespace semisupervisedFramework
                     JProperty evaluationPasses = new JProperty("Passes", evaluations);
                     BlobAnalysis.Add(evaluationPasses);
 
-                    CloudBlockBlob JsonCloudBlob = _Search.GetBlob(storageAccount, JsonStorageContainerName, _Engine.EncodeMd5HashForFileName(blobMd5) + ".json");
+                    CloudBlockBlob JsonCloudBlob = _Search.GetBlob(storageAccount, JsonStorageContainerName, _Engine.GetEncodedHashFileName(blobMd5));
                     JsonCloudBlob.Properties.ContentType = "application/json";
 
                     await UploadJsonBlob(JsonCloudBlob, BlobAnalysis);

@@ -101,7 +101,7 @@ namespace semisupervisedFramework
             return $"Failed: NoTrainedModelTest only found {verifiedBlobs} in {pendingSupervisionStorageContainerName} but 20 were expected.";
         }
 
-        public async Task<string> TrainModelTest()
+        public async Task<string> LabelDataTest()
         {
             // Get a azure storage client
             string StorageConnection = _Engine.GetEnvironmentVariable("AzureWebJobsStorage", _Log);
@@ -120,10 +120,37 @@ namespace semisupervisedFramework
             await dataLabelingTagsBlob.StartCopyAsync(testDataLabelingTagsBlob);
 
             // mock the supervision loop by labeling data using the blob name hemlock or japenese cherry.
-            LabelData();
+            await LabelData();
+
+            string labeledDataStorageContainerName = _Engine.GetEnvironmentVariable("labeledDataStorageContainerName", _Log);
+            CloudBlobContainer labeledDataStorageContainer = blobClient.GetContainerReference(labeledDataStorageContainerName);
+
+            int verifiedBlobs = 0;
+            string response = "Failed: response initialized but not updated";
+            foreach (IListBlobItem item in labeledDataStorageContainer.ListBlobs(null, false))
+            {
+                if (item is CloudBlockBlob verificationBlob)
+                {
+                    verifiedBlobs++;
+                    if (verifiedBlobs == 20)
+                    {
+                        response = $"Passed: 20 blobs verified in {labeledDataStorageContainerName}";
+                    }
+                    else
+                    {
+                        response = $"Failed: {verifiedBlobs} found in {labeledDataStorageContainerName} 20 were expected.";
+                    }
+                }
+            }
+
+            return response;
+        }
+
+        public async Task<string> TrainModelTest()
+        {
 
             // Train the model using the core training process
-            _Model.TrainingProcess();
+            await _Model.TrainingProcess();
 
             //*****TODO*****Verify labels were loaded by calling python model
 
@@ -254,7 +281,7 @@ namespace semisupervisedFramework
 
         }
 
-        public async void LabelData()
+        private async Task LabelData()
         {
             // Loop through all files in the pending supervision container and verify the bound json file has a label for the data file.
             string StorageConnection = _Engine.GetEnvironmentVariable("AzureWebJobsStorage", _Log);

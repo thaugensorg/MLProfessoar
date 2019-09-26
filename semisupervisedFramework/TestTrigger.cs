@@ -25,7 +25,8 @@ namespace semisupervisedFramework
                     Test test = new Test(engine, search, log);
                     string noTrainedModelTestResults = "";
                     string trainModelTestResults = "";
-                    string EvaluatePassingDataTestResults = "";
+                    string evaluatePassingDataTestResults = "";
+                    string labelDataTestResults = "";
 
                     // get a reference to the invocation blob file so that it can be deleted after the test is launched.
                     string StorageConnection = engine.GetEnvironmentVariable("AzureWebJobsStorage", log);
@@ -42,17 +43,18 @@ namespace semisupervisedFramework
 
                             testInitiationBlob.DeleteIfExists();
                             noTrainedModelTestResults = await test.NoTrainedModelTest();
+                            labelDataTestResults = await test.LabelDataTest();
                             trainModelTestResults = await test.TrainModelTest();
-                            EvaluatePassingDataTestResults = await test.EvaluatePassingDataTest();
+                            evaluatePassingDataTestResults = await test.EvaluatePassingDataTest();
 
-                            if (noTrainedModelTestResults.Contains("Failed:") || trainModelTestResults.Contains("Failed:") || EvaluatePassingDataTestResults.Contains("Failed:"))
+                            if (noTrainedModelTestResults.Contains("Failed:") || trainModelTestResults.Contains("Failed:") || evaluatePassingDataTestResults.Contains("Failed:"))
                             {
-                                testResults = $"Failed: Some test failures exist:\n{noTrainedModelTestResults}\n{trainModelTestResults}\n{EvaluatePassingDataTestResults}";
+                                testResults = $"Failed: Some test failures exist:\n{noTrainedModelTestResults}\n{trainModelTestResults}\n{evaluatePassingDataTestResults}";
                                 log.LogInformation(testResults);
                             }
                             else
                             {
-                                testResults = $"All test passed! with results:\n{noTrainedModelTestResults}\n{trainModelTestResults}\n{EvaluatePassingDataTestResults}";
+                                testResults = $"All test passed! with results:\n{noTrainedModelTestResults}\n{trainModelTestResults}\n{evaluatePassingDataTestResults}";
                                 log.LogInformation(testResults);
                             }
 
@@ -89,19 +91,35 @@ namespace semisupervisedFramework
                             break;
                         case "EvaluatePassingData.test":
                             testInitiationBlob.DeleteIfExists();
-                            EvaluatePassingDataTestResults = await test.EvaluatePassingDataTest();
-                            if (EvaluatePassingDataTestResults.Contains("Failed:"))
+                            evaluatePassingDataTestResults = await test.EvaluatePassingDataTest();
+                            if (evaluatePassingDataTestResults.Contains("Failed:"))
                             {
-                                testResults = $"Failed: Some test failures exist:\n{EvaluatePassingDataTestResults}";
+                                testResults = $"Failed: Some test failures exist:\n{evaluatePassingDataTestResults}";
                                 log.LogInformation(testResults);
                             }
                             else
                             {
-                                testResults = $"All test passed! with results: {EvaluatePassingDataTestResults}";
+                                testResults = $"All test passed! with results: {evaluatePassingDataTestResults}";
                                 log.LogInformation(testResults);
                             }
 
                             break;
+                        case "LabelData.test":
+                            testInitiationBlob.DeleteIfExists();
+                            labelDataTestResults = await test.LabelDataTest();
+                            if (labelDataTestResults.Contains("Failed:"))
+                            {
+                                testResults = $"Failed: Some test failures exist:\n{labelDataTestResults}";
+                                log.LogInformation(testResults);
+                            }
+                            else
+                            {
+                                testResults = $"All test passed! with results: {labelDataTestResults}";
+                                log.LogInformation(testResults);
+                            }
+
+                            break;
+
                     }
 
                     //await Task.Delay(75000);
