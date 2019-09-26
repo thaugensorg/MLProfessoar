@@ -38,21 +38,6 @@ namespace semisupervisedFramework
         }
 
         // *****TODO***** update index to track deleted items or we will get duplicate hash entries if the json data is reloaded.
-        public FrameworkBlob GetBlob(string Type, string dataBlobMD5)
-        {
-            switch (Type)
-            {
-                case "data":
-                    return new DataBlob(dataBlobMD5, _Engine, this, _Log);
-
-                case "json":
-                    return new JsonBlob(dataBlobMD5, _Engine, this, _Log);
-
-                default:
-                    throw (new MissingRequiredObject($"\nInvalid blob type: {Type}"));
-
-            }
-        }
 
         //Gets a reference to a specific blob using container and blob names as strings
         public CloudBlockBlob GetBlob(CloudStorageAccount account, string containerName, string blobName)

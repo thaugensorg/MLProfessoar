@@ -305,11 +305,12 @@ namespace semisupervisedFramework
             CloudStorageAccount StorageAccount = Engine.StorageAccount;
             CloudBlobClient blobClient = StorageAccount.CreateCloudBlobClient();
             CloudBlobContainer jsonContainer = blobClient.GetContainerReference(Engine.GetEnvironmentVariable("jsonStorageContainerName", Log));
-            AzureBlob = jsonContainer.GetBlockBlobReference(engine.GetEncodedHashFileName(md5Hash));
+            string boundJsonFileName = engine.GetEncodedHashFileName(md5Hash);
+            AzureBlob = jsonContainer.GetBlockBlobReference(boundJsonFileName);
 
             if (!AzureBlob.Exists())
             {
-                Log.LogInformation($"\nSearch did not find a Json blob using MD5 hash: {md5Hash} processing cannot continue.");
+                Log.LogInformation($"\nSearch did not find a Json blob {boundJsonFileName} using MD5 hash: {md5Hash} processing cannot continue.");
                 throw (new MissingRequiredObject($"\nBound JSON for {md5Hash} does not exist."));
             }
 

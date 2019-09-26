@@ -319,7 +319,13 @@ namespace semisupervisedFramework
                 md5HashNoPadding = (md5HashNoPadding[md5HashNoPadding.Length - 1].ToString() == "=") ? md5HashNoPadding.Remove(md5HashNoPadding.Length - 1) : md5HashNoPadding;
             } while (md5HashNoPadding[md5HashNoPadding.Length - 1].ToString() == "=");
 
-            return Uri.EscapeDataString(md5HashNoPadding);
+            // If the hash contains a % value then it has already been encoded and encoding it a second time will give a value that does not match the file name
+            if (!md5HashNoPadding.Contains("%"))
+            {
+                return Uri.EscapeDataString(md5HashNoPadding);
+            }
+
+            return md5HashNoPadding;
         }
 
         public string GetEncodedHashFileName(string md5Hash)

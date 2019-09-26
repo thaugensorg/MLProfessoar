@@ -161,7 +161,7 @@ namespace semisupervisedFramework
             return "Passed: Model trained.";
         }
 
-        public async Task<string> EvaluatePassingDataTest()
+        public async Task<string> EvaluateFailingData()
         {
             // Establish a storage connection
             string StorageConnection = _Engine.GetEnvironmentVariable("AzureWebJobsStorage", _Log);
@@ -169,7 +169,6 @@ namespace semisupervisedFramework
             CloudBlobClient blobClient = storageAccount.CreateCloudBlobClient();
 
             CloudBlobContainer testDataContainer = blobClient.GetContainerReference("testdata");
-            CloudBlobDirectory passingEvaluationTestDataDirectory = testDataContainer.GetDirectoryReference("passing");
             CloudBlobDirectory failingEvaluationTestDataDirectory = testDataContainer.GetDirectoryReference("failing");
             string evaluatedDataStorageContainerName = _Engine.GetEnvironmentVariable("evaluatedDataStorageContainerName", _Log);
             CloudBlobContainer evaluatedDataStorageContainer = blobClient.GetContainerReference(evaluatedDataStorageContainerName);
@@ -178,8 +177,8 @@ namespace semisupervisedFramework
             string pendingEvaluationStorageContainerName = _Engine.GetEnvironmentVariable("pendingEvaluationStorageContainerName", _Log);
             CloudBlobContainer pendingEvaluationStorageContainer = blobClient.GetContainerReference(pendingEvaluationStorageContainerName);
 
-            // Loop through passing test data and call evaluate by copying blobs to pending evaluation container.
-            foreach (IListBlobItem item in passingEvaluationTestDataDirectory.ListBlobs(true))
+            // Loop through failing test data and call evaluate by copying blobs to pending evaluation container.
+            foreach (IListBlobItem item in failingEvaluationTestDataDirectory.ListBlobs())
             {
                 if (item is CloudBlockBlob testDataBlob)
                 {
@@ -189,8 +188,69 @@ namespace semisupervisedFramework
                 }
             }
 
-            // Loop through failing test data and call evaluate by copying blobs to pending evaluation container.
-            foreach (IListBlobItem item in failingEvaluationTestDataDirectory.ListBlobs())
+            // wait 30 seconds for the evaluation to complete
+            await Task.Delay(30000);
+
+            int verifiedBlobs = 0;
+            int checkLoops = 0;
+            string response = "";
+
+            do
+            {
+                verifiedBlobs = 0;
+
+                // Loop back through the pass test data container and make sure their is a matching blob in the evaluated data container
+                foreach (IListBlobItem item in failingEvaluationTestDataDirectory.ListBlobs())
+                {
+                    if (item is CloudBlockBlob testDataBlob)
+                    {
+                        string name = testDataBlob.Name.Split('/')[1];
+                        CloudBlockBlob ExpectedBlob = pendingSupervisionStorageContainer.GetBlockBlobReference(name);
+                        if (ExpectedBlob.Exists())
+                        {
+                            verifiedBlobs++;
+                            if (verifiedBlobs == 2)
+                            {
+                                return response + $"\nPassed: 2 blobs failed evaluation and were verified in {pendingSupervisionStorageContainerName}";
+                            }
+                        }
+
+                        await Task.Delay(500);
+                    }
+                }
+
+                await Task.Delay(1000);
+                checkLoops++;
+
+                if (checkLoops > 5)
+                {
+                    response = response + $"\nFailed: only {verifiedBlobs} found in {pendingSupervisionStorageContainerName} when 2 were expected.";
+                }
+
+            } while (verifiedBlobs < 2 && checkLoops <= 5);
+
+            return "Failed: " + response;
+
+        }
+
+        public async Task<string> EvaluatePassingDataTest()
+        {
+            // Establish a storage connection
+            string StorageConnection = _Engine.GetEnvironmentVariable("AzureWebJobsStorage", _Log);
+            CloudStorageAccount storageAccount = CloudStorageAccount.Parse(StorageConnection);
+            CloudBlobClient blobClient = storageAccount.CreateCloudBlobClient();
+
+            CloudBlobContainer testDataContainer = blobClient.GetContainerReference("testdata");
+            CloudBlobDirectory passingEvaluationTestDataDirectory = testDataContainer.GetDirectoryReference("passing");
+            string evaluatedDataStorageContainerName = _Engine.GetEnvironmentVariable("evaluatedDataStorageContainerName", _Log);
+            CloudBlobContainer evaluatedDataStorageContainer = blobClient.GetContainerReference(evaluatedDataStorageContainerName);
+            string pendingSupervisionStorageContainerName = _Engine.GetEnvironmentVariable("pendingSupervisionStorageContainerName", _Log);
+            CloudBlobContainer pendingSupervisionStorageContainer = blobClient.GetContainerReference(pendingSupervisionStorageContainerName);
+            string pendingEvaluationStorageContainerName = _Engine.GetEnvironmentVariable("pendingEvaluationStorageContainerName", _Log);
+            CloudBlobContainer pendingEvaluationStorageContainer = blobClient.GetContainerReference(pendingEvaluationStorageContainerName);
+
+            // Loop through passing test data and call evaluate by copying blobs to pending evaluation container.
+            foreach (IListBlobItem item in passingEvaluationTestDataDirectory.ListBlobs(true))
             {
                 if (item is CloudBlockBlob testDataBlob)
                 {
@@ -221,10 +281,9 @@ namespace semisupervisedFramework
                         if (ExpectedBlob.Exists())
                         {
                             verifiedBlobs++;
-                            if (verifiedBlobs == 2)
+                            if (verifiedBlobs == 7)
                             {
-                                response = $"Passed: {verifiedBlobs} passing blobs verified in {evaluatedDataStorageContainer}";
-                                break;
+                                return $"Passed: {verifiedBlobs} passing blobs verified in {evaluatedDataStorageContainerName}";
                             }
                         }
 
@@ -239,43 +298,7 @@ namespace semisupervisedFramework
                     response = $"Failed: only {verifiedBlobs} found in {evaluatedDataStorageContainerName} when 2 were expected.";
                 }
 
-            } while (verifiedBlobs < 2 && checkLoops <= 5);
-
-            do
-            {
-                verifiedBlobs = 0;
-
-                // Loop back through the pass test data container and make sure their is a matching blob in the evaluated data container
-                foreach (IListBlobItem item in failingEvaluationTestDataDirectory.ListBlobs())
-                {
-                    if (item is CloudBlockBlob testDataBlob)
-                    {
-                        string name = testDataBlob.Name.Split('/')[1];
-                        CloudBlockBlob ExpectedBlob = pendingSupervisionStorageContainer.GetBlockBlobReference(name);
-                        if (ExpectedBlob.Exists())
-                        {
-                            verifiedBlobs++;
-                            if (verifiedBlobs == 6)
-                            {
-                                response = response + $"\nPassed: 6 blobs failed evaluation and were verified in {pendingSupervisionStorageContainer}";
-                                return response;
-                            }
-                        }
-
-                        await Task.Delay(500);
-                    }
-                }
-
-                await Task.Delay(1000);
-                checkLoops++;
-
-                if (checkLoops > 5)
-                {
-                    response = response + $"\nFailed: only {verifiedBlobs} found in {pendingSupervisionStorageContainerName} when 6 were expected.";
-                }
-
-
-            } while (verifiedBlobs < 6 && checkLoops <= 5);
+            } while (verifiedBlobs < 7 && checkLoops <= 5);
 
             return "Failed: " + response;
 

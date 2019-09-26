@@ -74,11 +74,9 @@ namespace semisupervisedFramework
                         }
 
                     }
-                    //trim the 2 "equals" off the trailing end of the hash or the http send will fail either using the client or raw http calls.
-                    bindingHash = _Engine.EncodeMd5HashForFileName(bindingHash);
 
                     //Get the content from the bound JSON file and instanciate a JsonBlob class then retrieve the labels collection from the Json to add to the image.
-                    JsonBlob boundJson = (JsonBlob)_Search.GetBlob("json", bindingHash);
+                    JsonBlob boundJson = new JsonBlob(bindingHash, _Engine, _Search, _Log);
                     //Note you cannot pull the URL from the JSON blob because it will have the original URL from the first container when the blob was added to ML Professoar
                     string labeledDataUrl = dataCloudBlockBlob.StorageUri.PrimaryUri.ToString();
                     string addLabeledDataParameters = $"?dataBlobUrl={labeledDataUrl}";

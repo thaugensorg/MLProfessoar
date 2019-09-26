@@ -18,7 +18,7 @@ namespace semisupervisedFramework
     {
         //*****TODO***** Externalize timer frequency.
         [FunctionName("TrainingTimer")]
-        public static void Run(
+        public async static void Run(
                 [TimerTrigger("0 */60 * * * *" //setting this to 1 will cause the trigger to fire every minute for debug purposes.
 
             //This setting causes the timer job to immediately run when you press F5 rather than having to wait for the timer to fire after n minutes.  Set the line below to true if you want to debug the timer process.
@@ -39,7 +39,7 @@ namespace semisupervisedFramework
             {
                 Search search = new Search(engine, log);
                 Model model = new Model(engine, search, log);
-                model.TrainingProcess();
+                await model.TrainingProcess();
             }
             else
             {
