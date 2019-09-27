@@ -192,9 +192,9 @@ namespace semisupervisedFramework
                         if (expectedBlob.Exists())
                         {
                             verifiedBlobs++;
-                            if (verifiedBlobs == 7)
+                            if (verifiedBlobs == 2)
                             {
-                                return response + $"\nPassed: 7 blobs did not pass evaluation and were verified in {pendingSupervisionStorageContainerName}";
+                                return response + $"\nPassed: 2 blobs did not pass evaluation and were verified in {pendingSupervisionStorageContainerName}";
                             }
                         }
 
@@ -207,10 +207,10 @@ namespace semisupervisedFramework
 
                 if (checkLoops > 5)
                 {
-                    response = response + $"\nOnly {verifiedBlobs} found in {pendingSupervisionStorageContainerName} when 7 were expected.";
+                    response = response + $"\n{verifiedBlobs} blobs found in {pendingSupervisionStorageContainerName} when 2 were expected.";
                 }
 
-            } while (verifiedBlobs < 7 && checkLoops <= 5);
+            } while (verifiedBlobs < 2 && checkLoops <= 5);
 
             return "Failed: " + response;
 
@@ -264,7 +264,7 @@ namespace semisupervisedFramework
                         if (expectedBlob.Exists())
                         {
                             verifiedBlobs++;
-                            if (verifiedBlobs == 2)
+                            if (verifiedBlobs == 7)
                             {
                                 return $"\nPassed: {verifiedBlobs} passing blobs verified in {evaluatedDataStorageContainerName}";
                             }
@@ -278,10 +278,10 @@ namespace semisupervisedFramework
                 checkLoops++;
                 if (checkLoops > 4)
                 {
-                    response = $"\nOnly {verifiedBlobs} found in {evaluatedDataStorageContainerName} when 2 were expected.";
+                    response = $"\n{verifiedBlobs} found in {evaluatedDataStorageContainerName} when 7 were expected.";
                 }
 
-            } while (verifiedBlobs < 2 && checkLoops <= 5);
+            } while (verifiedBlobs < 7 && checkLoops <= 5);
 
             return "Failed: " + response;
 
