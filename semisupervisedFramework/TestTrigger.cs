@@ -30,8 +30,8 @@ namespace semisupervisedFramework
                     string labelDataTestResults = "";
 
                     // get a reference to the invocation blob file so that it can be deleted after the test is launched.
-                    string StorageConnection = engine.GetEnvironmentVariable("AzureWebJobsStorage", log);
-                    CloudStorageAccount storageAccount = CloudStorageAccount.Parse(StorageConnection);
+                    string storageConnection = engine.GetEnvironmentVariable("AzureWebJobsStorage", log);
+                    CloudStorageAccount storageAccount = CloudStorageAccount.Parse(storageConnection);
                     CloudBlobClient blobClient = storageAccount.CreateCloudBlobClient();
                     CloudBlobContainer testDataContainer = blobClient.GetContainerReference("testinvocation");
                     CloudBlockBlob testInitiationBlob = testDataContainer.GetBlockBlobReference(name);

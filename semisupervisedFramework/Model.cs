@@ -46,18 +46,18 @@ namespace semisupervisedFramework
 
         public string AddLabeledData()
         {
-            string TrainingDataUrl;
-            CloudStorageAccount StorageAccount = _Engine.StorageAccount;
-            CloudBlobClient BlobClient = StorageAccount.CreateCloudBlobClient();
+            string trainingDataUrl;
+            CloudStorageAccount storageAccount = _Engine.StorageAccount;
+            CloudBlobClient blobClient = storageAccount.CreateCloudBlobClient();
             string labeledDataStorageContainerName = _Engine.GetEnvironmentVariable("labeledDataStorageContainerName", _Log);
-            CloudBlobContainer LabeledDataContainer = BlobClient.GetContainerReference(labeledDataStorageContainerName);
+            CloudBlobContainer labeledDataContainer = blobClient.GetContainerReference(labeledDataStorageContainerName);
 
-            foreach (IListBlobItem item in LabeledDataContainer.ListBlobs(null, false))
+            foreach (IListBlobItem item in labeledDataContainer.ListBlobs(null, false))
             {
                 if (item.GetType() == typeof(CloudBlockBlob))
                 {
                     CloudBlockBlob dataCloudBlockBlob = (CloudBlockBlob)item;
-                    TrainingDataUrl = dataCloudBlockBlob.Uri.ToString();
+                    trainingDataUrl = dataCloudBlockBlob.Uri.ToString();
                     string bindingHash = dataCloudBlockBlob.Properties.ContentMD5.ToString();
                     if (bindingHash == null)
                     {
@@ -131,34 +131,34 @@ namespace semisupervisedFramework
 
             //Construct a blob client to marshall the storage Functionality
             CloudStorageAccount storageAccount = _Engine.StorageAccount;
-            CloudBlobClient LabelsBlobClient = storageAccount.CreateCloudBlobClient();
+            CloudBlobClient labelsBlobClient = storageAccount.CreateCloudBlobClient();
 
             //Construct a blob storage container given a name string and a storage account
             string jsonDataContainerName = _Engine.GetEnvironmentVariable("jsonStorageContainerName", _Log);
-            CloudBlobContainer Container = LabelsBlobClient.GetContainerReference(jsonDataContainerName);
+            CloudBlobContainer Container = labelsBlobClient.GetContainerReference(jsonDataContainerName);
 
             //get the training tags json blob from the container
             string labelingTagsBlobName = _Engine.GetEnvironmentVariable("labelingTagsBlobName", _Log);
-            CloudBlockBlob DataTagsBlob = Container.GetBlockBlobReference(labelingTagsBlobName);
+            CloudBlockBlob dataTagsBlob = Container.GetBlockBlobReference(labelingTagsBlobName);
 
             //the blob has to be "touched" or the properties will all be null
-            if (DataTagsBlob.Exists() != true)
+            if (dataTagsBlob.Exists() != true)
             {
                 throw new MissingRequiredObject($"\ndataTagsBlob not found using {labelingTagsBlobName}");
             };
 
             //get the environment variable specifying the MD5 hash of the last run tags file
-            string LkgDataTagsFileHash = _Engine.GetEnvironmentVariable("dataTagsFileHash", _Log);
+            string lkgDataTagsFileHash = _Engine.GetEnvironmentVariable("dataTagsFileHash", _Log);
 
             //Check if there is a new version of the tags json file and if so load them into the environment
-            if (DataTagsBlob.Properties.ContentMD5 != LkgDataTagsFileHash)
+            if (dataTagsBlob.Properties.ContentMD5 != lkgDataTagsFileHash)
             {
                 //format the http call to load labeling tags
-                string LabelingTags = DataTagsBlob.DownloadText(Encoding.UTF8);
-                HttpContent LabelingTagsContent = new StringContent(LabelingTags);
+                string labelingTags = dataTagsBlob.DownloadText(Encoding.UTF8);
+                HttpContent labelingTagsContent = new StringContent(labelingTags);
                 MultipartFormDataContent content = new MultipartFormDataContent();
-                string LabelingTagsParamatersName = _Engine.GetEnvironmentVariable("labelingTagsParameterName", _Log);
-                content.Add(LabelingTagsContent, LabelingTagsParamatersName);
+                string labelingTagsParamatersName = _Engine.GetEnvironmentVariable("labelingTagsParameterName", _Log);
+                content.Add(labelingTagsContent, labelingTagsParamatersName);
 
                 //****Currently only working with public access set on blob folders
                 //Generate a URL with SAS token to submit to analyze image API
@@ -166,14 +166,14 @@ namespace semisupervisedFramework
                 //string DataTagsUrl = DataTagsBlob.Uri.ToString(); //+ dataEvaluatingSas;
 
                 //Make a request to the model service load labeling tags function passing the tags.
-                string AddLabelingTagsEndpoint = _Engine.GetEnvironmentVariable("TagsUploadServiceEndpoint", _Log);
-                responseString = _Engine.GetHttpResponseString(AddLabelingTagsEndpoint, content);
-                if (string.IsNullOrEmpty(responseString)) throw (new MissingRequiredObject("\nresponseString not generated from URL: " + AddLabelingTagsEndpoint));
+                string addLabelingTagsEndpoint = _Engine.GetEnvironmentVariable("TagsUploadServiceEndpoint", _Log);
+                responseString = _Engine.GetHttpResponseString(addLabelingTagsEndpoint, content);
+                if (string.IsNullOrEmpty(responseString)) throw (new MissingRequiredObject("\nresponseString not generated from URL: " + addLabelingTagsEndpoint));
 
                 //save the hash of this version of the labeling tags file so that we can avoid running load labeling tags if the file has not changed.
                 //*****TODO***** see if it is possible to persist the update using Powershell and passing in the name of the variable and the value as parameters
                 //https://stackoverflow.com/questions/13251076/calling-powershell-from-c-sharp
-                System.Environment.SetEnvironmentVariable("dataTagsFileHash", DataTagsBlob.Properties.ContentMD5);
+                System.Environment.SetEnvironmentVariable("dataTagsFileHash", dataTagsBlob.Properties.ContentMD5);
                 _Log.LogInformation(responseString);
             }
             return $"Training tags process executed with response: {responseString}";
@@ -188,12 +188,12 @@ namespace semisupervisedFramework
             if (string.IsNullOrEmpty(_ResponseString)) throw (new MissingRequiredObject($"\nresponseString not generated from URL: {trainModelUrl}"));
 
             // Since a new model has been trained copy all of the pending new model blobs to pending evaluation
-            CloudStorageAccount StorageAccount = _Engine.StorageAccount;
-            CloudBlobClient BlobClient = StorageAccount.CreateCloudBlobClient();
+            CloudStorageAccount storageAccount = _Engine.StorageAccount;
+            CloudBlobClient blobClient = storageAccount.CreateCloudBlobClient();
             string pendingNewModelStorageContainerName = _Engine.GetEnvironmentVariable("pendingNewModelStorageContainerName", _Log);
-            CloudBlobContainer pendingNewModelStorageContainer = BlobClient.GetContainerReference(pendingNewModelStorageContainerName);
+            CloudBlobContainer pendingNewModelStorageContainer = blobClient.GetContainerReference(pendingNewModelStorageContainerName);
             string pendingEvaluationStorageContainerName = _Engine.GetEnvironmentVariable("pendingEvaluationStorageContainerName", _Log);
-            CloudBlobContainer pendingEvaluationStorageContainer = BlobClient.GetContainerReference(pendingEvaluationStorageContainerName);
+            CloudBlobContainer pendingEvaluationStorageContainer = blobClient.GetContainerReference(pendingEvaluationStorageContainerName);
 
             foreach (IListBlobItem blob in pendingNewModelStorageContainer.ListBlobs(null, false))
             {
@@ -213,7 +213,7 @@ namespace semisupervisedFramework
                     await UploadJsonBlob(jsonBlob.AzureBlob, jsonBlobJObject);
 
                     // move blobs from pending neww model to pending evlaluation containers.
-                    await _Engine.MoveAzureBlobToAzureBlob(StorageAccount, dataCloudBlockBlob, pendingEvaluationStorageContainer.GetBlockBlobReference(dataCloudBlockBlob.Name));
+                    await _Engine.MoveAzureBlobToAzureBlob(storageAccount, dataCloudBlockBlob, pendingEvaluationStorageContainer.GetBlockBlobReference(dataCloudBlockBlob.Name));
                 }
             }
 
@@ -270,32 +270,32 @@ namespace semisupervisedFramework
         {
             try
             {
-                double ModelVerificationPercent = 0;
-                string ModelValidationStorageContainerName = "";
+                double modelVerificationPercent = 0;
+                string modelValidationStorageContainerName = "";
 
-                string StorageConnection = _Engine.GetEnvironmentVariable("AzureWebJobsStorage", _Log);
-                string PendingEvaluationStorageContainerName = _Engine.GetEnvironmentVariable("pendingEvaluationStorageContainerName", _Log);
-                string EvaluatedDataStorageContainerName = _Engine.GetEnvironmentVariable("evaluatedDataStorageContainerName", _Log);
-                string JsonStorageContainerName = _Engine.GetEnvironmentVariable("jsonStorageContainerName", _Log);
-                string PendingSupervisionStorageContainerName = _Engine.GetEnvironmentVariable("pendingSupervisionStorageContainerName", _Log);
-                string ConfidenceJsonPath = _Engine.GetEnvironmentVariable("confidenceJSONPath", _Log);
-                double ConfidenceThreshold = Convert.ToDouble(_Engine.GetEnvironmentVariable("confidenceThreshold", _Log));
+                string storageConnection = _Engine.GetEnvironmentVariable("AzureWebJobsStorage", _Log);
+                string pendingEvaluationStorageContainerName = _Engine.GetEnvironmentVariable("pendingEvaluationStorageContainerName", _Log);
+                string evaluatedDataStorageContainerName = _Engine.GetEnvironmentVariable("evaluatedDataStorageContainerName", _Log);
+                string jsonStorageContainerName = _Engine.GetEnvironmentVariable("jsonStorageContainerName", _Log);
+                string pendingSupervisionStorageContainerName = _Engine.GetEnvironmentVariable("pendingSupervisionStorageContainerName", _Log);
+                string confidenceJsonPath = _Engine.GetEnvironmentVariable("confidenceJSONPath", _Log);
+                double confidenceThreshold = Convert.ToDouble(_Engine.GetEnvironmentVariable("confidenceThreshold", _Log));
 
                 string modelType = _Engine.GetEnvironmentVariable("modelType", _Log);
                 if (modelType == "Trained")
                 {
-                    string LabeledDataStorageContainerName = _Engine.GetEnvironmentVariable("labeledDataStorageContainerName", _Log);
-                    ModelValidationStorageContainerName = _Engine.GetEnvironmentVariable("modelValidationStorageContainerName", _Log);
-                    string PendingNewModelStorageContainerName = _Engine.GetEnvironmentVariable("pendingNewModelStorageContainerName", _Log);
-                    ModelVerificationPercent = Convert.ToDouble(_Engine.GetEnvironmentVariable("modelVerificationPercentage", _Log));
+                    string labeledDataStorageContainerName = _Engine.GetEnvironmentVariable("labeledDataStorageContainerName", _Log);
+                    modelValidationStorageContainerName = _Engine.GetEnvironmentVariable("modelValidationStorageContainerName", _Log);
+                    string pendingNewModelStorageContainerName = _Engine.GetEnvironmentVariable("pendingNewModelStorageContainerName", _Log);
+                    modelVerificationPercent = Convert.ToDouble(_Engine.GetEnvironmentVariable("modelVerificationPercentage", _Log));
                 }
 
                 //------------------------This section retrieves the blob needing evaluation and calls the evaluation service for processing.-----------------------
 
                 // Create Reference to Azure Storage Account and the container for data that is pending evaluation by the model.
-                CloudStorageAccount storageAccount = CloudStorageAccount.Parse(StorageConnection);
+                CloudStorageAccount storageAccount = CloudStorageAccount.Parse(storageConnection);
                 CloudBlobClient blobClient = storageAccount.CreateCloudBlobClient();
-                CloudBlobContainer container = blobClient.GetContainerReference(PendingEvaluationStorageContainerName);
+                CloudBlobContainer container = blobClient.GetContainerReference(pendingEvaluationStorageContainerName);
                 CloudBlockBlob rawDataBlob = container.GetBlockBlobReference(blobName);
                 DataBlob dataEvaluating = new DataBlob(rawDataBlob, _Engine, _Search, _Log);
                 if (dataEvaluating == null)
@@ -315,7 +315,7 @@ namespace semisupervisedFramework
                 //****Currently only working with public access set on blob folders
                 //Generate a URL with SAS token to submit to analyze image API
                 //string dataEvaluatingSas = GetBlobSharedAccessSignature(dataEvaluating);
-                string DataEvaluatingUrl = dataEvaluating.AzureBlob.Uri.ToString(); //+ dataEvaluatingSas;
+                string dataEvaluatingUrl = dataEvaluating.AzureBlob.Uri.ToString(); //+ dataEvaluatingSas;
                 //string dataEvaluatingUrl = "test";
 
                 //package the file contents to send as http request content
@@ -328,7 +328,7 @@ namespace semisupervisedFramework
                 //get environment variables used to construct the model request URL
                 string dataEvaluationServiceEndpoint = _Engine.GetEnvironmentVariable("DataEvaluationServiceEndpoint", _Log);
                 string evaluationDataParameterName = _Engine.GetEnvironmentVariable("evaluationDataParameterName", _Log);
-                string parameters = $"?{evaluationDataParameterName}={DataEvaluatingUrl}";
+                string parameters = $"?{evaluationDataParameterName}={dataEvaluatingUrl}";
                 string evaluateDataUrl = _Engine.ConstructModelRequestUrl(dataEvaluationServiceEndpoint, parameters);
 
                 int retryLoops = 0;
@@ -352,13 +352,13 @@ namespace semisupervisedFramework
 
                 } while (retryLoops < 5);
 
-                string StrConfidence = null;
-                double Confidence = 0;
+                string strConfidence = null;
+                double confidence = 0;
                 JProperty responseProperty = new JProperty("Response", responseString);
 
                 if (responseString == "Model not trained.")
                 {
-                    Confidence = 0;
+                    confidence = 0;
                 }
                 else
                 {
@@ -366,19 +366,19 @@ namespace semisupervisedFramework
                     JObject analysisJson = JObject.Parse(responseString);
                     try
                     {
-                        StrConfidence = (string)analysisJson.SelectToken(ConfidenceJsonPath);
+                        strConfidence = (string)analysisJson.SelectToken(confidenceJsonPath);
                     }
                     catch
                     {
                         throw (new MissingRequiredObject($"\nInvalid response string {responseString} generated from URL: {evaluateDataUrl}."));
                     }
 
-                    if (StrConfidence == null)
+                    if (strConfidence == null)
                     {
                         //*****TODO***** if this fails the file will sit in the pending evaluation state because the trigger will have processed the file but the file could not be processed.  Need to figure out how to tell if a file failed processing so that we can reprocesses the file at a latter time.
-                        throw (new MissingRequiredObject($"\nNo confidence value at {ConfidenceJsonPath} from environment variable ConfidenceJSONPath in response from model: {responseString}."));
+                        throw (new MissingRequiredObject($"\nNo confidence value at {confidenceJsonPath} from environment variable ConfidenceJSONPath in response from model: {responseString}."));
                     }
-                    Confidence = (double)analysisJson.SelectToken(ConfidenceJsonPath);
+                    confidence = (double)analysisJson.SelectToken(confidenceJsonPath);
                 }
 
                 //----------------------------This section collects information about the blob being analyzed and packages it in JSON that is then written to blob storage for later processing-----------------------------------
@@ -397,7 +397,7 @@ namespace semisupervisedFramework
                     );
 
                 //Note: all json files get writted to the same container as they are all accessed either by discrete name or by azure search index either GUID or Hash.
-                CloudBlobContainer jsonContainer = blobClient.GetContainerReference(JsonStorageContainerName);
+                CloudBlobContainer jsonContainer = blobClient.GetContainerReference(jsonStorageContainerName);
                 CloudBlockBlob rawJsonBlob = jsonContainer.GetBlockBlobReference(_Engine.GetEncodedHashFileName(dataEvaluating.AzureBlob.Properties.ContentMD5.ToString()));
 
                 // If the Json blob already exists then update the blob with latest pass iteration information
@@ -429,7 +429,7 @@ namespace semisupervisedFramework
 
                     // Add state history information to Json blob
                     JArray stateChanges = new JArray();
-                    AddStateChange(PendingEvaluationStorageContainerName, stateChanges);
+                    AddStateChange(pendingEvaluationStorageContainerName, stateChanges);
                     JProperty stateHistory = new JProperty("StateHistory", stateChanges);
                     BlobAnalysis.Add(stateHistory);
 
@@ -439,7 +439,7 @@ namespace semisupervisedFramework
                     JProperty evaluationPasses = new JProperty("Passes", evaluations);
                     BlobAnalysis.Add(evaluationPasses);
 
-                    CloudBlockBlob JsonCloudBlob = _Search.GetBlob(storageAccount, JsonStorageContainerName, _Engine.GetEncodedHashFileName(blobMd5));
+                    CloudBlockBlob JsonCloudBlob = _Search.GetBlob(storageAccount, jsonStorageContainerName, _Engine.GetEncodedHashFileName(blobMd5));
                     JsonCloudBlob.Properties.ContentType = "application/json";
 
                     await UploadJsonBlob(JsonCloudBlob, BlobAnalysis);
@@ -449,15 +449,15 @@ namespace semisupervisedFramework
                 //--------------------------------This section processes the results of the analysis and transferes the blob to the container responsible for the next appropriate stage of processing.-------------------------------
 
                 //model successfully analyzed content
-                if (Confidence >= ConfidenceThreshold)
+                if (confidence >= confidenceThreshold)
                 {
-                    EvaluationPassed(ModelVerificationPercent, ModelValidationStorageContainerName, EvaluatedDataStorageContainerName, storageAccount, dataEvaluating);
+                    EvaluationPassed(modelVerificationPercent, modelValidationStorageContainerName, evaluatedDataStorageContainerName, storageAccount, dataEvaluating);
                 }
 
                 //model was not sufficiently confident in its analysis
                 else
                 {
-                    EvaluationFailed(blobName, PendingSupervisionStorageContainerName, storageAccount, dataEvaluating);
+                    EvaluationFailed(blobName, pendingSupervisionStorageContainerName, storageAccount, dataEvaluating);
                 }
 
                 _Log.LogInformation($"C# Blob trigger function Processed blob\n Name:{blobName}");
@@ -513,15 +513,15 @@ namespace semisupervisedFramework
             }
         }
 
-        private async void EvaluationPassed(double ModelVerificationPercent, string ModelValidationStorageContainerName, string EvaluatedDataStorageContainerName, CloudStorageAccount StorageAccount, DataBlob dataEvaluating)
+        private async void EvaluationPassed(double modelVerificationPercent, string modelValidationStorageContainerName, string evaluatedDataStorageContainerName, CloudStorageAccount storageAccount, DataBlob dataEvaluating)
         {
-            CloudBlockBlob EvaluatedData = _Search.GetBlob(StorageAccount, EvaluatedDataStorageContainerName, dataEvaluating.AzureBlob.Name);
-            if (EvaluatedData == null)
+            CloudBlockBlob evaluatedData = _Search.GetBlob(storageAccount, evaluatedDataStorageContainerName, dataEvaluating.AzureBlob.Name);
+            if (evaluatedData == null)
             {
-                throw (new MissingRequiredObject("\nevaluatedData blob " + dataEvaluating.AzureBlob.Name + " destination blob not created in container " + EvaluatedDataStorageContainerName));
+                throw (new MissingRequiredObject($"\nevaluatedData blob {dataEvaluating.AzureBlob.Name} destination blob not created in container {evaluatedDataStorageContainerName}"));
             }
 
-            _Engine.CopyAzureBlobToAzureBlob(StorageAccount, dataEvaluating.AzureBlob, EvaluatedData).Wait();
+            _Engine.CopyAzureBlobToAzureBlob(storageAccount, dataEvaluating.AzureBlob, evaluatedData).Wait();
 
             try
             {
@@ -531,7 +531,7 @@ namespace semisupervisedFramework
 
                 // Add a state change too the Json Blob
                 JArray stateHistory = (JArray)jsonBlobJObject.SelectToken("StateHistory");
-                AddStateChange(EvaluatedDataStorageContainerName, stateHistory);
+                AddStateChange(evaluatedDataStorageContainerName, stateHistory);
 
                 // Upload blob changes to the cloud
                 await UploadJsonBlob(jsonBlob.AzureBlob, jsonBlobJObject);
@@ -542,33 +542,33 @@ namespace semisupervisedFramework
             }
 
             //pick a random number of successfully analyzed content blobs and submit them for supervision verification.
-            Random Rnd = new Random();
-            if (Math.Round(Rnd.NextDouble(), 2) <= ModelVerificationPercent)
+            Random rnd = new Random();
+            if (Math.Round(rnd.NextDouble(), 2) <= modelVerificationPercent)
             {
-                CloudBlockBlob ModelValidation = _Search.GetBlob(StorageAccount, ModelValidationStorageContainerName, dataEvaluating.AzureBlob.Name);
-                if (ModelValidation == null)
+                CloudBlockBlob modelValidation = _Search.GetBlob(storageAccount, modelValidationStorageContainerName, dataEvaluating.AzureBlob.Name);
+                if (modelValidation == null)
                 {
-                    _Log.LogInformation("\nWarning: Model validation skipped for " + dataEvaluating.AzureBlob.Name + " because " + dataEvaluating.AzureBlob.Name + " not created in destination blob in container " + ModelValidationStorageContainerName);
+                    _Log.LogInformation($"\nWarning: Model validation skipped for {dataEvaluating.AzureBlob.Name} because {dataEvaluating.AzureBlob.Name} not created in destination blob in container {modelValidationStorageContainerName}");
                 }
                 else
                 {
-                    _Engine.CopyAzureBlobToAzureBlob(StorageAccount, dataEvaluating.AzureBlob, ModelValidation).Wait();
+                    _Engine.CopyAzureBlobToAzureBlob(storageAccount, dataEvaluating.AzureBlob, modelValidation).Wait();
                 }
             }
             await dataEvaluating.AzureBlob.DeleteIfExistsAsync();
         }
 
-        private async void EvaluationFailed(string blobName, string PendingSupervisionStorageContainerName, CloudStorageAccount StorageAccount, DataBlob dataEvaluating)
+        private async void EvaluationFailed(string blobName, string pendingSupervisionStorageContainerName, CloudStorageAccount storageAccount, DataBlob dataEvaluating)
         {
-            CloudBlockBlob PendingSupervision = _Search.GetBlob(StorageAccount, PendingSupervisionStorageContainerName, blobName);
-            if (PendingSupervision == null)
+            CloudBlockBlob pendingSupervision = _Search.GetBlob(storageAccount, pendingSupervisionStorageContainerName, blobName);
+            if (pendingSupervision == null)
             {
-                throw (new MissingRequiredObject("\nMissing pendingSupervision " + blobName + " destination blob in container " + PendingSupervisionStorageContainerName));
+                throw (new MissingRequiredObject($"\nMissing pendingSupervision {blobName} destination blob in container {pendingSupervisionStorageContainerName}"));
             }
 
             try
             {
-                _Engine.MoveAzureBlobToAzureBlob(StorageAccount, dataEvaluating.AzureBlob, PendingSupervision).Wait();
+                _Engine.MoveAzureBlobToAzureBlob(storageAccount, dataEvaluating.AzureBlob, pendingSupervision).Wait();
             }
             catch
             {
@@ -581,7 +581,7 @@ namespace semisupervisedFramework
 
             // Add a state change too the Json Blob
             JArray stateHistory = (JArray)jsonBlobJObject.SelectToken("StateHistory");
-            AddStateChange(PendingSupervisionStorageContainerName, stateHistory);
+            AddStateChange(pendingSupervisionStorageContainerName, stateHistory);
 
             // Upload blob changes to the cloud
             await UploadJsonBlob(jsonBlob.AzureBlob, jsonBlobJObject);

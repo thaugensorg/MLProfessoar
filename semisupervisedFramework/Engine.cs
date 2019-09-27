@@ -48,14 +48,14 @@ namespace semisupervisedFramework
         {
             try
             {
-                string EnvironmentVariable = System.Environment.GetEnvironmentVariable(name, EnvironmentVariableTarget.Process);
-                if (EnvironmentVariable == null || EnvironmentVariable == "")
+                string environmentVariable = System.Environment.GetEnvironmentVariable(name, EnvironmentVariableTarget.Process);
+                if (environmentVariable == null || environmentVariable == "")
                 {
                     throw (new EnvironmentVariableNotSetException("\n" + name + " environment variable not set"));
                 }
                 else
                 {
-                    return EnvironmentVariable;
+                    return environmentVariable;
                 }
             }
             catch (EnvironmentVariableNotSetException e)
@@ -74,7 +74,7 @@ namespace semisupervisedFramework
         {
             //create environment JSON object
             //Dont include storage connection as it contains the storage key which should not be placed in storage.
-            JProperty BlobEnvironment =
+            JProperty blobEnvironment =
                 new JProperty("environment",
                     new JObject(
                         new JProperty("parameter", GetEnvironmentVariable("evaluationDataParameterName", log)),
@@ -89,7 +89,7 @@ namespace semisupervisedFramework
                         new JProperty("verificationPercent", GetEnvironmentVariable("modelVerificationPercentage", log))
                     )
                 );
-            return BlobEnvironment;
+            return blobEnvironment;
         }
 
 
@@ -101,26 +101,26 @@ namespace semisupervisedFramework
             {
                 // *****TODO***** enable string replacement for endpoint URLs.  THis will allow calling functions to be able to controle parameters that are passed.
                 // use the following order blob attributes, environment variables, URL parameters.
-                int StringReplaceStart = 0;
-                int StringReplaceEnd = 0;
+                int stringReplaceStart = 0;
+                int stringReplaceEnd = 0;
                 do
                 {
-                    StringReplaceStart = modelApiEndpoint.IndexOf("{{", StringReplaceEnd);
-                    if (StringReplaceStart != -1)
+                    stringReplaceStart = modelApiEndpoint.IndexOf("{{", stringReplaceEnd);
+                    if (stringReplaceStart != -1)
                     {
-                        StringReplaceEnd = modelApiEndpoint.IndexOf("}}", StringReplaceStart);
-                        string StringToReplace = modelApiEndpoint.Substring(StringReplaceStart, StringReplaceEnd - StringReplaceStart);
+                        stringReplaceEnd = modelApiEndpoint.IndexOf("}}", stringReplaceStart);
+                        string StringToReplace = modelApiEndpoint.Substring(stringReplaceStart, stringReplaceEnd - stringReplaceStart);
                         string ReplacementString = GetEnvironmentVariable(StringToReplace.Substring(2, StringToReplace.Length - 2), _Log);
                         modelApiEndpoint = modelApiEndpoint.Replace(StringToReplace, ReplacementString);
                     }
-                } while (StringReplaceStart != -1);
+                } while (stringReplaceStart != -1);
 
                 //http://localhost:7071/api/AddLabeledDataClient/?blobUrl=https://semisupervisedstorage.blob.core.windows.net/testimages/hemlock_2.jpg&imageLabels={%22Labels%22:[%22Hemlock%22]}
 
-                string ModelRequestUrl = modelApiEndpoint;
-                ModelRequestUrl = ModelRequestUrl + parameters;
+                string modelRequestUrl = modelApiEndpoint;
+                modelRequestUrl = modelRequestUrl + parameters;
 
-                return ModelRequestUrl;
+                return modelRequestUrl;
             }
             catch (Exception e)
             {
@@ -132,22 +132,22 @@ namespace semisupervisedFramework
         public string GetHttpResponseString(string targetUrl, MultipartFormDataContent postData)
         {
             //initialize variables
-            Stopwatch StopWatch = Stopwatch.StartNew();
-            string ResponseString = new string("");
+            Stopwatch stopWatch = Stopwatch.StartNew();
+            string responseString = new string("");
 
             try
             {
                 //construct and call model URL then fetch response
-                HttpClient Client = new HttpClient();
-                Uri TargetUri = new Uri(targetUrl);
-                HttpResponseMessage Response = Client.PostAsync(TargetUri, postData).Result;
-                if (Response.StatusCode.ToString() == "OK")
+                HttpClient client = new HttpClient();
+                Uri targetUri = new Uri(targetUrl);
+                HttpResponseMessage response = client.PostAsync(targetUri, postData).Result;
+                if (response.StatusCode.ToString() == "OK")
                 {
-                    ResponseString = Response.Content.ReadAsStringAsync().Result;
+                    responseString = response.Content.ReadAsStringAsync().Result;
                 }
                 else
                 { 
-                    ResponseString = new JObject(new JProperty(Response.ReasonPhrase)).ToString();
+                    responseString = new JObject(new JProperty(response.ReasonPhrase)).ToString();
                 }
             }
             catch (Exception e)
@@ -164,22 +164,22 @@ namespace semisupervisedFramework
             }
 
             //log the http elapsed time
-            StopWatch.Stop();
-            _Log.LogInformation("\nHTTP call to " + targetUrl + " completed in:" + StopWatch.Elapsed.TotalSeconds + " seconds.");
-            return ResponseString;
+            stopWatch.Stop();
+            _Log.LogInformation("\nHTTP call to " + targetUrl + " completed in:" + stopWatch.Elapsed.TotalSeconds + " seconds.");
+            return responseString;
         }
 
         //Moves a blob between two azure containers.
         public async Task MoveAzureBlobToAzureBlob(CloudStorageAccount account, CloudBlockBlob sourceBlob, CloudBlockBlob destinationBlob)
         {
-            Stopwatch StopWatch = Stopwatch.StartNew();
+            Stopwatch stopWatch = Stopwatch.StartNew();
             await CopyAzureBlobToAzureBlob(account, sourceBlob, destinationBlob);
             await sourceBlob.DeleteIfExistsAsync();
-            StopWatch.Stop();
-            _Log.LogInformation("The Azure Blob " + sourceBlob + " deleted in: " + StopWatch.Elapsed.TotalSeconds + " seconds.");
+            stopWatch.Stop();
+            _Log.LogInformation("The Azure Blob " + sourceBlob + " deleted in: " + stopWatch.Elapsed.TotalSeconds + " seconds.");
         }
 
-        public async Task CopyAzureContainerToAzureContainer(CloudBlobContainer sourceContainer, CloudBlobContainer destinationContainer)
+        public async Task CopyBlobsFromContainerToContainer(CloudBlobContainer sourceContainer, CloudBlobContainer destinationContainer)
         {
             foreach (IListBlobItem item in sourceContainer.ListBlobs(null, false))
             {
@@ -189,22 +189,34 @@ namespace semisupervisedFramework
                     await destinationBlob.StartCopyAsync(sourceBlob);
                 }
             }
+        }
 
+        public async Task MoveBlobsFromContainerToContainer(CloudBlobContainer sourceContainer, CloudBlobContainer destinationContainer)
+        {
+            foreach (IListBlobItem item in sourceContainer.ListBlobs(null, false))
+            {
+                if (item is CloudBlockBlob sourceBlob)
+                {
+                    CloudBlockBlob destinationBlob = destinationContainer.GetBlockBlobReference(sourceBlob.Name);
+                    await destinationBlob.StartCopyAsync(sourceBlob);
+                    await sourceBlob.DeleteIfExistsAsync();
+                }
+            }
         }
 
         //Copies a blob between two azure containers.
         public async Task CopyAzureBlobToAzureBlob(CloudStorageAccount account, CloudBlockBlob sourceBlob, CloudBlockBlob destinationBlob)
         {
-            TransferCheckpoint Checkpoint = null;
-            SingleTransferContext Context = GetSingleTransferContext(Checkpoint);
-            CancellationTokenSource CancellationSource = new CancellationTokenSource();
+            TransferCheckpoint checkpoint = null;
+            SingleTransferContext context = GetSingleTransferContext(checkpoint);
+            CancellationTokenSource cancellationSource = new CancellationTokenSource();
 
-            Stopwatch StopWatch = Stopwatch.StartNew();
-            Task Task;
+            Stopwatch stopWatch = Stopwatch.StartNew();
+            Task task;
             try
             {
-                Task = TransferManager.CopyAsync(sourceBlob, destinationBlob, CopyMethod.ServiceSideSyncCopy, null, Context, CancellationSource.Token);
-                await Task;
+                task = TransferManager.CopyAsync(sourceBlob, destinationBlob, CopyMethod.ServiceSideSyncCopy, null, context, cancellationSource.Token);
+                await task;
             }
             catch (AggregateException e)
             {
@@ -214,7 +226,7 @@ namespace semisupervisedFramework
             }
             catch (TransferException e)
             {
-                _Log.LogInformation($"The Azure Blob {sourceBlob.Name} already exists in {destinationBlob.Parent.Container.Name} with message {e.Message}");
+                _Log.LogInformation($"\nThe Azure Blob {sourceBlob.Name} already exists in {destinationBlob.Parent.Container.Name} with message {e.Message}");
             }
             catch (Exception e)
             {
@@ -223,8 +235,8 @@ namespace semisupervisedFramework
                 throw;
             }
 
-            StopWatch.Stop();
-            _Log.LogInformation($"The Azure Blob {sourceBlob.Name} transfer to {destinationBlob.Name} completed in: {StopWatch.Elapsed.TotalSeconds} seconds.");
+            stopWatch.Stop();
+            _Log.LogInformation($"The Azure Blob {sourceBlob.Name} transfer to {destinationBlob.Name} completed in: {stopWatch.Elapsed.TotalSeconds} seconds.");
         }
 
         //Gets a reference to a specific blob using container and blob names as strings
@@ -232,17 +244,17 @@ namespace semisupervisedFramework
         {
             try
             {
-                CloudBlobClient BlobClient = account.CreateCloudBlobClient();
-                CloudBlobContainer Container = BlobClient.GetContainerReference(containerName);
-                Container.CreateIfNotExistsAsync().Wait();
+                CloudBlobClient blobClient = account.CreateCloudBlobClient();
+                CloudBlobContainer container = blobClient.GetContainerReference(containerName);
+                container.CreateIfNotExistsAsync().Wait();
 
-                CloudBlockBlob Blob = Container.GetBlockBlobReference(blobName);
+                CloudBlockBlob blob = container.GetBlockBlobReference(blobName);
 
-                return Blob;
+                return blob;
             }
             catch (Exception e)
             {
-                log.LogInformation("\nNo blob " + blobName + " found in " + containerName + " ", e.Message);
+                log.LogInformation($"\nNo blob {blobName} found in {containerName} ", e.Message);
                 return null;
             }
         }
@@ -252,15 +264,15 @@ namespace semisupervisedFramework
         {
             try
             {
-                SingleTransferContext Context = new SingleTransferContext(checkpoint)
+                SingleTransferContext context = new SingleTransferContext(checkpoint)
                 {
-                    ProgressHandler = new Progress<TransferStatus>((Progress) =>
+                    ProgressHandler = new Progress<TransferStatus>((progress) =>
                     {
-                        _Log.LogInformation("\rBytes transferred: {0}", Progress.BytesTransferred);
+                        _Log.LogInformation("\rBytes transferred: {0}", progress.BytesTransferred);
                     })
                 };
 
-                return Context;
+                return context;
             }
             catch (Exception e)
             {
@@ -272,9 +284,9 @@ namespace semisupervisedFramework
         //Returns a blob shared access signature.
         public string GetBlobSharedAccessSignature(CloudBlockBlob cloudBlockBlob)
         {
-            string SasContainerToken;
+            string sasContainerToken;
 
-            SharedAccessBlobPolicy SharedPolicy = new SharedAccessBlobPolicy()
+            SharedAccessBlobPolicy sharedPolicy = new SharedAccessBlobPolicy()
             {
                 //******* To Do: change to a more appropriate time than always 1 hour.  Maybe make this configurable.
                 SharedAccessStartTime = DateTime.UtcNow.AddHours(1),
@@ -282,8 +294,8 @@ namespace semisupervisedFramework
                 Permissions = SharedAccessBlobPermissions.Read
             };
 
-            SasContainerToken = cloudBlockBlob.GetSharedAccessSignature(SharedPolicy);
-            return SasContainerToken;
+            sasContainerToken = cloudBlockBlob.GetSharedAccessSignature(sharedPolicy);
+            return sasContainerToken;
         }
 
         public string DecodeBase64String(string encodedString)

@@ -34,43 +34,25 @@ namespace semisupervisedFramework
         {
 
             // Get a reference to the test data container
-            string StorageConnection = _Engine.GetEnvironmentVariable("AzureWebJobsStorage", _Log);
-            CloudStorageAccount storageAccount = CloudStorageAccount.Parse(StorageConnection);
+            string storageConnection = _Engine.GetEnvironmentVariable("AzureWebJobsStorage", _Log);
+            CloudStorageAccount storageAccount = CloudStorageAccount.Parse(storageConnection);
             CloudBlobClient blobClient = storageAccount.CreateCloudBlobClient();
             CloudBlobContainer testDataContainer = blobClient.GetContainerReference("testdata");
             string pendingEvaluationStorageContainerName = _Engine.GetEnvironmentVariable("pendingEvaluationStorageContainerName", _Log);
             CloudBlobContainer pendingEvaluationContainer = blobClient.GetContainerReference(pendingEvaluationStorageContainerName);
 
             // Loop over items within the container and move them to pending evaluation container
-            foreach (IListBlobItem item in testDataContainer.ListBlobs(null, false))
-            {
-                if (item is CloudBlockBlob sourceBlob)
-                {
-                    CloudBlockBlob destinationBlob = pendingEvaluationContainer.GetBlockBlobReference(sourceBlob.Name);
-                    destinationBlob.StartCopy(sourceBlob);
-                }
-            }
-
-            int numberOfPasses = 0;
-            int countOfBlobs = 0;
-            do
-            {
-                numberOfPasses++;
-                countOfBlobs = 0;
-                foreach (IListBlobItem item in pendingEvaluationContainer.ListBlobs(null, false))
-                {
-                    countOfBlobs++;
-                    await Task.Delay(1000);
-                }
-                _Log.LogInformation($"\nOn pass {numberOfPasses}, {countOfBlobs} blobs were still pending evaluation container {pendingEvaluationStorageContainerName}.");
-            } while (countOfBlobs < 20 && numberOfPasses <=10);
+            await _Engine.CopyBlobsFromContainerToContainer(testDataContainer, pendingEvaluationContainer);
 
             //check that all items have been moved to the pending supervision container
             string pendingSupervisionStorageContainerName = _Engine.GetEnvironmentVariable("pendingSupervisionStorageContainerName", _Log);
             CloudBlobContainer pendingSupervisionStorageContainer = blobClient.GetContainerReference(pendingSupervisionStorageContainerName);
+
+            // Initialize loop control variables
             int verifiedBlobs = 0;
             int checkLoops = 0;
 
+            // Loop through all blobs in test data container and ensure there is a corresponding file in the expectged pending supervision container.
             do
             {
                 verifiedBlobs = 0;
@@ -78,8 +60,8 @@ namespace semisupervisedFramework
                 {
                     if (item is CloudBlockBlob verificationBlob)
                     {
-                        CloudBlockBlob ExpectedBlob = pendingSupervisionStorageContainer.GetBlockBlobReference(verificationBlob.Name);
-                        if (ExpectedBlob.Exists())
+                        CloudBlockBlob expectedBlob = pendingSupervisionStorageContainer.GetBlockBlobReference(verificationBlob.Name);
+                        if (expectedBlob.Exists())
                         {
                             verifiedBlobs++;
                             if (verifiedBlobs == 20)
@@ -87,15 +69,16 @@ namespace semisupervisedFramework
                                 return $"Passed: 20 blobs verified in {pendingSupervisionStorageContainerName}";
                             }
                         }
-
-                        await Task.Delay(500);
-
                     }
                 }
 
-                await Task.Delay(1000);
+                // If after making a pass through all of the test container blobs the test has not passed wait and then check again.  Because the code
+                // does not invoke the Orchestration Engine directly we cannot await the call to evaluate data so we have to delay and try again.
+                // Given Azure Functions performance we are delaying 5 seconds.  If Azure function performance improves this time can be reduced.
+                await Task.Delay(5000);
                 checkLoops++;
 
+            // Keep looping until either the test passes or 10 attempts have been made.  *****TODO***** this should be externalized in the future for performance tuning.
             } while (verifiedBlobs <= 20 && checkLoops <= 10);
 
             return $"Failed: NoTrainedModelTest only found {verifiedBlobs} in {pendingSupervisionStorageContainerName} but 20 were expected.";
@@ -104,8 +87,8 @@ namespace semisupervisedFramework
         public async Task<string> LabelDataTest()
         {
             // Get a azure storage client
-            string StorageConnection = _Engine.GetEnvironmentVariable("AzureWebJobsStorage", _Log);
-            CloudStorageAccount storageAccount = CloudStorageAccount.Parse(StorageConnection);
+            string storageConnection = _Engine.GetEnvironmentVariable("AzureWebJobsStorage", _Log);
+            CloudStorageAccount storageAccount = CloudStorageAccount.Parse(storageConnection);
             CloudBlobClient blobClient = storageAccount.CreateCloudBlobClient();
 
             //get references to the test label data and the location the test blobs needs to be to run tests.
@@ -164,8 +147,8 @@ namespace semisupervisedFramework
         public async Task<string> EvaluateFailingData()
         {
             // Establish a storage connection
-            string StorageConnection = _Engine.GetEnvironmentVariable("AzureWebJobsStorage", _Log);
-            CloudStorageAccount storageAccount = CloudStorageAccount.Parse(StorageConnection);
+            string storageConnection = _Engine.GetEnvironmentVariable("AzureWebJobsStorage", _Log);
+            CloudStorageAccount storageAccount = CloudStorageAccount.Parse(storageConnection);
             CloudBlobClient blobClient = storageAccount.CreateCloudBlobClient();
 
             CloudBlobContainer testDataContainer = blobClient.GetContainerReference("testdata");
@@ -205,13 +188,13 @@ namespace semisupervisedFramework
                     if (item is CloudBlockBlob testDataBlob)
                     {
                         string name = testDataBlob.Name.Split('/')[1];
-                        CloudBlockBlob ExpectedBlob = pendingSupervisionStorageContainer.GetBlockBlobReference(name);
-                        if (ExpectedBlob.Exists())
+                        CloudBlockBlob expectedBlob = pendingSupervisionStorageContainer.GetBlockBlobReference(name);
+                        if (expectedBlob.Exists())
                         {
                             verifiedBlobs++;
-                            if (verifiedBlobs == 2)
+                            if (verifiedBlobs == 7)
                             {
-                                return response + $"\nPassed: 2 blobs failed evaluation and were verified in {pendingSupervisionStorageContainerName}";
+                                return response + $"\nPassed: 7 blobs did not pass evaluation and were verified in {pendingSupervisionStorageContainerName}";
                             }
                         }
 
@@ -224,10 +207,10 @@ namespace semisupervisedFramework
 
                 if (checkLoops > 5)
                 {
-                    response = response + $"\nFailed: only {verifiedBlobs} found in {pendingSupervisionStorageContainerName} when 2 were expected.";
+                    response = response + $"\nOnly {verifiedBlobs} found in {pendingSupervisionStorageContainerName} when 7 were expected.";
                 }
 
-            } while (verifiedBlobs < 2 && checkLoops <= 5);
+            } while (verifiedBlobs < 7 && checkLoops <= 5);
 
             return "Failed: " + response;
 
@@ -236,8 +219,8 @@ namespace semisupervisedFramework
         public async Task<string> EvaluatePassingDataTest()
         {
             // Establish a storage connection
-            string StorageConnection = _Engine.GetEnvironmentVariable("AzureWebJobsStorage", _Log);
-            CloudStorageAccount storageAccount = CloudStorageAccount.Parse(StorageConnection);
+            string storageConnection = _Engine.GetEnvironmentVariable("AzureWebJobsStorage", _Log);
+            CloudStorageAccount storageAccount = CloudStorageAccount.Parse(storageConnection);
             CloudBlobClient blobClient = storageAccount.CreateCloudBlobClient();
 
             CloudBlobContainer testDataContainer = blobClient.GetContainerReference("testdata");
@@ -277,13 +260,13 @@ namespace semisupervisedFramework
                     if (item is CloudBlockBlob testDataBlob)
                     {
                         string name = testDataBlob.Name.Split('/')[1];
-                        CloudBlockBlob ExpectedBlob = evaluatedDataStorageContainer.GetBlockBlobReference(name);
-                        if (ExpectedBlob.Exists())
+                        CloudBlockBlob expectedBlob = evaluatedDataStorageContainer.GetBlockBlobReference(name);
+                        if (expectedBlob.Exists())
                         {
                             verifiedBlobs++;
-                            if (verifiedBlobs == 7)
+                            if (verifiedBlobs == 2)
                             {
-                                return $"Passed: {verifiedBlobs} passing blobs verified in {evaluatedDataStorageContainerName}";
+                                return $"\nPassed: {verifiedBlobs} passing blobs verified in {evaluatedDataStorageContainerName}";
                             }
                         }
 
@@ -295,10 +278,10 @@ namespace semisupervisedFramework
                 checkLoops++;
                 if (checkLoops > 4)
                 {
-                    response = $"Failed: only {verifiedBlobs} found in {evaluatedDataStorageContainerName} when 2 were expected.";
+                    response = $"\nOnly {verifiedBlobs} found in {evaluatedDataStorageContainerName} when 2 were expected.";
                 }
 
-            } while (verifiedBlobs < 7 && checkLoops <= 5);
+            } while (verifiedBlobs < 2 && checkLoops <= 5);
 
             return "Failed: " + response;
 
@@ -307,8 +290,8 @@ namespace semisupervisedFramework
         private async Task LabelData()
         {
             // Loop through all files in the pending supervision container and verify the bound json file has a label for the data file.
-            string StorageConnection = _Engine.GetEnvironmentVariable("AzureWebJobsStorage", _Log);
-            CloudStorageAccount storageAccount = CloudStorageAccount.Parse(StorageConnection);
+            string storageConnection = _Engine.GetEnvironmentVariable("AzureWebJobsStorage", _Log);
+            CloudStorageAccount storageAccount = CloudStorageAccount.Parse(storageConnection);
             CloudBlobClient blobClient = storageAccount.CreateCloudBlobClient();
 
             // Get references to the source container, pending supervision, and the destination container, labeled data
@@ -376,7 +359,7 @@ namespace semisupervisedFramework
                         }
                         else
                         {
-                            throw (new ZeroLengthFileException("\nencoded json memory stream is zero length and cannot be writted to blob storage"));
+                            throw (new ZeroLengthFileException("\nEncoded json memory stream is zero length and cannot be writted to blob storage"));
                         }
                     } //done updating labeling information in json blob
 

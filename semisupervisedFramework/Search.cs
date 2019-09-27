@@ -44,17 +44,17 @@ namespace semisupervisedFramework
         {
             try
             {
-                CloudBlobClient BlobClient = account.CreateCloudBlobClient();
-                CloudBlobContainer Container = BlobClient.GetContainerReference(containerName);
-                Container.CreateIfNotExistsAsync().Wait();
+                CloudBlobClient blobClient = account.CreateCloudBlobClient();
+                CloudBlobContainer container = blobClient.GetContainerReference(containerName);
+                container.CreateIfNotExistsAsync().Wait();
 
-                CloudBlockBlob Blob = Container.GetBlockBlobReference(blobName);
+                CloudBlockBlob Blob = container.GetBlockBlobReference(blobName);
 
                 return Blob;
             }
             catch (Exception e)
             {
-                _Log.LogInformation("\nNo blob " + blobName + " found in " + containerName + " ", e.Message);
+                _Log.LogInformation($"\nNo blob {blobName} found in {containerName} ", e.Message);
                 return null;
             }
         }
@@ -64,12 +64,11 @@ namespace semisupervisedFramework
             try
             {
                 string blobSearchIndexerName = _Engine.GetEnvironmentVariable("blobSearchIndexerName", _Log);
-                //Indexer blobSearchIndexer = _ServiceClient.Indexers.Get(blobSearchIndexerName);
                 _ServiceClient.Indexers.RunAsync(blobSearchIndexerName);
             }
             catch (CloudException e) when (e.Response.StatusCode == (HttpStatusCode)429)
             {
-                Console.WriteLine($"Failed to run indexer: {0}", e.Response.Content);
+                Console.WriteLine($"\nFailed to run indexer: {0}", e.Response.Content);
             }
         }
 

@@ -71,13 +71,13 @@ namespace semisupervisedFramework
         {
             try
             {
-                MemoryStream MemStream = new MemoryStream();
-                await blockBlob.DownloadToStreamAsync(MemStream);
-                if (MemStream.Length == 0)
+                MemoryStream memStream = new MemoryStream();
+                await blockBlob.DownloadToStreamAsync(memStream);
+                if (memStream.Length == 0)
                 {
-                    throw (new ZeroLengthFileException("\nCloud Block Blob: " + blockBlob.Name + " is zero length"));
+                    throw (new ZeroLengthFileException($"\nCloud Block Blob: {blockBlob.Name} is zero length"));
                 }
-                string BlobString = MemStream.ToString();
+                string blobString = memStream.ToString();
                 string md5Hash = CalculateMD5Hash();
 
                 // ***** TODO ***** check if chunking the file download is necissary or if the azure blob movement namepace handles chunking for you.
@@ -97,12 +97,12 @@ namespace semisupervisedFramework
             }
             catch (ZeroLengthFileException e)
             {
-                _Log.LogInformation("\n" + blockBlob.Name + " is zero length.  CalculateBlobFileHash failed with error: " + e.Message);
+                _Log.LogInformation($"\n{blockBlob.Name} is zero length.  CalculateBlobFileHash failed with error: {e.Message}");
                 return null;
             }
             catch (Exception e)
             {
-                _Log.LogInformation("\ncalculatingBlobFileHash for " + blockBlob.Name + " failed with: " + e.Message);
+                _Log.LogInformation($"\ncalculatingBlobFileHash for {blockBlob.Name} failed with: {e.Message}");
                 return null;
             }
         }
@@ -243,7 +243,7 @@ namespace semisupervisedFramework
             {
                 using (MD5 md5 = MD5.Create())
                 {
-                    MemoryStream MemStream = new MemoryStream();
+                    MemoryStream memStream = new MemoryStream();
                     using (var stream = new FileStream(AzureBlob.Name, FileMode.Open, FileAccess.Read, FileShare.Read, 8192, true))
                     {
                         int length;
@@ -302,8 +302,8 @@ namespace semisupervisedFramework
 
             // Get a reference to the json blob and hydrate it into the json blob class attributes.
             //*****TODO***** there is a way to hydrate directly from a JObject to a C# object in one line, update this logic to simplify the code.
-            CloudStorageAccount StorageAccount = Engine.StorageAccount;
-            CloudBlobClient blobClient = StorageAccount.CreateCloudBlobClient();
+            CloudStorageAccount storageAccount = Engine.StorageAccount;
+            CloudBlobClient blobClient = storageAccount.CreateCloudBlobClient();
             CloudBlobContainer jsonContainer = blobClient.GetContainerReference(Engine.GetEnvironmentVariable("jsonStorageContainerName", Log));
             string boundJsonFileName = engine.GetEncodedHashFileName(md5Hash);
             AzureBlob = jsonContainer.GetBlockBlobReference(boundJsonFileName);
