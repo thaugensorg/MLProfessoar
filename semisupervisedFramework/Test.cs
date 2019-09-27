@@ -350,17 +350,8 @@ namespace semisupervisedFramework
                         JProperty labelsJProperty = new JProperty("labels", labels);
                         jsonBlobJObject.Add(labelsJProperty);
 
-                        string serializedJsonBlob = JsonConvert.SerializeObject(jsonBlobJObject, Formatting.Indented, new JsonSerializerSettings { });
-                        Stream jsonBlobMemStream = new MemoryStream(Encoding.UTF8.GetBytes(serializedJsonBlob));
-                        if (jsonBlobMemStream.Length != 0)
-                        {
-                            await jsonBlob.AzureBlob.UploadFromStreamAsync(jsonBlobMemStream);
-                            _Log.LogInformation($"\nJson blob {jsonBlob.AzureBlob.Name} updated with {labels.ToString()}");
-                        }
-                        else
-                        {
-                            throw (new ZeroLengthFileException("\nEncoded json memory stream is zero length and cannot be writted to blob storage"));
-                        }
+                        await _Engine.UploadJsonBlob(jsonBlob.AzureBlob, jsonBlobJObject);
+
                     } //done updating labeling information in json blob
 
                     // copy current raw blob working file from pending supervision to labeled data AND pending new model containers

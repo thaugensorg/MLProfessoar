@@ -210,7 +210,7 @@ namespace semisupervisedFramework
                     AddStateChange(pendingEvaluationStorageContainerName, stateHistory);
 
                     // Upload blob changes to the cloud
-                    await UploadJsonBlob(jsonBlob.AzureBlob, jsonBlobJObject);
+                    await _Engine.UploadJsonBlob(jsonBlob.AzureBlob, jsonBlobJObject);
 
                     // move blobs from pending neww model to pending evlaluation containers.
                     await _Engine.MoveAzureBlobToAzureBlob(storageAccount, dataCloudBlockBlob, pendingEvaluationStorageContainer.GetBlockBlobReference(dataCloudBlockBlob.Name));
@@ -412,7 +412,7 @@ namespace semisupervisedFramework
                     AddEvaluationPass(evaluationPass, evaluationHistory);
 
                     // Upload blob changes to the cloud
-                    await UploadJsonBlob(jsonBlob.AzureBlob, jsonBlobJObject);
+                    await _Engine.UploadJsonBlob(jsonBlob.AzureBlob, jsonBlobJObject);
                 }
 
                 // If the Json blob does not exist create one and include the latest pass iteration information
@@ -442,7 +442,7 @@ namespace semisupervisedFramework
                     CloudBlockBlob JsonCloudBlob = _Search.GetBlob(storageAccount, jsonStorageContainerName, _Engine.GetEncodedHashFileName(blobMd5));
                     JsonCloudBlob.Properties.ContentType = "application/json";
 
-                    await UploadJsonBlob(JsonCloudBlob, BlobAnalysis);
+                    await _Engine.UploadJsonBlob(JsonCloudBlob, BlobAnalysis);
                 }
 
 
@@ -498,21 +498,6 @@ namespace semisupervisedFramework
             stateHistory.Add(stateHistoryObject);
         }
 
-        private static async Task UploadJsonBlob(CloudBlockBlob jsonBlob, JObject jsonBlobJObject)
-        {
-            //upload updated Json blob to cloud container
-            string serializedJsonBlob = JsonConvert.SerializeObject(jsonBlobJObject, Formatting.Indented, new JsonSerializerSettings { });
-            Stream jsonBlobMemStream = new MemoryStream(Encoding.UTF8.GetBytes(serializedJsonBlob));
-            if (jsonBlobMemStream.Length != 0)
-            {
-                await jsonBlob.UploadFromStreamAsync(jsonBlobMemStream);
-            }
-            else
-            {
-                throw (new ZeroLengthFileException("\nEncoded JSON memory stream is zero length and cannot be writted to blob storage"));
-            }
-        }
-
         private async void EvaluationPassed(double modelVerificationPercent, string modelValidationStorageContainerName, string evaluatedDataStorageContainerName, CloudStorageAccount storageAccount, DataBlob dataEvaluating)
         {
             CloudBlockBlob evaluatedData = _Search.GetBlob(storageAccount, evaluatedDataStorageContainerName, dataEvaluating.AzureBlob.Name);
@@ -534,7 +519,7 @@ namespace semisupervisedFramework
                 AddStateChange(evaluatedDataStorageContainerName, stateHistory);
 
                 // Upload blob changes to the cloud
-                await UploadJsonBlob(jsonBlob.AzureBlob, jsonBlobJObject);
+                await _Engine.UploadJsonBlob(jsonBlob.AzureBlob, jsonBlobJObject);
             }
             catch
             {
@@ -584,7 +569,7 @@ namespace semisupervisedFramework
             AddStateChange(pendingSupervisionStorageContainerName, stateHistory);
 
             // Upload blob changes to the cloud
-            await UploadJsonBlob(jsonBlob.AzureBlob, jsonBlobJObject);
+            await _Engine.UploadJsonBlob(jsonBlob.AzureBlob, jsonBlobJObject);
 
         }
     }

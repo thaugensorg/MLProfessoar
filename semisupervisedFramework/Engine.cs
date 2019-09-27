@@ -5,13 +5,14 @@ using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Web;
-
+using System.IO;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Azure.Storage;
 using Microsoft.Azure.Storage.Blob;
 using Microsoft.Azure.Storage.DataMovement;
 
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
 
@@ -345,6 +346,22 @@ namespace semisupervisedFramework
             string encodedHash = EncodeMd5HashForFileName(md5Hash);
             return encodedHash + ".json";
         }
+
+        public async Task UploadJsonBlob(CloudBlockBlob jsonBlob, JObject jsonBlobJObject)
+        {
+            //upload updated Json blob to cloud container
+            string serializedJsonBlob = JsonConvert.SerializeObject(jsonBlobJObject, Formatting.Indented, new JsonSerializerSettings { });
+            Stream jsonBlobMemStream = new MemoryStream(Encoding.UTF8.GetBytes(serializedJsonBlob));
+            if (jsonBlobMemStream.Length != 0)
+            {
+                await jsonBlob.UploadFromStreamAsync(jsonBlobMemStream);
+            }
+            else
+            {
+                throw (new ZeroLengthFileException("\nEncoded JSON memory stream is zero length and cannot be writted to blob storage"));
+            }
+        }
+
     }
     public class EnvironmentVariableNotSetException : Exception
     {
