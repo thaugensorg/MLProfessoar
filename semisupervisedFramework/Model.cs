@@ -79,9 +79,11 @@ namespace semisupervisedFramework
                     JsonBlob boundJson = new JsonBlob(bindingHash, _Engine, _Search, _Log);
                     //Note you cannot pull the URL from the JSON blob because it will have the original URL from the first container when the blob was added to ML Professoar
                     string labeledDataUrl = dataCloudBlockBlob.StorageUri.PrimaryUri.ToString();
-                    string addLabeledDataParameters = $"?dataBlobUrl={labeledDataUrl}";
+                    string evaluationDataParameterName = _Engine.GetEnvironmentVariable("evaluationDataParameterName", _Log);
+                    string addLabeledDataParameters = $"?{evaluationDataParameterName }={labeledDataUrl}";
                     string trainingDataLabels = Uri.EscapeDataString(JsonConvert.SerializeObject(boundJson.Labels));
-                    addLabeledDataParameters = $"{addLabeledDataParameters}&imageLabels={trainingDataLabels}";
+                    string labelingTagsParameterName = _Engine.GetEnvironmentVariable("labelingTagsParameterName", _Log);
+                    addLabeledDataParameters = $"{addLabeledDataParameters}&{labelingTagsParameterName }={trainingDataLabels}";
 
                     //construct and call model URL then fetch response
                     // the model always sends the label set in the message body with the name LabelsJson.  If your model needs other values in the URL then use

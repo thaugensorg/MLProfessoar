@@ -14,7 +14,7 @@ while([string]::IsNullOrWhiteSpace($frameworkStorageAccountName))
   {$frameworkStorageAccountName = Read-Host -Prompt 'Input the name of the azure storage account you want to create for this installation of the orchestration framework.  Note this needs to be between 3 and 24 characters, globally unique in Azure, and contain all lowercase letters and or numbers.'
   if ($frameworkStorageAccountName.length -gt 24){$frameworkStorageAccountName=$null
     Write-Host "Storage account name cannot be longer than 24 charaters." -ForegroundColor "Red"}
-  if ($frameworkStorageAccountName -cmatch '[A-Z]') {$frameworkStorageAccountName=$null
+  if (-Not ($modelStorageAccountName -cmatch "^[a-z0-9]*$")) {$frameworkStorageAccountName=$null
     Write-Host "Storage account name must not have upper case letters." -ForegroundColor "Red"}
   }
 

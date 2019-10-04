@@ -116,8 +116,6 @@ namespace semisupervisedFramework
                     }
                 } while (stringReplaceStart != -1);
 
-                //http://localhost:7071/api/AddLabeledDataClient/?blobUrl=https://semisupervisedstorage.blob.core.windows.net/testimages/hemlock_2.jpg&imageLabels={%22Labels%22:[%22Hemlock%22]}
-
                 string modelRequestUrl = modelApiEndpoint;
                 modelRequestUrl = modelRequestUrl + parameters;
 
