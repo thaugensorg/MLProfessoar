@@ -10,6 +10,9 @@ while([string]::IsNullOrWhiteSpace($subscription))
 $frameworkResourceGroupName = Read-Host -Prompt 'Input the name of the resource group that you want to create for installing this orchestration framework for managing semisupervised models.  (default=MLProfessoar)'
 if ([string]::IsNullOrWhiteSpace($frameworkResourceGroupName)) {$frameworkResourceGroupName = "MLProfessoar"}
 
+$frameworkKeyVaultName = Read-Host -Prompt 'Input the name of the resource group that you want to create for installing this orchestration framework for managing semisupervised models.  (default=' + $frameworkResourceGroupName + 'KeyVault)'
+if ([string]::IsNullOrWhiteSpace($frameworkKeyVaultName)) {$frameworkKeyVaultName = $frameworkResourceGroupName + 'KeyVault'}
+
 while([string]::IsNullOrWhiteSpace($frameworkStorageAccountName))
   {$frameworkStorageAccountName = Read-Host -Prompt 'Input the name of the azure storage account you want to create for this installation of the orchestration framework.  Note this needs to be between 3 and 24 characters, globally unique in Azure, and contain all lowercase letters and or numbers.'
   if ($frameworkStorageAccountName.length -gt 24){$frameworkStorageAccountName=$null
@@ -110,7 +113,10 @@ az group create `
   --name $frameworkResourceGroupName `
   --location $frameworkLocation
 
-  
+Write-Host "Creating key vault: " $frameworkKeyVaultName  -ForegroundColor "Green"
+
+az keyvault create --name $frameworkKeyVaultName -g $frameworkResourceGroupName
+
 Write-Host "Creating storage account: " $frameworkStorageAccountName  -ForegroundColor "Green"
 
 az storage account create `
