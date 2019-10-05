@@ -1,0 +1,291 @@
+{
+    "name": "MLPObjectDetection",
+    "securityToken": "MLPObjectDetection Token",
+    "sourceConnection": {
+        "name": "MLProfessoarSource",
+        "description": "location VoTT will look for files to process",
+        "providerType": "azureBlobStorage",
+        "providerOptions": {
+            "encrypted": "eyJjaXBoZXJ0ZXh0IjoiNzU3Y2ZhNWVlNjM3YzQwMTcxMDk2NTg1ODQxMmVmN2JiZDAwMjA5ZGMxZWIwOGY5ZjgzMTVlZDMwODg2MzU5OTM5NTNiZThmYTkzY2NlNTFmNTI5MjNiNTE5ZGE3ZDJjNTdkNmE4YmNhODNiNmIzYjcyNGJiODkxYjJiZDMxYjgzM2FhMWRhMzE0MWQ5YTMwN2JkNzIwNzUzMmQyNzYzOWM4ZGFmYTI2YmE1OWFlNzcwYWI2ODEzNjQ2YjY1ODI0MDEzOWE0NTVjNGFlNTRiMTY5ODc5MDZlNDk1Y2UyYTcwZjczYzI0MjljNWMxZjlkMjRmM2NlMzMzNjQ1YzFjZmM4MTA4ZjRiNWVkMTc3YzRmZmE0OGM1NDMwYWU0YWRiYzdmMmZmNTFhMWI2Y2Y5MTc3ZTAxZjRlNjFlZDc1ZjRhZDdkNDUzNDJlMzM4NzI3ZjgwNzM1MmU1MWZiMGQwOTA0N2QxZGI4MTU4YjljMjEwZDRkNTE2Nzk5NTVkMmQ0Y2EzMzg2NGIwNGI2NzM5ZDVmZGMwZTI1Y2Q5Y2UyMDU4ZGYxN2RlZTRmMTQ2NjJiMDY4NmM0YTMzMzE5MWNiOTA5ZmRlNjAxNDgwYTkzMjg3NDExZmQ2M2NiMWNiNzZjZDgyMDQyYzE4MmMzZWZiZTc4ODIwMDAxZGJjNTRjNTciLCJpdiI6IjJlOTFkOTcyZDIzYzNjMWMzMTRiZGU4M2MzNTA0NDVlYWQzNzUzM2ZiYzNlZDk5NSJ9"
+        },
+        "id": "9IzpuaMrl"
+    },
+    "targetConnection": {
+        "name": "MLProfessoarTarget",
+        "description": "location VoTT will place the output of labeling.",
+        "providerType": "azureBlobStorage",
+        "providerOptions": {
+            "encrypted": "eyJjaXBoZXJ0ZXh0IjoiNjQ0YjY4ZGZjMDQ3ZDMxYTdmM2QwMzdlZWI5OTgyNmRiYjg4YWM1MGE1NzMyMWE0NGZiYjY2M2RjNzgzM2Q3Mzg3ZDAwMGNiYjkyMmRmNjcyZTVlMWE2NzU1YzUyYjc3MTlhZmVkYzAxNGQ3MWI5ODI0ZTY0NDRhNWY4OGYyNDNjNTcxYjIxY2IzNzY3Mjk5YzlhOGE3YWM2MmI4ZTVmYTVmMzkxMjdiZTg3ZDY5YWU4MzU0MDJhZjhjNmE4NTI0NGIwYjMzODk3OWY3MjM1ZjI3YjNkNjY3NmE0ODk3NGY4NmIwZGE3YjY3YWMzYmNhOGJlYmEzZDQ3ODNmZTczNjNjMDAwMzkzNzc1NjQ0MWIwZDczOGVkYTc2ZDNjNGU3MGY2YWRmOGE3YTM4ZjYyMmM0Nzc1NmI1OWRmNmFlZjAxYWY2ODczYjZlYWMxYTI2ZmU3ZmNmNGMyNzA0YWY2MjVkYzkyMDUyMmQ2MjkzMzliZTAwNmMwNzYwMTc4NTFiNmM1NTcxOWZhZjEzN2MxMjgwYTIzNmE4MGYzMzgwZDhmOGUyZWZlYTk2MDFjMjM3NWU1YTdkNjIwMjE3N2NkMGM3ODNmZWIwNGE0MzdhMzE1N2IxM2RkYTE2ZGE5ZDQ2IiwiaXYiOiI2MTc1YmM5MDJmNzJhNzkxY2VkMTljZDJjNmZhNjcyNjU1NjZhNzc3YWVkZDQ3MDUifQ=="
+        },
+        "id": "MJM1g6nhG"
+    },
+    "videoSettings": {
+        "frameExtractionRate": 15
+    },
+    "tags": [
+        {
+            "name": "Japanese Cherry",
+            "color": "#FF0000"
+        },
+        {
+            "name": "Hemlock",
+            "color": "#FF00FF"
+        }
+    ],
+    "id": "jEyg9dJM6",
+    "activeLearningSettings": {
+        "autoDetect": false,
+        "predictTag": true,
+        "modelPathType": "coco"
+    },
+    "exportFormat": {
+        "providerType": "vottJson",
+        "providerOptions": {
+            "encrypted": "eyJjaXBoZXJ0ZXh0IjoiZjg1NGEyOTJkY2E4NzYwZDUzMDM1ZmFlYjgxMjA1MjdkYTFjYTcxMjBkZjY3M2M1NTA3NjYzYzJiM2MwMDYwNzE2OWJjNTMwMjRiMTI5NGYxMmFhM2MyM2U4OGVjYzFjIiwiaXYiOiJjYTE4MTU1ZTliY2Y2NTg1NmY3ZWZjODgyYzljYjQ3ZDY2YzRjZDhiNWQ2OTc0ODAifQ=="
+        }
+    },
+    "version": "2.1.0",
+    "lastVisitedAssetId": "5c7550aedc6990857e92c1417dcaf35d",
+    "assets": {
+        "3eaade16e0f98799912c6455d1ccde98": {
+            "id": "3eaade16e0f98799912c6455d1ccde98",
+            "format": "jpg",
+            "state": 2,
+            "type": 1,
+            "name": "hemlock_1.jpg",
+            "path": "https://mlprofessoarstorage.blob.core.windows.net/pendingsupervision/hemlock_1.jpg?sv=2018-03-28&ss=bfqt&srt=sco&sp=rwdlacup&se=2019-12-31T08:46:10Z&st=2019-10-04T23:46:10Z&spr=https,http&sig=m0PVyM6a%2BIFZG5cZexFSazGWlqzC5UDe60JPM1kuV8c%3D",
+            "size": {
+                "width": 900,
+                "height": 1600
+            }
+        },
+        "04dd4ec1ee103de47dba46fc84f032fa": {
+            "id": "04dd4ec1ee103de47dba46fc84f032fa",
+            "format": "jpg",
+            "state": 2,
+            "type": 1,
+            "name": "hemlock_10.jpg",
+            "path": "https://mlprofessoarstorage.blob.core.windows.net/pendingsupervision/hemlock_10.jpg?sv=2018-03-28&ss=bfqt&srt=sco&sp=rwdlacup&se=2019-12-31T08:46:10Z&st=2019-10-04T23:46:10Z&spr=https,http&sig=m0PVyM6a%2BIFZG5cZexFSazGWlqzC5UDe60JPM1kuV8c%3D",
+            "size": {
+                "width": 1095,
+                "height": 900
+            }
+        },
+        "f2e12a30a1945f10da5c563949ab2d0d": {
+            "id": "f2e12a30a1945f10da5c563949ab2d0d",
+            "format": "jpg",
+            "state": 2,
+            "type": 1,
+            "name": "hemlock_2.jpg",
+            "path": "https://mlprofessoarstorage.blob.core.windows.net/pendingsupervision/hemlock_2.jpg?sv=2018-03-28&ss=bfqt&srt=sco&sp=rwdlacup&se=2019-12-31T08:46:10Z&st=2019-10-04T23:46:10Z&spr=https,http&sig=m0PVyM6a%2BIFZG5cZexFSazGWlqzC5UDe60JPM1kuV8c%3D",
+            "size": {
+                "width": 1600,
+                "height": 900
+            }
+        },
+        "1d240db61b746366613f7f7ab8723135": {
+            "id": "1d240db61b746366613f7f7ab8723135",
+            "format": "jpg",
+            "state": 2,
+            "type": 1,
+            "name": "hemlock_3.jpg",
+            "path": "https://mlprofessoarstorage.blob.core.windows.net/pendingsupervision/hemlock_3.jpg?sv=2018-03-28&ss=bfqt&srt=sco&sp=rwdlacup&se=2019-12-31T08:46:10Z&st=2019-10-04T23:46:10Z&spr=https,http&sig=m0PVyM6a%2BIFZG5cZexFSazGWlqzC5UDe60JPM1kuV8c%3D",
+            "size": {
+                "width": 900,
+                "height": 1600
+            }
+        },
+        "375d6cbd214af9ed0140aee19ad9934b": {
+            "id": "375d6cbd214af9ed0140aee19ad9934b",
+            "format": "jpg",
+            "state": 2,
+            "type": 1,
+            "name": "hemlock_4.jpg",
+            "path": "https://mlprofessoarstorage.blob.core.windows.net/pendingsupervision/hemlock_4.jpg?sv=2018-03-28&ss=bfqt&srt=sco&sp=rwdlacup&se=2019-12-31T08:46:10Z&st=2019-10-04T23:46:10Z&spr=https,http&sig=m0PVyM6a%2BIFZG5cZexFSazGWlqzC5UDe60JPM1kuV8c%3D",
+            "size": {
+                "width": 839,
+                "height": 1600
+            }
+        },
+        "b4ed21ce1fbcc948661218c1b9186189": {
+            "id": "b4ed21ce1fbcc948661218c1b9186189",
+            "format": "jpg",
+            "state": 2,
+            "type": 1,
+            "name": "hemlock_5.jpg",
+            "path": "https://mlprofessoarstorage.blob.core.windows.net/pendingsupervision/hemlock_5.jpg?sv=2018-03-28&ss=bfqt&srt=sco&sp=rwdlacup&se=2019-12-31T08:46:10Z&st=2019-10-04T23:46:10Z&spr=https,http&sig=m0PVyM6a%2BIFZG5cZexFSazGWlqzC5UDe60JPM1kuV8c%3D",
+            "size": {
+                "width": 900,
+                "height": 1206
+            }
+        },
+        "0ae321616518d20c9f6024e35c86d86a": {
+            "id": "0ae321616518d20c9f6024e35c86d86a",
+            "format": "jpg",
+            "state": 2,
+            "type": 1,
+            "name": "hemlock_6.jpg",
+            "path": "https://mlprofessoarstorage.blob.core.windows.net/pendingsupervision/hemlock_6.jpg?sv=2018-03-28&ss=bfqt&srt=sco&sp=rwdlacup&se=2019-12-31T08:46:10Z&st=2019-10-04T23:46:10Z&spr=https,http&sig=m0PVyM6a%2BIFZG5cZexFSazGWlqzC5UDe60JPM1kuV8c%3D",
+            "size": {
+                "width": 900,
+                "height": 1531
+            }
+        },
+        "9bce1a29ca7fa00223b926bcc5d4c2be": {
+            "id": "9bce1a29ca7fa00223b926bcc5d4c2be",
+            "format": "jpg",
+            "state": 2,
+            "type": 1,
+            "name": "hemlock_7.jpg",
+            "path": "https://mlprofessoarstorage.blob.core.windows.net/pendingsupervision/hemlock_7.jpg?sv=2018-03-28&ss=bfqt&srt=sco&sp=rwdlacup&se=2019-12-31T08:46:10Z&st=2019-10-04T23:46:10Z&spr=https,http&sig=m0PVyM6a%2BIFZG5cZexFSazGWlqzC5UDe60JPM1kuV8c%3D",
+            "size": {
+                "width": 900,
+                "height": 1600
+            }
+        },
+        "c92948048bb133c68dbbacaab519665d": {
+            "id": "c92948048bb133c68dbbacaab519665d",
+            "format": "jpg",
+            "state": 2,
+            "type": 1,
+            "name": "hemlock_8.jpg",
+            "path": "https://mlprofessoarstorage.blob.core.windows.net/pendingsupervision/hemlock_8.jpg?sv=2018-03-28&ss=bfqt&srt=sco&sp=rwdlacup&se=2019-12-31T08:46:10Z&st=2019-10-04T23:46:10Z&spr=https,http&sig=m0PVyM6a%2BIFZG5cZexFSazGWlqzC5UDe60JPM1kuV8c%3D",
+            "size": {
+                "width": 900,
+                "height": 1600
+            }
+        },
+        "93236fdf0bec843956d377b9b90b8af0": {
+            "id": "93236fdf0bec843956d377b9b90b8af0",
+            "format": "jpg",
+            "state": 2,
+            "type": 1,
+            "name": "hemlock_9.jpg",
+            "path": "https://mlprofessoarstorage.blob.core.windows.net/pendingsupervision/hemlock_9.jpg?sv=2018-03-28&ss=bfqt&srt=sco&sp=rwdlacup&se=2019-12-31T08:46:10Z&st=2019-10-04T23:46:10Z&spr=https,http&sig=m0PVyM6a%2BIFZG5cZexFSazGWlqzC5UDe60JPM1kuV8c%3D",
+            "size": {
+                "width": 775,
+                "height": 1600
+            }
+        },
+        "6ebddc57eeaa882a0b55ee2411967285": {
+            "id": "6ebddc57eeaa882a0b55ee2411967285",
+            "format": "jpg",
+            "state": 2,
+            "type": 1,
+            "name": "japanese_cherry_1.jpg",
+            "path": "https://mlprofessoarstorage.blob.core.windows.net/pendingsupervision/japanese_cherry_1.jpg?sv=2018-03-28&ss=bfqt&srt=sco&sp=rwdlacup&se=2019-12-31T08:46:10Z&st=2019-10-04T23:46:10Z&spr=https,http&sig=m0PVyM6a%2BIFZG5cZexFSazGWlqzC5UDe60JPM1kuV8c%3D",
+            "size": {
+                "width": 900,
+                "height": 900
+            }
+        },
+        "94d52f2a559ef6f5063719b80a85216c": {
+            "id": "94d52f2a559ef6f5063719b80a85216c",
+            "format": "jpg",
+            "state": 2,
+            "type": 1,
+            "name": "japanese_cherry_10.jpg",
+            "path": "https://mlprofessoarstorage.blob.core.windows.net/pendingsupervision/japanese_cherry_10.jpg?sv=2018-03-28&ss=bfqt&srt=sco&sp=rwdlacup&se=2019-12-31T08:46:10Z&st=2019-10-04T23:46:10Z&spr=https,http&sig=m0PVyM6a%2BIFZG5cZexFSazGWlqzC5UDe60JPM1kuV8c%3D",
+            "size": {
+                "width": 900,
+                "height": 1600
+            }
+        },
+        "0f9ac901cde18c276bbb682f7fa71ff5": {
+            "id": "0f9ac901cde18c276bbb682f7fa71ff5",
+            "format": "jpg",
+            "state": 2,
+            "type": 1,
+            "name": "japanese_cherry_2.jpg",
+            "path": "https://mlprofessoarstorage.blob.core.windows.net/pendingsupervision/japanese_cherry_2.jpg?sv=2018-03-28&ss=bfqt&srt=sco&sp=rwdlacup&se=2019-12-31T08:46:10Z&st=2019-10-04T23:46:10Z&spr=https,http&sig=m0PVyM6a%2BIFZG5cZexFSazGWlqzC5UDe60JPM1kuV8c%3D",
+            "size": {
+                "width": 900,
+                "height": 1600
+            }
+        },
+        "11e3576bea9ab16c45e6d9d950ef7f24": {
+            "id": "11e3576bea9ab16c45e6d9d950ef7f24",
+            "format": "jpg",
+            "state": 2,
+            "type": 1,
+            "name": "japanese_cherry_3.jpg",
+            "path": "https://mlprofessoarstorage.blob.core.windows.net/pendingsupervision/japanese_cherry_3.jpg?sv=2018-03-28&ss=bfqt&srt=sco&sp=rwdlacup&se=2019-12-31T08:46:10Z&st=2019-10-04T23:46:10Z&spr=https,http&sig=m0PVyM6a%2BIFZG5cZexFSazGWlqzC5UDe60JPM1kuV8c%3D",
+            "size": {
+                "width": 1600,
+                "height": 900
+            }
+        },
+        "0ad1854e5271d9e5e384da2b8c1a33ed": {
+            "id": "0ad1854e5271d9e5e384da2b8c1a33ed",
+            "format": "jpg",
+            "state": 2,
+            "type": 1,
+            "name": "japanese_cherry_4.jpg",
+            "path": "https://mlprofessoarstorage.blob.core.windows.net/pendingsupervision/japanese_cherry_4.jpg?sv=2018-03-28&ss=bfqt&srt=sco&sp=rwdlacup&se=2019-12-31T08:46:10Z&st=2019-10-04T23:46:10Z&spr=https,http&sig=m0PVyM6a%2BIFZG5cZexFSazGWlqzC5UDe60JPM1kuV8c%3D",
+            "size": {
+                "width": 900,
+                "height": 1600
+            }
+        },
+        "702d465dbe372487f4d8037e1fbdb7bc": {
+            "id": "702d465dbe372487f4d8037e1fbdb7bc",
+            "format": "jpg",
+            "state": 2,
+            "type": 1,
+            "name": "japanese_cherry_5.jpg",
+            "path": "https://mlprofessoarstorage.blob.core.windows.net/pendingsupervision/japanese_cherry_5.jpg?sv=2018-03-28&ss=bfqt&srt=sco&sp=rwdlacup&se=2019-12-31T08:46:10Z&st=2019-10-04T23:46:10Z&spr=https,http&sig=m0PVyM6a%2BIFZG5cZexFSazGWlqzC5UDe60JPM1kuV8c%3D",
+            "size": {
+                "width": 900,
+                "height": 1600
+            }
+        },
+        "321152c5fd7fb2dee7cd1be2426047b2": {
+            "id": "321152c5fd7fb2dee7cd1be2426047b2",
+            "format": "jpg",
+            "state": 2,
+            "type": 1,
+            "name": "japanese_cherry_6.jpg",
+            "path": "https://mlprofessoarstorage.blob.core.windows.net/pendingsupervision/japanese_cherry_6.jpg?sv=2018-03-28&ss=bfqt&srt=sco&sp=rwdlacup&se=2019-12-31T08:46:10Z&st=2019-10-04T23:46:10Z&spr=https,http&sig=m0PVyM6a%2BIFZG5cZexFSazGWlqzC5UDe60JPM1kuV8c%3D",
+            "size": {
+                "width": 1600,
+                "height": 900
+            }
+        },
+        "9052cebeb386a86869f8c96664650ee3": {
+            "id": "9052cebeb386a86869f8c96664650ee3",
+            "format": "jpg",
+            "state": 2,
+            "type": 1,
+            "name": "japanese_cherry_7.jpg",
+            "path": "https://mlprofessoarstorage.blob.core.windows.net/pendingsupervision/japanese_cherry_7.jpg?sv=2018-03-28&ss=bfqt&srt=sco&sp=rwdlacup&se=2019-12-31T08:46:10Z&st=2019-10-04T23:46:10Z&spr=https,http&sig=m0PVyM6a%2BIFZG5cZexFSazGWlqzC5UDe60JPM1kuV8c%3D",
+            "size": {
+                "width": 1600,
+                "height": 900
+            }
+        },
+        "1682823b96d603fa01c4998b7ab4b912": {
+            "id": "1682823b96d603fa01c4998b7ab4b912",
+            "format": "jpg",
+            "state": 2,
+            "type": 1,
+            "name": "japanese_cherry_8.jpg",
+            "path": "https://mlprofessoarstorage.blob.core.windows.net/pendingsupervision/japanese_cherry_8.jpg?sv=2018-03-28&ss=bfqt&srt=sco&sp=rwdlacup&se=2019-12-31T08:46:10Z&st=2019-10-04T23:46:10Z&spr=https,http&sig=m0PVyM6a%2BIFZG5cZexFSazGWlqzC5UDe60JPM1kuV8c%3D",
+            "size": {
+                "width": 1600,
+                "height": 900
+            }
+        },
+        "5c7550aedc6990857e92c1417dcaf35d": {
+            "id": "5c7550aedc6990857e92c1417dcaf35d",
+            "format": "jpg",
+            "state": 2,
+            "type": 1,
+            "name": "japanese_cherry_9.jpg",
+            "path": "https://mlprofessoarstorage.blob.core.windows.net/pendingsupervision/japanese_cherry_9.jpg?sv=2018-03-28&ss=bfqt&srt=sco&sp=rwdlacup&se=2019-12-31T08:46:10Z&st=2019-10-04T23:46:10Z&spr=https,http&sig=m0PVyM6a%2BIFZG5cZexFSazGWlqzC5UDe60JPM1kuV8c%3D",
+            "size": {
+                "width": 900,
+                "height": 1200
+            }
+        }
+    }
+}
