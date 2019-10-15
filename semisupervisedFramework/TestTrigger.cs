@@ -28,6 +28,7 @@ namespace semisupervisedFramework
                     string evaluatePassingDataTestResults = "";
                     string evaluateFailingDataTestResults = "";
                     string labelDataTestResults = "";
+                    string loadLabeledDataTestResults = "";
 
                     // get a reference to the invocation blob file so that it can be deleted after the test is launched.
                     string storageConnection = engine.GetEnvironmentVariable("AzureWebJobsStorage", log);
@@ -133,6 +134,22 @@ namespace semisupervisedFramework
                             else
                             {
                                 testResults = $"All test passed! with results: {labelDataTestResults}";
+                                log.LogInformation(testResults);
+                            }
+
+                            break;
+
+                        case "LoadLabeledData.test":
+                            testInitiationBlob.DeleteIfExists();
+                            loadLabeledDataTestResults = await test.LoadLabeledDataTest();
+                            if (loadLabeledDataTestResults.Contains("Failed:"))
+                            {
+                                testResults = $"Failed: Some test failures exist:\n{loadLabeledDataTestResults}";
+                                log.LogInformation(testResults);
+                            }
+                            else
+                            {
+                                testResults = $"All test passed! with results: {loadLabeledDataTestResults}";
                                 log.LogInformation(testResults);
                             }
 

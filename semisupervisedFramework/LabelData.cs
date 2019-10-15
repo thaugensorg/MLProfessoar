@@ -33,10 +33,11 @@ namespace semisupervisedFramework
             CloudBlockBlob labelingOutputJsonBlob = labelingOutputStorageContainer.GetBlockBlobReference(labelingJsonBlobName);
 
             // Download the labeling results Json
-            JObject labelingOutput = JObject.Parse(labelingOutputJsonBlob.DownloadText());
+            string labelingOutput = labelingOutputJsonBlob.DownloadText();
+            JObject labelingOutputJobject = JObject.Parse(labelingOutput);
 
             // Hydrate the raw data file
-            string boundJsonFileName = (string)labelingOutput.SelectToken("asset.name");
+            string boundJsonFileName = (string)labelingOutputJobject.SelectToken("asset.name");
             string pendingSupervisionStorageContainerName = engine.GetEnvironmentVariable("pendingSupervisionStorageContainerName", log);
             CloudBlobContainer pendingSupervisionStorageContainer = blobClient.GetContainerReference(pendingSupervisionStorageContainerName);
             CloudBlockBlob rawDataBlob = pendingSupervisionStorageContainer.GetBlockBlobReference(boundJsonFileName);
@@ -47,22 +48,31 @@ namespace semisupervisedFramework
             {
             }
             JsonBlob boundJsonBlob = new JsonBlob(rawDataBlob.Properties.ContentMD5.ToString(), engine, search, log);
-            JProperty labels = (JProperty)boundJsonBlob.Json.SelectToken("labels");
-            if (labels == null)
-            {
-                // Create a labels property, add it to the bound json and then upload the file.
-                labels = new JProperty("labels", labelingOutput);
-                boundJsonBlob.Json.Add(labels);
-            }
-            else
+            JToken labels = (JToken)boundJsonBlob.Json.SelectToken("labels");
+            if (labels != null)
             {
                 // Update labeling value in bound json to the latest labeling value
                 log.LogInformation($"\nJson blob {boundJsonBlob.Name} for  data file {rawDataBlob.Name} already has configured labels {labels}.  Existing labels overwritten.");
-                labels["labels"] = labelingOutput;
-
+                labels.Parent.Remove();
             }
+
+            // Create a labels property, add it to the bound json and then upload the file.
+            JProperty labelsJProperty = new JProperty("labels", labelingOutputJobject);
+            boundJsonBlob.Json.Add(labelsJProperty);
+
             // update bound json blob with the latest json
             await engine.UploadJsonBlob(boundJsonBlob.AzureBlob, boundJsonBlob.Json);
+
+            string pendingNewModelStorageContainerName = engine.GetEnvironmentVariable("pendingNewModelStorageContainerName", log);
+            CloudBlobContainer pendingNewModelStorageContainer = blobClient.GetContainerReference(pendingNewModelStorageContainerName);
+            string labeledDataStorageContainerName = engine.GetEnvironmentVariable("labeledDataStorageContainerName", log);
+            CloudBlobContainer labeledDataStorageContainer = blobClient.GetContainerReference(labeledDataStorageContainerName);
+
+            // copy current raw blob working file from pending supervision to labeled data AND pending new model containers
+            CloudBlockBlob pendingNewModelDestinationBlob = pendingNewModelStorageContainer.GetBlockBlobReference(rawDataBlob.Name);
+            CloudBlockBlob labeledDataDestinationBlob = labeledDataStorageContainer.GetBlockBlobReference(rawDataBlob.Name);
+            await engine.CopyAzureBlobToAzureBlob(engine.StorageAccount, rawDataBlob, pendingNewModelDestinationBlob);
+            await engine.MoveAzureBlobToAzureBlob(engine.StorageAccount, rawDataBlob, labeledDataDestinationBlob);
         }
     }
 }

@@ -51,6 +51,8 @@ $pendingSupervisionStorageContainerName = "pendingsupervision"
 
 $evaluationDataParameterName = "dataBlobUrl"
 
+$labelsJsonPath = "labels.regions[0].tags"
+
 $confidenceJSONPath = "confidence"
 
 $confidenceThreshold = .95
@@ -116,6 +118,8 @@ az group create `
 Write-Host "Creating key vault: " $frameworkKeyVaultName  -ForegroundColor "Green"
 
 az keyvault create --name $frameworkKeyVaultName -g $frameworkResourceGroupName
+
+# *****TODO***** need to enable CORS for VOTT solution.  In general, need to add the option to add different labeling solution to the config process.
 
 Write-Host "Creating storage account: " $frameworkStorageAccountName  -ForegroundColor "Green"
 
@@ -682,6 +686,13 @@ az functionapp config appsettings set `
     --name $frameworkFunctionAppName `
     --resource-group $frameworkResourceGroupName `
     --settings "pendingSupervisionStorageContainerName=$pendingSupervisionStorageContainerName"
+
+Write-Host "Creating app config setting: labelsJsonPath: " $labelsJsonPath -ForegroundColor "Green"
+
+az functionapp config appsettings set `
+      --name $frameworkFunctionAppName `
+      --resource-group $frameworkResourceGroupName `
+      --settings "labelsJsonPath=$labelsJsonPath"
 
 Write-Host "Creating app config setting: confidenceThreshold: " $confidenceThreshold -ForegroundColor "Green"
 

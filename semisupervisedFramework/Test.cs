@@ -109,7 +109,7 @@ namespace semisupervisedFramework
             CloudBlobContainer labeledDataStorageContainer = blobClient.GetContainerReference(labeledDataStorageContainerName);
 
             int verifiedBlobs = 0;
-            string response = "Failed: response initialized but not updated";
+            string response = "Failed: response initialized but not updated with test results.";
             foreach (IListBlobItem item in labeledDataStorageContainer.ListBlobs(null, false))
             {
                 if (item is CloudBlockBlob verificationBlob)
@@ -365,6 +365,12 @@ namespace semisupervisedFramework
 
                 } //end if not cloud blobk blob
             } //end loop through all blobs in pending supervision container
+        }
+        public async Task<string> LoadLabeledDataTest()
+        {
+            // add labeled data to the model.
+            string result = await _Model.AddLabeledData();
+            return result;
         }
     }
 }

@@ -276,7 +276,7 @@ namespace semisupervisedFramework
         public string Name { get; set; }
         public JObject Json { get; set; }
         public string Md5Hash { get; set; }
-        public List<string> Labels { get; set; }
+        public string Labels { get; set; }
         private DataBlob _DataBlob;
         public DataBlob DataBlob
         {
@@ -297,7 +297,7 @@ namespace semisupervisedFramework
             Log = log;
             Search = search;
             Engine = engine;
-            Labels = new List<string>();
+            // Labels = new List<string>();
             // Use azure search to return the id of the JSON blob which is also the blob name
 
             // Get a reference to the json blob and hydrate it into the json blob class attributes.
@@ -327,20 +327,15 @@ namespace semisupervisedFramework
                 throw (new MissingRequiredObject($"\nBound JSON for {md5Hash} does not contain an id value."));
             }
 
-            JArray labelsToken = (JArray)Json.SelectToken("labels");
+            JToken labelsToken = Json.SelectToken("labels");
             if (labelsToken != null)
             {
-                //string labelsJson = labelsToken.ToString();
-                //Labels = JsonConvert.DeserializeObject<List<string>>(labelsJson);
-
-                foreach (JObject label in labelsToken)
-                {
-                    Labels.Add(label["label"].ToString());
-                    //Labels = JsonConvert.DeserializeObject<IList<string>>(labelsToken.ToString());
-                    //string labelsJson = labelsToken.ToString();
-                    //Labels = (IList<string>)JsonConvert.DeserializeObject<IEnumerable<string>>(labelsJson);
-                }
+                Labels = labelsToken.ToString();
             }
+            // No exeption is thrown when labels value is not found as it simply means the Json file has not yet been populated with
+            // the labels Json value.  THis normally happens when a new file is added to the system.  The file has a bound Json file
+            // created but the file has not yet been labeled yet so there is no label label in the Json.  As soon as the file is labeled
+            // the label label will be populated.
 
             JToken md5HashToken = Json.SelectToken("Hash");
             if (md5HashToken != null)

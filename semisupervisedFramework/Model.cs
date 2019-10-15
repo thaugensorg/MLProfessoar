@@ -44,7 +44,7 @@ namespace semisupervisedFramework
             string modelType = _Engine.GetEnvironmentVariable("modelType", _Log);
         }
 
-        public string AddLabeledData()
+        public async Task<string> AddLabeledData()
         {
             string trainingDataUrl;
             CloudStorageAccount storageAccount = _Engine.StorageAccount;
@@ -77,13 +77,13 @@ namespace semisupervisedFramework
 
                     //Get the content from the bound JSON file and instanciate a JsonBlob class then retrieve the labels collection from the Json to add to the image.
                     JsonBlob boundJson = new JsonBlob(bindingHash, _Engine, _Search, _Log);
-                    //Note you cannot pull the URL from the JSON blob because it will have the original URL from the first container when the blob was added to ML Professoar
+                    //Note: you cannot pull the URL from the JSON blob because it will have the original URL from the first container when the blob was added to ML Professoar
                     string labeledDataUrl = dataCloudBlockBlob.StorageUri.PrimaryUri.ToString();
                     string evaluationDataParameterName = _Engine.GetEnvironmentVariable("evaluationDataParameterName", _Log);
                     string addLabeledDataParameters = $"?{evaluationDataParameterName }={labeledDataUrl}";
-                    string trainingDataLabels = Uri.EscapeDataString(JsonConvert.SerializeObject(boundJson.Labels));
                     string labelingTagsParameterName = _Engine.GetEnvironmentVariable("labelingTagsParameterName", _Log);
-                    addLabeledDataParameters = $"{addLabeledDataParameters}&{labelingTagsParameterName }={trainingDataLabels}";
+                    //addLabeledDataParameters = $"{addLabeledDataParameters}&{labelingTagsParameterName}={trainingDataLabels}";
+                    //string addLabeledDataContent = $"{labelingTagsParameterName}={trainingDataLabels}";
 
                     //construct and call model URL then fetch response
                     // the model always sends the label set in the message body with the name LabelsJson.  If your model needs other values in the URL then use
@@ -96,9 +96,13 @@ namespace semisupervisedFramework
                     string labeledDataServiceEndpoint = _Engine.GetEnvironmentVariable("LabeledDataServiceEndpoint", _Log);
                     string addLabeledDataUrl = _Engine.ConstructModelRequestUrl(labeledDataServiceEndpoint, addLabeledDataParameters);
                     _Log.LogInformation($"\n Getting response from {addLabeledDataUrl}");
-                    _Response = _Client.GetAsync(addLabeledDataUrl).Result;
+                    //_Response = _Client.GetAsync(addLabeledDataUrl).Result;
+                    _Response = await _Client.PostAsync(
+                        addLabeledDataUrl,
+                        new StringContent(boundJson.Labels, Encoding.UTF8, "application/json")
+                        );
                     _ResponseString = _Response.Content.ReadAsStringAsync().Result;
-                    if (string.IsNullOrEmpty(_ResponseString)) throw (new MissingRequiredObject($"\nresponseString not generated from URL: {addLabeledDataUrl}"));
+                    if (string.IsNullOrEmpty(_ResponseString)) throw (new MissingRequiredObject($"\nresponseString not generated from URL: {addLabeledDataUrl}.  Processing will stop for labeleddata blobs."));
 
                     //the code below is for passing labels and conent as http content and not on the URL string.
                     //Format the Data Labels content
@@ -244,7 +248,7 @@ namespace semisupervisedFramework
 
                     //Add full set set of labeled training data to the model
                     //*****TODO***** add logic to only add incremental labeled data to model
-                    string addLabeledDataResult = AddLabeledData();
+                    string addLabeledDataResult = await AddLabeledData();
 
                     //Train model using latest labeled training data.
                     string trainingResultsString = await Train();
