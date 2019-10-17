@@ -15,7 +15,7 @@ namespace semisupervisedFramework
         public static void Run([BlobTrigger("labelingoutput/{blobName}", Connection = "AzureWebJobsStorage")]Stream myBlob, string blobName, ILogger log)
         {
             // Do not process the vott project file.
-            if (blobName.Split('.')[1] != "vott")
+            if (!blobName.ToLower().Contains("vott"))
             {
                 Engine engine = new Engine(log);
                 LabelData labelData = new LabelData();

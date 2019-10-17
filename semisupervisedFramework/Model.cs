@@ -87,7 +87,7 @@ namespace semisupervisedFramework
 
                     //construct and call model URL then fetch response
                     // the model always sends the label set in the message body with the name LabelsJson.  If your model needs other values in the URL then use
-                    //{ {environment variable name}}.
+                    // {{environment variable name}}.
                     // So the example load labels function in the sameple model package would look like this:
                     // https://branddetectionapp.azurewebsites.net/api/loadimagetags/?projectID={{ProjectID}}
                     // The orchestration engine appends the labels json file to the message body.
