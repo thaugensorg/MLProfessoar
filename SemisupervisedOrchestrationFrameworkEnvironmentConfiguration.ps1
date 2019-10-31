@@ -188,7 +188,6 @@ Set-AzKeyVaultAccessPolicy -VaultName $frameworkKeyVaultName -ObjectId (Get-Azur
 $staticStorageContainers = "$pendingEvaluationStorageContainerName $evaluatedDataStorageContainerName $pendingSupervisionStorageContainerName $jsonStorageContainerName testinvocation testdata" 
 Write-Host "Creating static model storage containers: " $staticStorageContainers  -ForegroundColor "Green"
 $staticStorageContainers.split() | New-AzStorageContainer -Context $StorageContext
-# $staticStorageContainers.split() | New-AzStorageContainer -Permission Container -Context $StorageContext
 
 #These storage containers are only used for trained models
 if ($modelType -eq "Trained")
@@ -690,213 +689,53 @@ Invoke-RestMethod -Uri $url -Headers $headers -Method Put -Body $body | ConvertT
 
 }
 
-Write-Host "Creating app config setting: modelType: " $modelType -ForegroundColor "Green"
+Write-Host "Creating app config settings." -ForegroundColor "Green"
 
+# Create environment variables common to both static and trained models
 az functionapp config appsettings set `
     --name $frameworkFunctionAppName `
     --resource-group $frameworkResourceGroupName `
-    --settings "modelType=$modelType"
+    --settings "modelType=$modelType " `
+    "pendingEvaluationStorageContainerName=$pendingEvaluationStorageContainerName " `
+    "evaluatedDataStorageContainerName=$evaluatedDataStorageContainerName " `
+    "jsonStorageContainerName=$jsonStorageContainerName " `
+    "pendingSupervisionStorageContainerName=$pendingSupervisionStorageContainerName " `
+    "labelsJsonPath=$labelsJsonPath " `
+    "confidenceThreshold=$confidenceThreshold " `
+    "confidenceJSONPath=$confidenceJSONPath " `
+    "DataEvaluationServiceEndpoint=$dataEvaluationServiceEndpoint " `
+    "evaluationDataParameterName=$evaluationDataParameterName"
 
-Write-Host "Creating app config setting: pendingEvaluationStorageContainerName: " $pendingEvaluationStorageContainerName -ForegroundColor "Green"
-
-az functionapp config appsettings set `
-    --name $frameworkFunctionAppName `
-    --resource-group $frameworkResourceGroupName `
-    --settings "pendingEvaluationStorageContainerName=$pendingEvaluationStorageContainerName" 
-
-Write-Host "Creating app config setting: evaluatedDataStorageContainerName: " $evaluatedDataStorageContainerName -ForegroundColor "Green"
-
-az functionapp config appsettings set `
-    --name $frameworkFunctionAppName `
-    --resource-group $frameworkResourceGroupName `
-    --settings "evaluatedDataStorageContainerName=$evaluatedDataStorageContainerName" 
-
-Write-Host "Creating app config setting: jsonStorageContainerName: " $jsonStorageContainerName -ForegroundColor "Green"
-
-az functionapp config appsettings set `
-    --name $frameworkFunctionAppName `
-    --resource-group $frameworkResourceGroupName `
-    --settings "jsonStorageContainerName=$jsonStorageContainerName"
-
-Write-Host "Creating app config setting: pendingSupervisionStorageContainerName: " $pendingSupervisionStorageContainerName -ForegroundColor "Green"
-
-az functionapp config appsettings set `
-    --name $frameworkFunctionAppName `
-    --resource-group $frameworkResourceGroupName `
-    --settings "pendingSupervisionStorageContainerName=$pendingSupervisionStorageContainerName"
-
-Write-Host "Creating app config setting: labelsJsonPath: " $labelsJsonPath -ForegroundColor "Green"
-
-az functionapp config appsettings set `
-      --name $frameworkFunctionAppName `
-      --resource-group $frameworkResourceGroupName `
-      --settings "labelsJsonPath=$labelsJsonPath"
-
-Write-Host "Creating app config setting: confidenceThreshold: " $confidenceThreshold -ForegroundColor "Green"
-
-az functionapp config appsettings set `
-  --name $frameworkFunctionAppName `
-  --resource-group $frameworkResourceGroupName `
-  --settings "confidenceThreshold=$confidenceThreshold" 
-
-Write-Host "Creating app config setting: confidenceJSONPath: " $confidenceJSONPath -ForegroundColor "Green"
-
-az functionapp config appsettings set `
-  --name $frameworkFunctionAppName `
-  --resource-group $frameworkResourceGroupName `
-  --settings "confidenceJSONPath=$confidenceJSONPath"
-
-Write-Host "Creating app config setting: DataEvaluationServiceEndpoint: " $dataEvaluationServiceEndpoint -ForegroundColor "Green"
-
-az functionapp config appsettings set `
-  --name $frameworkFunctionAppName `
-  --resource-group $frameworkResourceGroupName `
-  --settings "DataEvaluationServiceEndpoint=$dataEvaluationServiceEndpoint"
-
-Write-Host "Creating app config setting: evaluationDataParameterName: " $evaluationDataParameterName -ForegroundColor "Green"
-
-az functionapp config appsettings set `
-  --name $frameworkFunctionAppName `
-  --resource-group $frameworkResourceGroupName `
-  --settings "evaluationDataParameterName=$evaluationDataParameterName"
-
-#These environment variables are only used for trained models
+# Create environment variables for trained models.
 if ($modelType -eq "Trained")
 {
 
-Write-Host "Creating app config setting: blobSearchEndpoint: " $frameworkFunctionAppName -ForegroundColor "Green"
-
-az functionapp config appsettings set `
-  --name $frameworkFunctionAppName `
-  --resource-group $frameworkResourceGroupName `
-  --settings "blobSearchEndpoint=$blobSearchEndpointUrl"
-
-  Write-Host "Creating app config setting: labelingTagsParameterName: " $labelingTagsParameterName -ForegroundColor "Green"
-
-  az functionapp config appsettings set `
-    --name $frameworkFunctionAppName `
-    --resource-group $frameworkResourceGroupName `
-    --settings "labelingTagsParameterName=$labelingTagsParameterName"
-  
-Write-Host "Creating app config setting: KeyVaultName" -ForegroundColor "Green"
+Write-Host "Creating app config settings for trained models" -ForegroundColor "Green"
 
 $secretvalue = ConvertTo-SecureString $blobSearchServiceKey -AsPlainText -Force
 $secret = Set-AzKeyVaultSecret -VaultName $frameworkKeyVaultName -Name 'blobSearchKey' -SecretValue $secretvalue
+$blobSearchKeySetting = "blobSearchKey=@Microsoft.KeyVault(SecretUri=" + $secret.id + ") "
 
 az functionapp config appsettings set `
   --name $frameworkFunctionAppName `
   --resource-group $frameworkResourceGroupName `
-  --settings "KeyVaultName=$frameworkKeyVaultName"
-  
-Write-Host "Creating app config setting: blobSearchKey" -ForegroundColor "Green"
-
-$blobSearchKeySetting = "blobSearchKey=@Microsoft.KeyVault(SecretUri=" + $secret.id + ")"
-
-az functionapp config appsettings set `
-  --name $frameworkFunctionAppName `
-  --resource-group $frameworkResourceGroupName `
-  --settings $blobSearchKeySetting
-
-Write-Host "Creating app config setting: blobSearchIndexName: " $blobSearchIndexName -ForegroundColor "Green"
-
-az functionapp config appsettings set `
-  --name $frameworkFunctionAppName `
-  --resource-group $frameworkResourceGroupName `
-  --settings "blobSearchIndexName=$blobSearchIndexName"
-
-Write-Host "Creating app config setting: blobSearchServiceName: " $blobSearchServiceName -ForegroundColor "Green"
-
-az functionapp config appsettings set `
-  --name $frameworkFunctionAppName `
-  --resource-group $frameworkResourceGroupName `
-  --settings "blobSearchServiceName=$blobSearchServiceName"
-
-Write-Host "Creating app config setting: blobsearchdatasource: " $blobsearchdatasource -ForegroundColor "Green"
-
-az functionapp config appsettings set `
-  --name $frameworkFunctionAppName `
-  --resource-group $frameworkResourceGroupName `
-  --settings "blobsearchdatasource=$blobsearchdatasource"
-
-Write-Host "Creating app config setting: blobSearchIndexerName: " $blobSearchIndexerName -ForegroundColor "Green"
-
-az functionapp config appsettings set `
-  --name $frameworkFunctionAppName `
-  --resource-group $frameworkResourceGroupName `
-  --settings "blobSearchIndexerName=$blobSearchIndexerName"
-    
-Write-Host "Creating app config setting: labeledDataStorageContainerName: " $labeledDataStorageContainerName -ForegroundColor "Green"
-
-az functionapp config appsettings set `
-    --name $frameworkFunctionAppName `
-    --resource-group $frameworkResourceGroupName `
-    --settings "labeledDataStorageContainerName=$labeledDataStorageContainerName"
-
-Write-Host "Creating app config setting: modelValidationStorageContainerName: " $modelValidationStorageContainerName -ForegroundColor "Green"
-
-az functionapp config appsettings set `
-    --name $frameworkFunctionAppName `
-    --resource-group $frameworkResourceGroupName `
-    --settings "modelValidationStorageContainerName=$modelValidationStorageContainerName"
-
-Write-Host "Creating app config setting: pendingNewModelStorageContainerName: " $pendingNewModelStorageContainerName -ForegroundColor "Green"
-
-az functionapp config appsettings set `
-    --name $frameworkFunctionAppName `
-    --resource-group $frameworkResourceGroupName `
-    --settings "pendingNewModelStorageContainerName=$pendingNewModelStorageContainerName"
-
-Write-Host "Creating app config setting: modelVerificationPercentage: " $modelVerificationPercentage -ForegroundColor "Green"
-
-az functionapp config appsettings set `
-    --name $frameworkFunctionAppName `
-    --resource-group $frameworkResourceGroupName `
-    --settings "modelVerificationPercentage=$modelVerificationPercentage"
-
-Write-Host "Creating app config setting: labelingTagsBlobName: " $labelingTagsBlobName -ForegroundColor "Green"
-
-az functionapp config appsettings set `
-    --name $frameworkFunctionAppName `
-    --resource-group $frameworkResourceGroupName `
-    --settings "labelingTagsBlobName=$labelingTagsBlobName"
-
-Write-Host "Creating app config setting: labelingTagsFileHash: " $labelingTagsFileHash -ForegroundColor "Green"
-
-az functionapp config appsettings set `
-    --name $frameworkFunctionAppName `
-    --resource-group $frameworkResourceGroupName `
-    --settings "labelingTagsFileHash=$labelingTagsFileHash"
-
-Write-Host "Creating app config setting: TrainModelServiceEndpoint: " $trainModelServiceEndpoint -ForegroundColor "Green"
-
-az functionapp config appsettings set `
-    --name $frameworkFunctionAppName `
-    --resource-group $frameworkResourceGroupName `
-    --settings "TrainModelServiceEndpoint=$trainModelServiceEndpoint"
-
-Write-Host "Creating app config setting: TagsUploadServiceEndpoint: " $tagsUploadServiceEndpoint -ForegroundColor "Green"
-
-az functionapp config appsettings set `
-    --name $frameworkFunctionAppName `
-    --resource-group $frameworkResourceGroupName `
-    --settings "TagsUploadServiceEndpoint=$tagsUploadServiceEndpoint"
-
-Write-Host "Creating app config setting: LabeledDataServiceEndpoint: " $LabeledDataServiceEndpoint -ForegroundColor "Green"
-
-az functionapp config appsettings set `
-    --name $frameworkFunctionAppName `
-    --resource-group $frameworkResourceGroupName `
-    --settings "LabeledDataServiceEndpoint=$LabeledDataServiceEndpoint"
-    
-Write-Host "Creating app config setting: labelingTagsBlobName: " $labelingTagsBlobName -ForegroundColor "Green"
-
-az functionapp config appsettings set `
-    --name $frameworkFunctionAppName `
-    --resource-group $frameworkResourceGroupName `
-    --settings "labelingTagsBlobName=$labelingTagsBlobName"  
-
-az functionapp config appsettings set `
-    --name $frameworkFunctionAppName `
-    --resource-group $frameworkResourceGroupName `
-    --settings "LabelingSolutionName=$LabelingSolutionName"
+  --settings "blobSearchEndpoint=$blobSearchEndpointUrl " `
+  "labelingTagsParameterName=$labelingTagsParameterName " `
+  "KeyVaultName=$frameworkKeyVaultName " `
+  $blobSearchKeySetting `
+  "blobSearchIndexName=$blobSearchIndexName " `
+  "blobSearchServiceName=$blobSearchServiceName " `
+  "blobsearchdatasource=$blobsearchdatasource " `
+  "blobSearchIndexerName=$blobSearchIndexerName " `
+  "labeledDataStorageContainerName=$labeledDataStorageContainerName " `
+  "modelValidationStorageContainerName=$modelValidationStorageContainerName " `
+  "pendingNewModelStorageContainerName=$pendingNewModelStorageContainerName " `
+  "modelVerificationPercentage=$modelVerificationPercentage " `
+  "labelingTagsBlobName=$labelingTagsBlobName " `
+  "labelingTagsFileHash=$labelingTagsFileHash " `
+  "TrainModelServiceEndpoint=$trainModelServiceEndpoint " `
+  "TagsUploadServiceEndpoint=$tagsUploadServiceEndpoint " `
+  "LabeledDataServiceEndpoint=$LabeledDataServiceEndpoint " `
+  "labelingTagsBlobName=$labelingTagsBlobName " `
+  "LabelingSolutionName=$LabelingSolutionName"
 }
