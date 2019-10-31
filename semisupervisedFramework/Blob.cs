@@ -140,9 +140,9 @@ namespace semisupervisedFramework
 
         }
 
-        public Uri GetDataBlobUriFromJson(string md5Hash)
+        public async Task<Uri> GetDataBlobUriFromJson(string md5Hash)
         {
-            SearchIndexClient indexClient = GetJsonBindingSearchIndex();
+            SearchIndexClient indexClient = await GetJsonBindingSearchIndex();
             JObject searchResult = JsonBindingSearchResult(indexClient, md5Hash);
             JToken urlToken = searchResult.SelectToken("url");
             if (urlToken != null)
@@ -155,11 +155,11 @@ namespace semisupervisedFramework
             }
         }
 
-        public JObject SearchForBoundJson(string md5Hash)
+        public async Task<JObject> SearchForBoundJson(string md5Hash)
         {
             try
             {
-                SearchIndexClient indexClient = GetJsonBindingSearchIndex();
+                SearchIndexClient indexClient = await GetJsonBindingSearchIndex();
                 return JsonBindingSearchResult(indexClient, md5Hash);
             }
             catch
@@ -168,10 +168,10 @@ namespace semisupervisedFramework
             }
         }
 
-        public SearchIndexClient GetJsonBindingSearchIndex()
+        public async Task<SearchIndexClient> GetJsonBindingSearchIndex()
         {
             string blobSearchIndexName = Engine.GetEnvironmentVariable("blobSearchIndexName", Log);
-            return Search.CreateSearchIndexClient(blobSearchIndexName, Log);
+            return await Search.CreateSearchIndexClient(blobSearchIndexName, Log);
         }
 
         public JObject JsonBindingSearchResult(SearchIndexClient indexClient, string md5Hash)
@@ -217,7 +217,7 @@ namespace semisupervisedFramework
             Log = log;
             Engine = engine;
             Search = search;
-            Uri DataBlobUri = GetDataBlobUriFromJson(md5Hash);
+            Uri DataBlobUri = GetDataBlobUriFromJson(md5Hash).Result;
             CloudStorageAccount StorageAccount = Engine.StorageAccount;
             CloudBlobClient BlobClient = StorageAccount.CreateCloudBlobClient();
             AzureBlob = new CloudBlockBlob(DataBlobUri, BlobClient);

@@ -10,8 +10,9 @@ while([string]::IsNullOrWhiteSpace($subscription))
 $frameworkResourceGroupName = Read-Host -Prompt 'Input the name of the resource group that you want to create for installing this orchestration framework for managing semisupervised models.  (default=MLProfessoar)'
 if ([string]::IsNullOrWhiteSpace($frameworkResourceGroupName)) {$frameworkResourceGroupName = "MLProfessoar"}
 
-$frameworkKeyVaultName = Read-Host -Prompt 'Input the name of the resource group that you want to create for installing this orchestration framework for managing semisupervised models.  (default=' + $frameworkResourceGroupName + 'KeyVault)'
-if ([string]::IsNullOrWhiteSpace($frameworkKeyVaultName)) {$frameworkKeyVaultName = $frameworkResourceGroupName + 'KeyVault'}
+$KeyVaultPrompt = "Input the name of the key vault that you want to create for this installation of the orchestration framework for managing semisupervised models.  (default=" + $frameworkResourceGroupName + "KeyVault)"
+$frameworkKeyVaultName = Read-Host -Prompt $KeyVaultPrompt
+if ([string]::IsNullOrWhiteSpace($frameworkKeyVaultName)) {$frameworkKeyVaultName = $frameworkResourceGroupName + "KeyVault"}
 
 while([string]::IsNullOrWhiteSpace($frameworkStorageAccountName))
   {$frameworkStorageAccountName = Read-Host -Prompt 'Input the name of the azure storage account you want to create for this installation of the orchestration framework.  Note this needs to be between 3 and 24 characters, globally unique in Azure, and contain all lowercase letters and or numbers.'
@@ -25,8 +26,6 @@ while([string]::IsNullOrWhiteSpace($frameworkFunctionAppName))
   {$frameworkFunctionAppName = Read-Host -Prompt 'Input the name for the azure function app you want to create for this installation of the orchestration framework.  Note this has to be unique across all of Azure.'}
 
 $frameworkStorageAccountKey = $null #the script retrieves this at run time and populates it.
-#these values we should try and get automatically and write to environment variables.
-#string subscriptionKey = GetEnvironmentVariable("CognitiveServicesKey", log);
 
 $frameworkLocation = Read-Host -Prompt 'Input the Azure location, data center, where you want this solution deployed.  Note, if you will be using Python functions as part of your solution, As of 8/1/19, Python functions are only available in eastasia, eastus, northcentralus, northeurope, westeurope, and westus.  If you deploy your solution in a different data center network transit time may affect your solution performance.  (default=westus)'
 if ([string]::IsNullOrWhiteSpace($frameworkLocation)) {$frameworkLocation = "westus"}
@@ -57,8 +56,8 @@ $confidenceJSONPath = "confidence"
 
 $confidenceThreshold = .95
 
-$dataEvaluationServiceEndpoint = Read-Host -Prompt 'Input the http address of the evaluate data endpoint for your app. Note this has to match the endpoint of the model you have to will deploy.  It has to be unique across all of Azure. (default="https://mlprofessoarsamplemodelapp.azurewebsites.net/api/EvaluateData")'
-if ([string]::IsNullOrWhiteSpace($dataEvaluationServiceEndpoint)) {$dataEvaluationServiceEndpoint = "https://mlprofessoarsamplemodelapp.azurewebsites.net/api/EvaluateData"}
+$dataEvaluationServiceEndpoint = Read-Host -Prompt 'Input the http address of the evaluate data endpoint for your app. Note this has to match the endpoint of the model you have to will deploy.  It has to be unique across all of Azure. (default=https://mlpobjectdetectionapp.azurewebsites.net/api/EvaluateData)'
+if ([string]::IsNullOrWhiteSpace($dataEvaluationServiceEndpoint)) {$dataEvaluationServiceEndpoint = 'https://mlpobjectdetectionapp.azurewebsites.net/api/EvaluateData'}
 
 #These environment variables are only used for trained models
 if ($modelType -eq "Trained")
@@ -70,21 +69,26 @@ if ($modelType -eq "Trained")
   $pendingNewModelStorageContainerName = "pendingnewmodelevaluation"
 
   $modelVerificationPercentage = .05
+  
+  $trainModelServiceEndpoint = Read-Host -Prompt 'Input the http address of the services endpoint to initiate training of the model. Note this has to match the endpoint of the model you have to will deploy.  It has to be unique across all of Azure. (default=https://mlpobjectdetectionapp.azurewebsites.net/api/TrainModel)'
+  if ([string]::IsNullOrWhiteSpace($trainModelServiceEndpoint)) {$trainModelServiceEndpoint = 'https://mlpobjectdetectionapp.azurewebsites.net/api/TrainModel'}
+
+  $tagsUploadServiceEndpoint = Read-Host -Prompt 'Input the http address of the service endpoint to upload valid labeling tags to the model. Note this has to match the endpoint of the model you have to will deploy.  It has to be unique across all of Azure. (default=https://mlpobjectdetectionapp.azurewebsites.net/api/LoadLabelingTags)'
+  if ([string]::IsNullOrWhiteSpace($tagsUploadServiceEndpoint)) {$tagsUploadServiceEndpoint = 'https://mlpobjectdetectionapp.azurewebsites.net/api/LoadLabelingTags'}
+
+  $LabeledDataServiceEndpoint = Read-Host -Prompt 'Input the http address of the service endpoint to upload labeled data that will train the model. Note this has to match the endpoint of the model you have to will deploy.  It has to be unique across all of Azure. (default=https://mlpobjectdetectionapp.azurewebsites.net/api/AddLabeledData)'
+  if ([string]::IsNullOrWhiteSpace($LabeledDataServiceEndpoint)) {$LabeledDataServiceEndpoint = 'https://mlpobjectdetectionapp.azurewebsites.net/api/AddLabeledData'}
+
+  $LabelingSolutionName = Read-Host -Prompt 'Input the name of the labeling solution that will be used to label data. Valid Values: VoTT.  (default=VoTT)'
+  if ([string]::IsNullOrWhiteSpace($LabelingSolutionName)) {$LabelingSolutionName = 'VoTT'}
 
   $labelingTagsParameterName = "labelsJson"
   
   $labelingTagsFileHash = 'hash not initialized'
-  
-  $trainModelServiceEndpoint = Read-Host -Prompt 'Input the http address of the services endpoint to initiate training of the model. Note this has to match the endpoint of the model you have to will deploy.  It has to be unique across all of Azure. (default=https://mlprofessoarsamplemodelapp.azurewebsites.net/api/TrainModel)'
-  if ([string]::IsNullOrWhiteSpace($trainModelServiceEndpoint)) {$trainModelServiceEndpoint = 'https://mlprofessoarsamplemodelapp.azurewebsites.net/api/TrainModel'}
-
-  $tagsUploadServiceEndpoint = Read-Host -Prompt 'Input the http address of the service endpoint to upload valid labeling tags to the model. Note this has to match the endpoint of the model you have to will deploy.  It has to be unique across all of Azure. (default=https://mlprofessoarsamplemodelapp.azurewebsites.net/api/LoadLabelingTags)'
-  if ([string]::IsNullOrWhiteSpace($tagsUploadServiceEndpoint)) {$tagsUploadServiceEndpoint = 'https://mlprofessoarsamplemodelapp.azurewebsites.net/api/LoadLabelingTags'}
-
-  $LabeledDataServiceEndpoint = Read-Host -Prompt 'Input the http address of the service endpoint to upload labeled data that will train the model. Note this has to match the endpoint of the model you have to will deploy.  It has to be unique across all of Azure. (default=https://mlprofessoarsamplemodelapp.azurewebsites.net/api/AddLabeledData)'
-  if ([string]::IsNullOrWhiteSpace($LabeledDataServiceEndpoint)) {$LabeledDataServiceEndpoint = 'https://mlprofessoarsamplemodelapp.azurewebsites.net/api/AddLabeledData'}
 
   $labelingTagsBlobName = 'LabelingTags.json'
+
+  $labelingOutputStorageContainerName = 'labelingoutput'
 
   while([string]::IsNullOrWhiteSpace($blobSearchServiceName))
   {$blobSearchServiceName = Read-Host -Prompt 'Input the name of the search service that will be used to access the blob binding hash. This name must be globally unique across Azure consist only of lowercase letters and dashes and cannot be longer than 60 characters.  (default="bindinghashsearch")'
@@ -119,8 +123,6 @@ Write-Host "Creating key vault: " $frameworkKeyVaultName  -ForegroundColor "Gree
 
 az keyvault create --name $frameworkKeyVaultName -g $frameworkResourceGroupName
 
-# *****TODO***** need to enable CORS for VOTT solution.  In general, need to add the option to add different labeling solution to the config process.
-
 Write-Host "Creating storage account: " $frameworkStorageAccountName  -ForegroundColor "Green"
 
 az storage account create `
@@ -137,6 +139,39 @@ $frameworkStorageAccountKey = `
 		-AccountName $frameworkStorageAccountName).Value[0]
 
 $connectionString = 'DefaultEndpointsProtocol=https;AccountName=' + $frameworkStorageAccountName + ';AccountKey=' + $frameworkStorageAccountKey + ';EndpointSuffix=core.windows.net'
+$StorageContext = New-AzureStorageContext -ConnectionString $connectionString
+
+#enable CORS to support VoTT
+if ($LabelingSolutionName -eq "VoTT")
+{
+
+  $CorsRules = (@{
+    AllowedOrigins=@("*");
+    AllowedMethods=@("Get");
+    AllowedHeaders=@("*");
+    ExposedHeaders=@("*"); 
+    MaxAgeInSeconds=3600},
+    @{
+    AllowedOrigins=@("*");
+    AllowedMethods=@("Post");
+    AllowedHeaders=@("*");
+    ExposedHeaders=@("*"); 
+    MaxAgeInSeconds=3600},
+    @{
+    AllowedOrigins=@("*");
+    AllowedMethods=@("Delete");
+    AllowedHeaders=@("*");
+    ExposedHeaders=@("*"); 
+    MaxAgeInSeconds=3600},
+    @{
+    AllowedOrigins=@("*"); 
+    AllowedMethods=@("Put")
+    AllowedHeaders=@("*");
+    ExposedHeaders=@("*"); 
+    MaxAgeInSeconds=3600})
+
+  Set-AzureStorageCORSRule -ServiceType Blob -Context $StorageContext -CorsRules $CorsRules
+}
 
 Write-Host "Creating function app: " $frameworkFunctionAppName -ForegroundColor "Green"
 
@@ -146,21 +181,24 @@ az functionapp create `
   --consumption-plan-location $frameworkLocation `
   --resource-group $frameworkResourceGroupName
 
-$StorageContext = New-AzureStorageContext -ConnectionString $connectionString
+az webapp identity assign --name $frameworkFunctionAppName --resource-group $frameworkResourceGroupName
 
-$staticStorageContainers = "$pendingEvaluationStorageContainerName $evaluatedDataStorageContainerName $pendingSupervisionStorageContainerName $jsonStorageContainerName labelingoutput testinvocation testdata" 
+Set-AzKeyVaultAccessPolicy -VaultName $frameworkKeyVaultName -ObjectId (Get-AzureADServicePrincipal -SearchString $frameworkFunctionAppName).ObjectId -PermissionsToSecrets Get
+
+$staticStorageContainers = "$pendingEvaluationStorageContainerName $evaluatedDataStorageContainerName $pendingSupervisionStorageContainerName $jsonStorageContainerName testinvocation testdata" 
 Write-Host "Creating static model storage containers: " $staticStorageContainers  -ForegroundColor "Green"
-$staticStorageContainers.split() | New-AzStorageContainer -Permission Container -Context $StorageContext
+$staticStorageContainers.split() | New-AzStorageContainer -Context $StorageContext
+# $staticStorageContainers.split() | New-AzStorageContainer -Permission Container -Context $StorageContext
 
 #These storage containers are only used for trained models
 if ($modelType -eq "Trained")
 {
-  $staticStorageContainers = "$pendingNewModelStorageContainerName $modelValidationStorageContainerName $labeledDataStorageContainerName" 
+  $staticStorageContainers = "$pendingNewModelStorageContainerName $modelValidationStorageContainerName $labeledDataStorageContainerName $labelingOutputStorageContainerName" 
   Write-Host "Creating trained model storage containers: " $staticStorageContainers  -ForegroundColor "Green"
-  $staticStorageContainers.split() | New-AzStorageContainer -Permission Container -Context $StorageContext
+  $staticStorageContainers.split() | New-AzStorageContainer -Context $StorageContext
 }
 
-#Search is only used with trained models
+#Search and labeling solution are only used with trained models
 if ($modelType -eq "Trained")
 {
   Write-Host "Creating blob binding hash search service: " $blobSearchServiceName  -ForegroundColor "Green"
@@ -740,12 +778,24 @@ az functionapp config appsettings set `
     --resource-group $frameworkResourceGroupName `
     --settings "labelingTagsParameterName=$labelingTagsParameterName"
   
-Write-Host "Creating app config setting: blobSearchKey: null" -ForegroundColor "Green"
+Write-Host "Creating app config setting: KeyVaultName" -ForegroundColor "Green"
+
+$secretvalue = ConvertTo-SecureString $blobSearchServiceKey -AsPlainText -Force
+$secret = Set-AzKeyVaultSecret -VaultName $frameworkKeyVaultName -Name 'blobSearchKey' -SecretValue $secretvalue
 
 az functionapp config appsettings set `
   --name $frameworkFunctionAppName `
   --resource-group $frameworkResourceGroupName `
-  --settings "blobSearchKey=null"
+  --settings "KeyVaultName=$frameworkKeyVaultName"
+  
+Write-Host "Creating app config setting: blobSearchKey" -ForegroundColor "Green"
+
+$blobSearchKeySetting = "blobSearchKey=@Microsoft.KeyVault(SecretUri=" + $secret.id + ")"
+
+az functionapp config appsettings set `
+  --name $frameworkFunctionAppName `
+  --resource-group $frameworkResourceGroupName `
+  --settings $blobSearchKeySetting
 
 Write-Host "Creating app config setting: blobSearchIndexName: " $blobSearchIndexName -ForegroundColor "Green"
 
@@ -844,4 +894,9 @@ az functionapp config appsettings set `
     --name $frameworkFunctionAppName `
     --resource-group $frameworkResourceGroupName `
     --settings "labelingTagsBlobName=$labelingTagsBlobName"  
+
+az functionapp config appsettings set `
+    --name $frameworkFunctionAppName `
+    --resource-group $frameworkResourceGroupName `
+    --settings "LabelingSolutionName=$LabelingSolutionName"
 }

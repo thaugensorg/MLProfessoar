@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Net;
+using System.Threading.Tasks;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Azure.Search;
@@ -32,7 +33,9 @@ namespace semisupervisedFramework
         {
             _Log = log;
             _Engine = engine;
-            string SearchApiKey = _Engine.GetEnvironmentVariable("blobSearchKey", log);
+            string SearchApiKey = _Engine.GetKeyVaultSecret("BlobSearchKey").Result;
+
+            //string SearchApiKey = _Engine.GetEnvironmentVariable("blobSearchKey", log);
             string searchName = _Engine.GetEnvironmentVariable("blobSearchServiceName", log);
             _ServiceClient = Initialize(searchName, SearchApiKey);
         }
@@ -80,9 +83,10 @@ namespace semisupervisedFramework
             return serviceClient;
         }
 
-        public SearchIndexClient CreateSearchIndexClient(string indexName, ILogger log)
+        public async Task<SearchIndexClient> CreateSearchIndexClient(string indexName, ILogger log)
         {
-            string SearchApiKey = _Engine.GetEnvironmentVariable("blobSearchKey", log);
+            string SearchApiKey = await _Engine.GetKeyVaultSecret("BlobSearchKey");
+            //string SearchApiKey = _Engine.GetEnvironmentVariable("blobSearchKey", log);
             string SearchServiceName = _Engine.GetEnvironmentVariable("blobSearchServiceName", log);
 
             SearchIndexClient indexClient = new SearchIndexClient(SearchServiceName, indexName, new SearchCredentials(SearchApiKey));

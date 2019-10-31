@@ -311,46 +311,38 @@ namespace semisupervisedFramework
                     string blobMd5 = rawDataBlob.Properties.ContentMD5;
                     JsonBlob jsonBlob = new JsonBlob(blobMd5, _Engine, _Search, _Log);
                     JObject jsonBlobJObject = JObject.Parse(jsonBlob.AzureBlob.DownloadText());
-                    JArray labels = (JArray)jsonBlobJObject.SelectToken("labels");
+                    JObject labels = (JObject)jsonBlobJObject.SelectToken("labels");  //this is really just the label content for the data asset.  Do not think of it as a list of labels
 
                     // Loop through all of the applied labels and ensure one label matches the label in the file name such as Hemlock
                     if (labels != null)
                     {
-                        foreach (JObject label in labels)
-                        {
-                            //*****TODO***** make condition support japense cherry too just parse off japense from the label and check for that 
-                            if (rawDataBlob.Name.Contains(label.GetValue("label").ToString().ToLower()))
-                            {
-                                _Log.LogInformation($"\nJson blob {jsonBlob.AzureBlob.Name} already labeled with {label.GetValue("label").ToString().ToLower()}");
-                                break;
-                            }
-                        //*****TODO***** add handling for case where the list of labels does not contain the current label in the file name.  Low priority as this condition should not exist with current test data.
-                        }
+                        //*****TODO***** update this to handle the different types of labeles.  If we are going to allow labeling for different types of models then this needs to be pluggable.
                     }
                     else
                     {
-                        labels = new JArray();
-                        JProperty dataLabel = new JProperty("label");
+                        //*****TODO***** same as above comment eithe rdon't support automated labeling of different models of make it pluggable.
+                        //labels = new JArray();
+                        //JProperty dataLabel = new JProperty("label");
 
                         // Add lable from file name to bound json blob
-                        if (rawDataBlob.Name.Contains("hemlock"))
-                        {
-                            dataLabel.Value = "Hemlock";
-                        }
-                        else
-                        {
-                            dataLabel.Value = "Japanese Cherry";
-                        }
+                        //if (rawDataBlob.Name.Contains("hemlock"))
+                        //{
+                        //    dataLabel.Value = "Hemlock";
+                        //}
+                        //else
+                        //{
+                        //    dataLabel.Value = "Japanese Cherry";
+                        //}
 
-                        JObject labelsObject = new JObject
-                            {
-                                dataLabel
-                            };
-                        labels.Add(labelsObject);
-                        JProperty labelsJProperty = new JProperty("labels", labels);
-                        jsonBlobJObject.Add(labelsJProperty);
+                        //JObject labelsObject = new JObject
+                        //    {
+                        //        dataLabel
+                        //    };
+                        //labels.Add(labelsObject);
+                        //JProperty labelsJProperty = new JProperty("labels", labels);
+                        //jsonBlobJObject.Add(labelsJProperty);
 
-                        await _Engine.UploadJsonBlob(jsonBlob.AzureBlob, jsonBlobJObject);
+                        //await _Engine.UploadJsonBlob(jsonBlob.AzureBlob, jsonBlobJObject);
 
                     } //done updating labeling information in json blob
 

@@ -17,7 +17,10 @@ namespace semisupervisedFramework
     {
         [FunctionName("EvaluateData")]
 
+        // public static async Task RunAsync([BlobTrigger("pendingevaluation/{blobName}", Connection = "AzureWebJobsStorage")]Stream myBlob, string blobName, ILogger log)
         public static async Task RunAsync([BlobTrigger("pendingevaluation/{blobName}", Connection = "AzureWebJobsStorage")]Stream myBlob, string blobName, ILogger log)
+
+
         {
             Engine engine = new Engine(log);
 

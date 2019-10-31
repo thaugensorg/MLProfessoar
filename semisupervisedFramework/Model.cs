@@ -30,7 +30,6 @@ namespace semisupervisedFramework
     {
         private ILogger _Log;
         private HttpClient _Client;
-        private HttpResponseMessage _Response;
         private string _ResponseString = "";
         private Engine _Engine;
         private Search _Search;
@@ -75,36 +74,33 @@ namespace semisupervisedFramework
 
                     }
 
-                    //Get the content from the bound JSON file and instanciate a JsonBlob class then retrieve the labels collection from the Json to add to the image.
+                    // Get sas token for current data blob
+                    string dataEvaluatingUrl = _Engine.GetBlobSasTokenForServiceAccess(dataCloudBlockBlob);
+
+                    // Instanciate the bound JSON blob making labels collection for the data available to send to the model.
                     JsonBlob boundJson = new JsonBlob(bindingHash, _Engine, _Search, _Log);
-                    //Note: you cannot pull the URL from the JSON blob because it will have the original URL from the first container when the blob was added to ML Professoar
-                    string labeledDataUrl = dataCloudBlockBlob.StorageUri.PrimaryUri.ToString();
+
                     string evaluationDataParameterName = _Engine.GetEnvironmentVariable("evaluationDataParameterName", _Log);
-                    string addLabeledDataParameters = $"?{evaluationDataParameterName }={labeledDataUrl}";
                     string labelingTagsParameterName = _Engine.GetEnvironmentVariable("labelingTagsParameterName", _Log);
-                    //addLabeledDataParameters = $"{addLabeledDataParameters}&{labelingTagsParameterName}={trainingDataLabels}";
-                    //string addLabeledDataContent = $"{labelingTagsParameterName}={trainingDataLabels}";
 
-                    //construct and call model URL then fetch response
-                    // the model always sends the label set in the message body with the name LabelsJson.  If your model needs other values in the URL then use
-                    // {{environment variable name}}.
-                    // So the example load labels function in the sameple model package would look like this:
-                    // https://branddetectionapp.azurewebsites.net/api/loadimagetags/?projectID={{ProjectID}}
-                    // The orchestration engine appends the labels json file to the message body.
-                    // http://localhost:7071/api/LoadImageTags/?projectID=8d9d12d1-5d5c-4893-b915-4b5b3201f78e&labelsJson={%22Labels%22:[%22Hemlock%22,%22Japanese%20Cherry%22]}
+                    // construct and call model URL then fetch response
+                    //
+                    // the model always sends the label set in the message body with the name configured in environment variable "labelingTagsParameterName".
+                    // If your model needs other values from this applications context to be passed in the URL then use {{variable name}}.  So the example
+                    // in the sample model package would have a value like this: https://branddetectionapp.azurewebsites.net/api/AddLabeledData/?projectID={{ProjectID}}
+                    // in the end point environment variable to pass project id to the model.
+                    //
+                    // Get the environment variable.
+                    string addLabeledDataServiceEndpoint = _Engine.GetEnvironmentVariable("LabeledDataServiceEndpoint", _Log);
+                    string addLabeledDataUrl = _Engine.ConstructModelRequestUrl(addLabeledDataServiceEndpoint, "");
 
-                    string labeledDataServiceEndpoint = _Engine.GetEnvironmentVariable("LabeledDataServiceEndpoint", _Log);
-                    string addLabeledDataUrl = _Engine.ConstructModelRequestUrl(labeledDataServiceEndpoint, addLabeledDataParameters);
-                    _Log.LogInformation($"\n Getting response from {addLabeledDataUrl}");
-                    //_Response = _Client.GetAsync(addLabeledDataUrl).Result;
-                    _Response = await _Client.PostAsync(
-                        addLabeledDataUrl,
-                        new StringContent(boundJson.Labels, Encoding.UTF8, "application/json")
+                    //create parameters json
+                    JObject labeledData = new JObject(
+                            new JProperty(evaluationDataParameterName, dataEvaluatingUrl),
+                            new JProperty(labelingTagsParameterName, boundJson.Labels)
                         );
-                    _ResponseString = _Response.Content.ReadAsStringAsync().Result;
-                    if (string.IsNullOrEmpty(_ResponseString)) throw (new MissingRequiredObject($"\nresponseString not generated from URL: {addLabeledDataUrl}.  Processing will stop for labeleddata blobs."));
 
-                    //the code below is for passing labels and conent as http content and not on the URL string.
+                    //*****TODO***** the code below is for passing labels and conent as http content and not on the URL string.
                     //Format the Data Labels content
                     //HttpRequestMessage Request = new HttpRequestMessage(HttpMethod.Post, new Uri(AddLabeledDataUrl));
                     //HttpContent DataLabelsStringContent = new StringContent(trainingDataLabels, Encoding.UTF8, "application/x-www-form-urlencoded");
@@ -119,11 +115,14 @@ namespace semisupervisedFramework
                     //HttpContent LabeledDataHttpContent = new StreamContent(dataBlobMemStream);
                     //LabeledDataContent.Add(LabeledDataContent, "LabeledData");
 
-                    //Make the http call and get a response
-                    //string AddLabelingTagsEndpoint = Engine.GetEnvironmentVariable("LabeledDataServiceEndpoint", log);
-                    //if (string.IsNullOrEmpty(AddLabelingTagsEndpoint)) throw (new EnvironmentVariableNotSetException("LabeledDataServiceEndpoint environment variable not set"));
-                    //string ResponseString = Helper.GetEvaluationResponseString(AddLabelingTagsEndpoint, LabeledDataContent, log);
-                    //if (string.IsNullOrEmpty(ResponseString)) throw (new MissingRequiredObject("\nresponseString not generated from URL: " + AddLabelingTagsEndpoint));
+                    _Log.LogInformation($"\n Getting response from add labeled data API using {labeledData}");
+
+                    // format and make call to model end point and validate the response string.
+                    MultipartFormDataContent content = new MultipartFormDataContent();
+                    StringContent labeledDataHttpContent = new StringContent(JsonConvert.SerializeObject(labeledData), Encoding.UTF8, "application/x-www-form-urlencoded");
+                    content.Add(labeledDataHttpContent);
+                    _ResponseString = _Engine.GetHttpResponseString(addLabeledDataServiceEndpoint, content);
+                    if (string.IsNullOrEmpty(_ResponseString)) throw (new MissingRequiredObject($"\nresponseString not generated from URL: {addLabeledDataUrl} using {boundJson.Name}.  Processing will stop for labeleddata blobs."));
 
                     _Log.LogInformation($"Completed call to add blob: {dataCloudBlockBlob.Name} with labels: {JsonConvert.SerializeObject(boundJson.Labels)} to model.  The response string was: {_ResponseString}.");
                 }
@@ -189,8 +188,9 @@ namespace semisupervisedFramework
         {
             //Invoke the train model web service call
             string trainModelUrl = _Engine.GetEnvironmentVariable("TrainModelServiceEndpoint", _Log);
-            _Response = _Client.GetAsync(trainModelUrl).Result;
-            _ResponseString = _Response.Content.ReadAsStringAsync().Result;
+            // format and make call to model end point and validate the response string.
+            MultipartFormDataContent content = new MultipartFormDataContent();
+            _ResponseString = _Engine.GetHttpResponseString(trainModelUrl, content);
             if (string.IsNullOrEmpty(_ResponseString)) throw (new MissingRequiredObject($"\nresponseString not generated from URL: {trainModelUrl}"));
 
             // Since a new model has been trained copy all of the pending new model blobs to pending evaluation
@@ -303,6 +303,7 @@ namespace semisupervisedFramework
                 CloudBlobClient blobClient = storageAccount.CreateCloudBlobClient();
                 CloudBlobContainer container = blobClient.GetContainerReference(pendingEvaluationStorageContainerName);
                 CloudBlockBlob rawDataBlob = container.GetBlockBlobReference(blobName);
+                
                 DataBlob dataEvaluating = new DataBlob(rawDataBlob, _Engine, _Search, _Log);
                 if (dataEvaluating == null)
                 {
@@ -318,11 +319,8 @@ namespace semisupervisedFramework
 
                 string blobMd5 = _Engine.EnsureMd5(dataEvaluating);
 
-                //****Currently only working with public access set on blob folders
                 //Generate a URL with SAS token to submit to analyze image API
-                //string dataEvaluatingSas = GetBlobSharedAccessSignature(dataEvaluating);
-                string dataEvaluatingUrl = dataEvaluating.AzureBlob.Uri.ToString(); //+ dataEvaluatingSas;
-                //string dataEvaluatingUrl = "test";
+                string dataEvaluatingUrl = _Engine.GetBlobSasTokenForServiceAccess(rawDataBlob);
 
                 //package the file contents to send as http request content
                 //MemoryStream DataEvaluatingContent = new MemoryStream();
@@ -337,52 +335,55 @@ namespace semisupervisedFramework
                 string parameters = $"?{evaluationDataParameterName}={dataEvaluatingUrl}";
                 string evaluateDataUrl = _Engine.ConstructModelRequestUrl(dataEvaluationServiceEndpoint, parameters);
 
+                StringContent header = new StringContent(dataEvaluatingUrl, Encoding.UTF8, "application/x-www-form-urlencoded");
+                content.Add(header);
+
                 int retryLoops = 0;
-                string responseString = "";
+                //string responseString = "";
                 do
                 {
                     //Make a request to the model service passing the file URL
-                    responseString = _Engine.GetHttpResponseString(evaluateDataUrl, content);
+                    _ResponseString = _Engine.GetHttpResponseString(dataEvaluationServiceEndpoint, content);
                     //*****TODO***** "iteration" is a hard coded word that is specific to a model and needs to be a generic interface concept where the model must respond with an explicit success.
-                    if (responseString.Contains("iteration"))
+                    if (_ResponseString.Contains("Model not trained.") || _ResponseString.Contains("iteration"))
                     {
-                        _Log.LogInformation($"\nEvaluation response: {responseString}.");
+                        _Log.LogInformation($"\nEvaluation response: {_ResponseString}.");
                         break;
                     }
                     retryLoops++;
                     await Task.Delay(1000);
                     if (retryLoops == 5)
                     {
-                        _Log.LogInformation($"\nEvaluation of {evaluateDataUrl} failed 5 attempts with response: {responseString}");
+                        _Log.LogInformation($"\nEvaluation of {evaluateDataUrl} failed 5 attempts with response: {_ResponseString}");
                     }
 
                 } while (retryLoops < 5);
 
                 string strConfidence = null;
                 double confidence = 0;
-                JProperty responseProperty = new JProperty("Response", responseString);
+                JProperty responseProperty = new JProperty("Response", _ResponseString);
 
-                if (responseString == "Model not trained.")
+                if (_ResponseString.Contains("Model not trained."))
                 {
                     confidence = 0;
                 }
                 else
                 {
                     //deserialize response JSON, get confidence score and compare with confidence threshold
-                    JObject analysisJson = JObject.Parse(responseString);
+                    JObject analysisJson = JObject.Parse(_ResponseString);
                     try
                     {
                         strConfidence = (string)analysisJson.SelectToken(confidenceJsonPath);
                     }
                     catch
                     {
-                        throw (new MissingRequiredObject($"\nInvalid response string {responseString} generated from URL: {evaluateDataUrl}."));
+                        throw (new MissingRequiredObject($"\nInvalid response string {_ResponseString} generated from URL: {evaluateDataUrl}."));
                     }
 
                     if (strConfidence == null)
                     {
                         //*****TODO***** if this fails the file will sit in the pending evaluation state because the trigger will have processed the file but the file could not be processed.  Need to figure out how to tell if a file failed processing so that we can reprocesses the file at a latter time.
-                        throw (new MissingRequiredObject($"\nNo confidence value at {confidenceJsonPath} from environment variable ConfidenceJSONPath in response from model: {responseString}."));
+                        throw (new MissingRequiredObject($"\nNo confidence value at {confidenceJsonPath} from environment variable ConfidenceJSONPath in response from model: {_ResponseString}."));
                     }
                     confidence = (double)analysisJson.SelectToken(confidenceJsonPath);
                 }

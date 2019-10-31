@@ -11,6 +11,10 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Azure.Storage;
 using Microsoft.Azure.Storage.Blob;
 using Microsoft.Azure.Storage.DataMovement;
+using Microsoft.Azure.KeyVault;
+using Microsoft.Azure.KeyVault.Models;
+using Microsoft.Azure.Services.AppAuthentication;
+using Microsoft.IdentityModel.Clients.ActiveDirectory;
 
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -145,8 +149,15 @@ namespace semisupervisedFramework
                     responseString = response.Content.ReadAsStringAsync().Result;
                 }
                 else
-                { 
-                    responseString = new JObject(new JProperty(response.ReasonPhrase)).ToString();
+                {
+                    if (response.Content.ReadAsStringAsync().Result == "")
+                    {
+                        responseString = new JObject(new JProperty(response.ReasonPhrase)).ToString();
+                    }
+                    else
+                    {
+                        responseString = new JObject(new JProperty(response.Content.ReadAsStringAsync().Result)).ToString();
+                    }
                 }
             }
             catch (Exception e)
@@ -359,8 +370,46 @@ namespace semisupervisedFramework
                 throw (new ZeroLengthFileException("\nEncoded JSON memory stream is zero length and cannot be writted to blob storage"));
             }
         }
+        public async Task<string> GetKeyVaultSecret(string secretName)
+        {
+            try
+            {
+                /* The next four lines of code show you how to use AppAuthentication library to fetch secrets from your key vault */
+                AzureServiceTokenProvider azureServiceTokenProvider = new AzureServiceTokenProvider();
+                KeyVaultClient keyVaultClient = new KeyVaultClient(new KeyVaultClient.AuthenticationCallback(azureServiceTokenProvider.KeyVaultTokenCallback));
+                string keyVaultName = GetEnvironmentVariable("KeyVaultName", _Log);
+                var secret = await keyVaultClient.GetSecretAsync($"https://{keyVaultName}.vault.azure.net/secrets/{secretName}")
+                        .ConfigureAwait(false);
+                return secret.Value;
+            }
+            /* If you have throttling errors see this tutorial https://docs.microsoft.com/azure/key-vault/tutorial-net-create-vault-azure-web-app */
+            /// <exception cref="KeyVaultErrorException">
+            /// Thrown when the operation returned an invalid status code
+            /// </exception>
+            //catch (KeyVaultErrorException keyVaultException)
+            catch
+            {
+                throw;
+            }
+        }
 
+        public string GetBlobSasTokenForServiceAccess(CloudBlockBlob blob)
+        {
+            // Set blob SAS access contraints
+            // allows access for 1 hour because this is only for service access it does not need to last that long *****TODO***** need to externalize the start and end time so that it can be tuned depending on the performance of the model calls
+            SharedAccessBlobPolicy sasContraints = new SharedAccessBlobPolicy();
+            sasContraints.SharedAccessStartTime = DateTimeOffset.UtcNow.AddMinutes(-5);
+            sasContraints.SharedAccessExpiryTime = DateTimeOffset.UtcNow.AddHours(1);
+            sasContraints.Permissions = SharedAccessBlobPermissions.Read | SharedAccessBlobPermissions.Write;
+
+            // Generate blob sas token
+            string blobSasToken = blob.GetSharedAccessSignature(sasContraints);
+
+            return blob.Uri + blobSasToken;
+        }
     }
+
+
     public class EnvironmentVariableNotSetException : Exception
     {
         public EnvironmentVariableNotSetException(string message)
