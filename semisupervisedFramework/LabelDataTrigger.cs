@@ -15,6 +15,7 @@ namespace semisupervisedFramework
         public static void Run([BlobTrigger("labelingoutput/{blobName}", Connection = "AzureWebJobsStorage")]Stream myBlob, string blobName, ILogger log)
         {
             // Do not process the vott project file.
+            //*****TODO***** need to externalize this so that you can configure exactly what files are processed and which are not.
             if (!blobName.ToLower().Contains("vott"))
             {
                 Engine engine = new Engine(log);

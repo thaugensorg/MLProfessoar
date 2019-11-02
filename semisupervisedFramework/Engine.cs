@@ -183,8 +183,18 @@ namespace semisupervisedFramework
         public async Task MoveAzureBlobToAzureBlob(CloudStorageAccount account, CloudBlockBlob sourceBlob, CloudBlockBlob destinationBlob)
         {
             Stopwatch stopWatch = Stopwatch.StartNew();
-            await CopyAzureBlobToAzureBlob(account, sourceBlob, destinationBlob);
-            await sourceBlob.DeleteIfExistsAsync();
+            int loopCount = 0;
+            // Ensure blob has been moved to appropriate location before deleting it from the source.
+            do
+            {
+                await CopyAzureBlobToAzureBlob(account, sourceBlob, destinationBlob);
+                if (destinationBlob.Exists())
+                {
+                    await sourceBlob.DeleteIfExistsAsync();
+                }
+                loopCount++;
+                _Log.LogInformation($"{loopCount} pass of move Azure blob method for {destinationBlob.Name}");
+            } while (!destinationBlob.Exists() && loopCount < 6);
             stopWatch.Stop();
             _Log.LogInformation("The Azure Blob " + sourceBlob + " deleted in: " + stopWatch.Elapsed.TotalSeconds + " seconds.");
         }

@@ -95,17 +95,19 @@ namespace semisupervisedFramework
                     string addLabeledDataUrl = _Engine.ConstructModelRequestUrl(addLabeledDataServiceEndpoint, "");
 
                     //create parameters json
-                    JObject labeledData = new JObject(
-                            new JProperty(evaluationDataParameterName, dataEvaluatingUrl),
-                            new JProperty(labelingTagsParameterName, boundJson.Labels)
-                        );
+                    //JObject labeledData = new JObject(
+                    //        new JProperty(evaluationDataParameterName, dataEvaluatingUrl),
+                    //        new JProperty(labelingTagsParameterName, boundJson.Labels)
+                    //    );
 
                     //*****TODO***** the code below is for passing labels and conent as http content and not on the URL string.
                     //Format the Data Labels content
                     //HttpRequestMessage Request = new HttpRequestMessage(HttpMethod.Post, new Uri(AddLabeledDataUrl));
-                    //HttpContent DataLabelsStringContent = new StringContent(trainingDataLabels, Encoding.UTF8, "application/x-www-form-urlencoded");
-                    //MultipartFormDataContent LabeledDataContent = new MultipartFormDataContent();
-                    //LabeledDataContent.Add(DataLabelsStringContent, "LabeledData");
+                    MultipartFormDataContent labeledDataContent = new MultipartFormDataContent();
+                    HttpContent dataLabelsStringContent = new StringContent(boundJson.Labels, Encoding.UTF8, "application/x-www-form-urlencoded");
+                    labeledDataContent.Add(dataLabelsStringContent, "DataLabels");
+                    HttpContent dataUrlStringContent = new StringContent(dataEvaluatingUrl, Encoding.UTF8, "application/x-www-form-urlencoded");
+                    labeledDataContent.Add(dataUrlStringContent, evaluationDataParameterName);
 
                     //Format the data cotent
                     //*****TODO***** move to an async architecture
@@ -115,13 +117,13 @@ namespace semisupervisedFramework
                     //HttpContent LabeledDataHttpContent = new StreamContent(dataBlobMemStream);
                     //LabeledDataContent.Add(LabeledDataContent, "LabeledData");
 
-                    _Log.LogInformation($"\n Getting response from add labeled data API using {labeledData}");
+                    _Log.LogInformation($"\n Getting response from add labeled data API using {dataLabelsStringContent}");
 
                     // format and make call to model end point and validate the response string.
-                    MultipartFormDataContent content = new MultipartFormDataContent();
-                    StringContent labeledDataHttpContent = new StringContent(JsonConvert.SerializeObject(labeledData), Encoding.UTF8, "application/x-www-form-urlencoded");
-                    content.Add(labeledDataHttpContent);
-                    _ResponseString = _Engine.GetHttpResponseString(addLabeledDataServiceEndpoint, content);
+                    //MultipartFormDataContent content = new MultipartFormDataContent();
+                    //StringContent labeledDataHttpContent = new StringContent(JsonConvert.SerializeObject(labeledData), Encoding.UTF8, "application/x-www-form-urlencoded");
+                    //content.Add(labeledDataHttpContent);
+                    _ResponseString = _Engine.GetHttpResponseString(addLabeledDataServiceEndpoint, labeledDataContent);
                     if (string.IsNullOrEmpty(_ResponseString)) throw (new MissingRequiredObject($"\nresponseString not generated from URL: {addLabeledDataUrl} using {boundJson.Name}.  Processing will stop for labeleddata blobs."));
 
                     _Log.LogInformation($"Completed call to add blob: {dataCloudBlockBlob.Name} with labels: {JsonConvert.SerializeObject(boundJson.Labels)} to model.  The response string was: {_ResponseString}.");
@@ -335,8 +337,8 @@ namespace semisupervisedFramework
                 string parameters = $"?{evaluationDataParameterName}={dataEvaluatingUrl}";
                 string evaluateDataUrl = _Engine.ConstructModelRequestUrl(dataEvaluationServiceEndpoint, parameters);
 
-                StringContent header = new StringContent(dataEvaluatingUrl, Encoding.UTF8, "application/x-www-form-urlencoded");
-                content.Add(header);
+                StringContent dataEvaluatingStringContent = new StringContent(dataEvaluatingUrl, Encoding.UTF8, "application/x-www-form-urlencoded");
+                content.Add(dataEvaluatingStringContent, evaluationDataParameterName);
 
                 int retryLoops = 0;
                 //string responseString = "";
@@ -354,7 +356,7 @@ namespace semisupervisedFramework
                     await Task.Delay(1000);
                     if (retryLoops == 5)
                     {
-                        _Log.LogInformation($"\nEvaluation of {evaluateDataUrl} failed 5 attempts with response: {_ResponseString}");
+                        _Log.LogInformation($"\nEvaluation of {dataEvaluatingUrl} failed 5 attempts with response: {_ResponseString}");
                     }
 
                 } while (retryLoops < 5);
@@ -377,7 +379,7 @@ namespace semisupervisedFramework
                     }
                     catch
                     {
-                        throw (new MissingRequiredObject($"\nInvalid response string {_ResponseString} generated from URL: {evaluateDataUrl}."));
+                        throw (new MissingRequiredObject($"\nInvalid response string {_ResponseString} generated from URL: {dataEvaluatingUrl}."));
                     }
 
                     if (strConfidence == null)

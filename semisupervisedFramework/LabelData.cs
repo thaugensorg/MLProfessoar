@@ -37,6 +37,7 @@ namespace semisupervisedFramework
             JObject labelingOutputJobject = JObject.Parse(labelingOutput);
 
             // Hydrate the raw data file
+            //*****TODO*****externalize the json location of the file name or make sure it will be in the standardised location created by MLProfessoar.
             string boundJsonFileName = (string)labelingOutputJobject.SelectToken("asset.name");
             string pendingSupervisionStorageContainerName = engine.GetEnvironmentVariable("pendingSupervisionStorageContainerName", log);
             CloudBlobContainer pendingSupervisionStorageContainer = blobClient.GetContainerReference(pendingSupervisionStorageContainerName);
