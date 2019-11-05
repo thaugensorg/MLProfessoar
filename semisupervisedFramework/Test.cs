@@ -15,6 +15,7 @@ using Newtonsoft.Json.Linq;
 
 namespace semisupervisedFramework
 {
+    //*****TODO***** make factory pattern use reflection and not switches https://code-maze.com/factory-method/  for reference here is the switch version https://www.c-sharpcorner.com/article/factory-method-design-pattern-in-c-sharp/
     public enum LabelingSolutions
     {
         VoTT,
