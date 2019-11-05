@@ -22,7 +22,22 @@ namespace semisupervisedFramework
                 {
                     Engine engine = new Engine(log);
                     Search search = new Search(engine, log);
-                    Test test = new Test(engine, search, log);
+                    string labelingSolutionName = engine.GetEnvironmentVariable("labelingSolutionName", log);
+                    TestFactory factory = null;
+                    switch (labelingSolutionName)
+                    {
+                        case "VoTT":
+                            factory = new VoTTFactory(engine, search, log);
+                            break;
+
+                        case "FileName":
+                            factory = new FileNameFactory(engine, search, log);
+                            break;
+
+                        default:
+                            throw (new MissingRequiredObject($"{labelingSolutionName} is not a recognised labeling solution name."));
+                    }
+                    Test test = factory.GetLabelingSolutionTester();
                     string noTrainedModelTestResults = "";
                     string trainModelTestResults = "";
                     string evaluatePassingDataTestResults = "";

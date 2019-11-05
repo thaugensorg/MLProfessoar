@@ -22,6 +22,7 @@ namespace semisupervisedFramework
                 LabelData labelData = new LabelData();
 
                 // Add new labeling solutions here for every new tool that is integrated with ML Professoar
+                //*****TODO***** this needs to be updated to a class subclass model
                 string labelingSolutionName = engine.GetEnvironmentVariable("labelingSolutionName", log);
                 switch (labelingSolutionName)
                 {

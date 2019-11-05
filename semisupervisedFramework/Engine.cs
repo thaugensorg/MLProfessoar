@@ -194,7 +194,7 @@ namespace semisupervisedFramework
                 }
                 loopCount++;
                 _Log.LogInformation($"{loopCount} pass of move Azure blob method for {destinationBlob.Name}");
-            } while (!destinationBlob.Exists() && loopCount < 6);
+            } while (!destinationBlob.Exists() && loopCount < 6); //*****TODO***** externalize loop count variable to allow for tuning
             stopWatch.Stop();
             _Log.LogInformation("The Azure Blob " + sourceBlob + " deleted in: " + stopWatch.Elapsed.TotalSeconds + " seconds.");
         }
@@ -237,6 +237,7 @@ namespace semisupervisedFramework
             {
                 task = TransferManager.CopyAsync(sourceBlob, destinationBlob, CopyMethod.ServiceSideSyncCopy, null, context, cancellationSource.Token);
                 await task;
+                //*****TODO***** verify copy was successfull before continuing.
             }
             catch (AggregateException e)
             {

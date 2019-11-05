@@ -15,6 +15,7 @@ using Newtonsoft.Json.Linq;
 
 namespace semisupervisedFramework
 {
+    //*****TODO***** need to update this so that it is using base classes and subclasses
     class LabelData
     {
         public async void VottLabelData(string labelingJsonBlobName, ILogger log)
@@ -38,12 +39,12 @@ namespace semisupervisedFramework
 
             // Hydrate the raw data file
             //*****TODO*****externalize the json location of the file name or make sure it will be in the standardised location created by MLProfessoar.
-            string boundJsonFileName = (string)labelingOutputJobject.SelectToken("asset.name");
+            string labelingOutputJsonFileName = (string)labelingOutputJobject.SelectToken("asset.name");
             string pendingSupervisionStorageContainerName = engine.GetEnvironmentVariable("pendingSupervisionStorageContainerName", log);
             CloudBlobContainer pendingSupervisionStorageContainer = blobClient.GetContainerReference(pendingSupervisionStorageContainerName);
-            CloudBlockBlob rawDataBlob = pendingSupervisionStorageContainer.GetBlockBlobReference(boundJsonFileName);
+            CloudBlockBlob rawDataBlob = pendingSupervisionStorageContainer.GetBlockBlobReference(labelingOutputJsonFileName);
 
-            // instanciate bound json blob and get its Json.
+            // Hydrate bound json blob and get its Json.
             // You must 'touch' the blob before you can access properties or they are all null.
             if (rawDataBlob.Exists())
             {
@@ -70,8 +71,10 @@ namespace semisupervisedFramework
             CloudBlobContainer labeledDataStorageContainer = blobClient.GetContainerReference(labeledDataStorageContainerName);
 
             // copy current raw blob working file from pending supervision to labeled data AND pending new model containers
-            CloudBlockBlob pendingNewModelDestinationBlob = pendingNewModelStorageContainer.GetBlockBlobReference(rawDataBlob.Name);
+            //*****TODO***** should this be using the start copy + delete if exists or the async versions in Engine.
+            //destinationBlob.StartCopy(rawDataBlob);
             CloudBlockBlob labeledDataDestinationBlob = labeledDataStorageContainer.GetBlockBlobReference(rawDataBlob.Name);
+            CloudBlockBlob pendingNewModelDestinationBlob = pendingNewModelStorageContainer.GetBlockBlobReference(rawDataBlob.Name);
             await engine.CopyAzureBlobToAzureBlob(engine.StorageAccount, rawDataBlob, pendingNewModelDestinationBlob);
             await engine.MoveAzureBlobToAzureBlob(engine.StorageAccount, rawDataBlob, labeledDataDestinationBlob);
         }

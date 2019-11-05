@@ -297,8 +297,6 @@ namespace semisupervisedFramework
             Log = log;
             Search = search;
             Engine = engine;
-            // Labels = new List<string>();
-            // Use azure search to return the id of the JSON blob which is also the blob name
 
             // Get a reference to the json blob and hydrate it into the json blob class attributes.
             //*****TODO***** there is a way to hydrate directly from a JObject to a C# object in one line, update this logic to simplify the code.

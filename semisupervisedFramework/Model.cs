@@ -94,15 +94,8 @@ namespace semisupervisedFramework
                     string addLabeledDataServiceEndpoint = _Engine.GetEnvironmentVariable("LabeledDataServiceEndpoint", _Log);
                     string addLabeledDataUrl = _Engine.ConstructModelRequestUrl(addLabeledDataServiceEndpoint, "");
 
-                    //create parameters json
-                    //JObject labeledData = new JObject(
-                    //        new JProperty(evaluationDataParameterName, dataEvaluatingUrl),
-                    //        new JProperty(labelingTagsParameterName, boundJson.Labels)
-                    //    );
-
                     //*****TODO***** the code below is for passing labels and conent as http content and not on the URL string.
                     //Format the Data Labels content
-                    //HttpRequestMessage Request = new HttpRequestMessage(HttpMethod.Post, new Uri(AddLabeledDataUrl));
                     MultipartFormDataContent labeledDataContent = new MultipartFormDataContent();
                     HttpContent dataLabelsStringContent = new StringContent(boundJson.Labels, Encoding.UTF8, "application/x-www-form-urlencoded");
                     labeledDataContent.Add(dataLabelsStringContent, "DataLabels");
@@ -120,9 +113,6 @@ namespace semisupervisedFramework
                     _Log.LogInformation($"\n Getting response from add labeled data API using {dataLabelsStringContent}");
 
                     // format and make call to model end point and validate the response string.
-                    //MultipartFormDataContent content = new MultipartFormDataContent();
-                    //StringContent labeledDataHttpContent = new StringContent(JsonConvert.SerializeObject(labeledData), Encoding.UTF8, "application/x-www-form-urlencoded");
-                    //content.Add(labeledDataHttpContent);
                     _ResponseString = _Engine.GetHttpResponseString(addLabeledDataServiceEndpoint, labeledDataContent);
                     if (string.IsNullOrEmpty(_ResponseString)) throw (new MissingRequiredObject($"\nresponseString not generated from URL: {addLabeledDataUrl} using {boundJson.Name}.  Processing will stop for labeleddata blobs."));
 
