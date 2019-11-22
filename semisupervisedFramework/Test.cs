@@ -1,72 +1,47 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-using System.Threading.Tasks;
-using System.IO;
+﻿using System.Threading.Tasks;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Azure.Storage;
 using Microsoft.Azure.Storage.Blob;
 
-using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
 
 
 namespace semisupervisedFramework
 {
-    //*****TODO***** make factory pattern use reflection and not switches https://code-maze.com/factory-method/  for reference here is the switch version https://www.c-sharpcorner.com/article/factory-method-design-pattern-in-c-sharp/
-    public enum LabelingSolutions
-    {
-        VoTT,
-        FileName
-    }
-
     abstract class Test
     {
-        public ILogger Log;
         public Engine Engine;
         public Search Search;
         public Model Model;
 
-        private readonly Dictionary<LabelingSolutions, Test> _factories;
-
-        public Test(Engine engine, Search search, ILogger log)
+        public Test(Engine engine, Search search, Model model)
         {
             Engine = engine;
             Search = search;
-            Model = new Model(engine, search, log);
-            Log = log;
+            Model = model;
 
-            _factories = new Dictionary<LabelingSolutions, Test>();
-
-            foreach (LabelingSolutions solution in Enum.GetValues(typeof(LabelingSolutions)))
-            {
-                var factory = (Test)Activator.CreateInstance(Type.GetType("FactoryMethod." + Enum.GetName(typeof(LabelingSolutions), solution) + "Factory"));
-                _factories.Add(solution, factory);
-            }
         }
 
-
-
         // C# await and azync tutorial https://www.youtube.com/watch?v=C5VhaxQWcpE
-        public async Task<string> NoTrainedModelTest()
+        public async Task<string> NoTrainedModel()
         {
 
             // Get a reference to the test data container
-            string storageConnection = Engine.GetEnvironmentVariable("AzureWebJobsStorage", Log);
+            string storageConnection = Engine.GetEnvironmentVariable("AzureWebJobsStorage");
             CloudStorageAccount storageAccount = CloudStorageAccount.Parse(storageConnection);
             CloudBlobClient blobClient = storageAccount.CreateCloudBlobClient();
 
             CloudBlobContainer testDataContainer = blobClient.GetContainerReference("testdata");
-            string pendingEvaluationStorageContainerName = Engine.GetEnvironmentVariable("pendingEvaluationStorageContainerName", Log);
+            string pendingEvaluationStorageContainerName = Engine.GetEnvironmentVariable("pendingEvaluationStorageContainerName");
             CloudBlobContainer pendingEvaluationContainer = blobClient.GetContainerReference(pendingEvaluationStorageContainerName);
 
             // Loop over items within the container and move them to pending evaluation container
             await Engine.CopyBlobsFromContainerToContainer(testDataContainer, pendingEvaluationContainer);
 
             //check that all items have been moved to the pending supervision container
-            string pendingSupervisionStorageContainerName = Engine.GetEnvironmentVariable("pendingSupervisionStorageContainerName", Log);
+            string pendingSupervisionStorageContainerName = Engine.GetEnvironmentVariable("pendingSupervisionStorageContainerName");
             CloudBlobContainer pendingSupervisionStorageContainer = blobClient.GetContainerReference(pendingSupervisionStorageContainerName);
 
             // Initialize loop control variables
@@ -105,52 +80,34 @@ namespace semisupervisedFramework
             return $"Failed: NoTrainedModelTest only found {verifiedBlobs} in {pendingSupervisionStorageContainerName} but 20 were expected.";
         }
 
-        public async Task<string> LabelDataTest()
+        public async Task<string> LoadLabels()
         {
             // Get a azure storage client
-            string storageConnection = Engine.GetEnvironmentVariable("AzureWebJobsStorage", Log);
+            string storageConnection = Engine.GetEnvironmentVariable("AzureWebJobsStorage");
             CloudStorageAccount storageAccount = CloudStorageAccount.Parse(storageConnection);
             CloudBlobClient blobClient = storageAccount.CreateCloudBlobClient();
 
-            //get references to the test label data and the location the test blobs needs to be to run tests.
-            string jsonStorageContainerName = Engine.GetEnvironmentVariable("jsonStorageContainerName", Log);
+            // Get references to the test label data and the location the test blobs needs to be to run tests.
+            string jsonStorageContainerName = Engine.GetEnvironmentVariable("jsonStorageContainerName");
             CloudBlobContainer jsonStorageContainer = blobClient.GetContainerReference(jsonStorageContainerName);
             CloudBlockBlob dataLabelingTagsBlob = jsonStorageContainer.GetBlockBlobReference("LabelingTags.json");
-            string testDataContainerName = "testdata/testjson";
+            string testDataContainerName = "testdata";
             CloudBlobContainer testDataContainer = blobClient.GetContainerReference(testDataContainerName);
             CloudBlockBlob testDataLabelingTagsBlob = testDataContainer.GetBlockBlobReference("LabelingTags.json");
 
             //copy the test labeling tags blob to the expected location.
-            await dataLabelingTagsBlob.StartCopyAsync(testDataLabelingTagsBlob);
+            //*****TODO***** we cannot copy the training lables JSON to the JSON file as it will trigger indexing of the 
+            // file which will fail do to mismatched schema.  What we actually need to do is figure out how to retrieve the
+            // training tags from the labeling solution such as VoTT.
+            //await dataLabelingTagsBlob.StartCopyAsync(testDataLabelingTagsBlob);
 
-            // mock the supervision loop by labeling data.
-            await LabelData();
+            //Load the list of valid training tags to ensure all data labels are valid.
+            string loadTrainingTagsResult = Model.LoadTrainingTags();
 
-            string labeledDataStorageContainerName = Engine.GetEnvironmentVariable("labeledDataStorageContainerName", Log);
-            CloudBlobContainer labeledDataStorageContainer = blobClient.GetContainerReference(labeledDataStorageContainerName);
-
-            int verifiedBlobs = 0;
-            string response = "Failed: response initialized but not updated with test results.";
-            foreach (IListBlobItem item in labeledDataStorageContainer.ListBlobs(null, false))
-            {
-                if (item is CloudBlockBlob verificationBlob)
-                {
-                    verifiedBlobs++;
-                    if (verifiedBlobs == 20)
-                    {
-                        response = $"Passed: 20 blobs verified in {labeledDataStorageContainerName}";
-                    }
-                    else
-                    {
-                        response = $"Failed: {verifiedBlobs} found in {labeledDataStorageContainerName} 20 were expected.";
-                    }
-                }
-            }
-
-            return response;
+            return $"\nCompleted loading labeling tags with result {loadTrainingTagsResult}.";
         }
 
-        public async Task<string> TrainModelTest()
+        public async Task<string> TrainModel()
         {
 
             // Train the model using the core training process
@@ -168,17 +125,17 @@ namespace semisupervisedFramework
         public async Task<string> EvaluateFailingData()
         {
             // Establish a storage connection
-            string storageConnection = Engine.GetEnvironmentVariable("AzureWebJobsStorage", Log);
+            string storageConnection = Engine.GetEnvironmentVariable("AzureWebJobsStorage");
             CloudStorageAccount storageAccount = CloudStorageAccount.Parse(storageConnection);
             CloudBlobClient blobClient = storageAccount.CreateCloudBlobClient();
 
             CloudBlobContainer testDataContainer = blobClient.GetContainerReference("testdata");
             CloudBlobDirectory failingEvaluationTestDataDirectory = testDataContainer.GetDirectoryReference("failing");
-            string evaluatedDataStorageContainerName = Engine.GetEnvironmentVariable("evaluatedDataStorageContainerName", Log);
+            string evaluatedDataStorageContainerName = Engine.GetEnvironmentVariable("evaluatedDataStorageContainerName");
             CloudBlobContainer evaluatedDataStorageContainer = blobClient.GetContainerReference(evaluatedDataStorageContainerName);
-            string pendingSupervisionStorageContainerName = Engine.GetEnvironmentVariable("pendingSupervisionStorageContainerName", Log);
+            string pendingSupervisionStorageContainerName = Engine.GetEnvironmentVariable("pendingSupervisionStorageContainerName");
             CloudBlobContainer pendingSupervisionStorageContainer = blobClient.GetContainerReference(pendingSupervisionStorageContainerName);
-            string pendingEvaluationStorageContainerName = Engine.GetEnvironmentVariable("pendingEvaluationStorageContainerName", Log);
+            string pendingEvaluationStorageContainerName = Engine.GetEnvironmentVariable("pendingEvaluationStorageContainerName");
             CloudBlobContainer pendingEvaluationStorageContainer = blobClient.GetContainerReference(pendingEvaluationStorageContainerName);
 
             // Loop through failing test data and call evaluate by copying blobs to pending evaluation container.
@@ -237,20 +194,20 @@ namespace semisupervisedFramework
 
         }
 
-        public async Task<string> EvaluatePassingDataTest()
+        public async Task<string> EvaluatePassingData()
         {
             // Establish a storage connection
-            string storageConnection = Engine.GetEnvironmentVariable("AzureWebJobsStorage", Log);
+            string storageConnection = Engine.GetEnvironmentVariable("AzureWebJobsStorage");
             CloudStorageAccount storageAccount = CloudStorageAccount.Parse(storageConnection);
             CloudBlobClient blobClient = storageAccount.CreateCloudBlobClient();
 
             CloudBlobContainer testDataContainer = blobClient.GetContainerReference("testdata");
             CloudBlobDirectory passingEvaluationTestDataDirectory = testDataContainer.GetDirectoryReference("passing");
-            string evaluatedDataStorageContainerName = Engine.GetEnvironmentVariable("evaluatedDataStorageContainerName", Log);
+            string evaluatedDataStorageContainerName = Engine.GetEnvironmentVariable("evaluatedDataStorageContainerName");
             CloudBlobContainer evaluatedDataStorageContainer = blobClient.GetContainerReference(evaluatedDataStorageContainerName);
-            string pendingSupervisionStorageContainerName = Engine.GetEnvironmentVariable("pendingSupervisionStorageContainerName", Log);
+            string pendingSupervisionStorageContainerName = Engine.GetEnvironmentVariable("pendingSupervisionStorageContainerName");
             CloudBlobContainer pendingSupervisionStorageContainer = blobClient.GetContainerReference(pendingSupervisionStorageContainerName);
-            string pendingEvaluationStorageContainerName = Engine.GetEnvironmentVariable("pendingEvaluationStorageContainerName", Log);
+            string pendingEvaluationStorageContainerName = Engine.GetEnvironmentVariable("pendingEvaluationStorageContainerName");
             CloudBlobContainer pendingEvaluationStorageContainer = blobClient.GetContainerReference(pendingEvaluationStorageContainerName);
 
             // Loop through passing test data and call evaluate by copying blobs to pending evaluation container.
@@ -313,96 +270,47 @@ namespace semisupervisedFramework
 
         public abstract Test Create(string labelingSolutionName);
 
-        public async Task<string> LoadLabeledDataTest()
+        public async Task<string> LoadLabeledData()
         {
             // add labeled data to the model.
-            string result = await Model.AddLabeledData();
-            return result;
-        }
-    }
-
-    abstract class TestFactory
-    {
-        public abstract Test GetLabelingSolutionTester();
-    }
-
-    class VoTTFactory : TestFactory
-    {
-        private Engine _engine;
-        private Search _search;
-        private ILogger _log; 
-
-        public VoTTFactory(Engine engine, Search search, ILogger log)
-        {
-            _engine = engine;
-            _search = search;
-            _log = log;
-        }
-
-        public override Test GetLabelingSolutionTester()
-        {
-            return new VoTTTestLabeler(_engine, _search, _log);
-        }
-    }
-
-    class FileNameFactory : TestFactory
-    {
-        private Engine _engine;
-        private Search _search;
-        private ILogger _log;
-
-        public FileNameFactory(Engine engine, Search search, ILogger log)
-        {
-            _engine = engine;
-            _search = search;
-            _log = log;
-        }
-
-        public override Test GetLabelingSolutionTester()
-        {
-            return new FileNameTestLabeler(_engine, _search, _log);
+            string labelingResults = await Model.AddLabeledData();
+            return $"\n{labelingResults}";
         }
     }
 
     class VoTTTestLabeler : Test
     {
-        public VoTTTestLabeler(Engine engine, Search search, ILogger log) : base(engine, search, log)
+        public VoTTTestLabeler(Engine engine, Search search, Model model) : base(engine, search, model)
         {
 
         }
 
         public override Test Create(string labelingSolutionName)
         {
-            return new VoTTTestLabeler(Engine, Search, Log);
+            return new VoTTTestLabeler(Engine, Search, Model);
         }
 
         public override async Task<string> LabelData()
         {
             // Loop through all files in the labeling output container and add the label data to the bound json file.
-            string storageConnection = Engine.GetEnvironmentVariable("AzureWebJobsStorage", Log);
+            string storageConnection = Engine.GetEnvironmentVariable("AzureWebJobsStorage");
             CloudStorageAccount storageAccount = CloudStorageAccount.Parse(storageConnection);
             CloudBlobClient blobClient = storageAccount.CreateCloudBlobClient();
 
             // Get references to the source container, pending supervision, and the destination container, labeled data
-            string pendingSupervisionStorageContainerName = Engine.GetEnvironmentVariable("pendingSupervisionStorageContainerName", Log);
-            CloudBlobContainer pendingSupervisionStorageContainer = blobClient.GetContainerReference(pendingSupervisionStorageContainerName);
-            string labeledDataStorageContainerName = Engine.GetEnvironmentVariable("labeledDataStorageContainerName", Log);
+            string testDataContainerName = "testdata";
+            CloudBlobContainer vottTestDataContainer = blobClient.GetContainerReference(testDataContainerName);
+            string vottTestDataDirectoryName = "votttestjson";
+            CloudBlobDirectory vottTestDataDirectory = vottTestDataContainer.GetDirectoryReference(vottTestDataDirectoryName);
+            string labeledDataStorageContainerName = Engine.GetEnvironmentVariable("labeledDataStorageContainerName");
             CloudBlobContainer labeledDataStorageContainer = blobClient.GetContainerReference(labeledDataStorageContainerName);
-            string pendingNewModelStorageContainerName = Engine.GetEnvironmentVariable("pendingNewModelStorageContainerName", Log);
+            string pendingNewModelStorageContainerName = Engine.GetEnvironmentVariable("pendingNewModelStorageContainerName");
             CloudBlobContainer pendingNewModelStorageContainer = blobClient.GetContainerReference(pendingNewModelStorageContainerName);
-            string labelingOutputStorageContainerName = Engine.GetEnvironmentVariable("labelingOutputStorageContainerName", Log);
+            string labelingOutputStorageContainerName = Engine.GetEnvironmentVariable("labelingOutputStorageContainerName");
             CloudBlobContainer labelingOutputStorageContainer = blobClient.GetContainerReference(labelingOutputStorageContainerName);
 
-
-            // Loop through each blob in the labeling output container and ensure it is properly labeled in the bound json blob and the raw data blob is moved to the labeled data container.
-            foreach (IListBlobItem item in labelingOutputStorageContainer.ListBlobs(null, false))
-            {
-                if (item is CloudBlockBlob rawJsonLabelsBlob)
-                {
-                    LabelData labelData = new LabelData();
-                    labelData.VottLabelData(rawJsonLabelsBlob.Name, Log);
-                }
-            } //end loop through all blobs in labeling output container
+            // mock the supervision loop by labeling data.  This happens by simply copying the test label data into the labelingoutput container
+            await Engine.CopyBlobsFromDirectoryToContainer(vottTestDataDirectory, labelingOutputStorageContainer);
 
             // Initialize loop control variables
             int verifiedBlobs = 0;
@@ -443,30 +351,30 @@ namespace semisupervisedFramework
     }
     class FileNameTestLabeler : Test
     {
-        public FileNameTestLabeler(Engine engine, Search search, ILogger log) : base(engine, search, log)
+        public FileNameTestLabeler(Engine engine, Search search, Model model) : base(engine, search, model)
         {
 
         }
 
         public override Test Create(string labelingSolutionName)
         {
-            return new FileNameTestLabeler(Engine, Search, Log);
+            return new FileNameTestLabeler(Engine, Search, Model);
         }
 
 
         public override async Task<string> LabelData()
         {
             // Loop through all files in the pending supervision container and verify the bound json file has a label for the data file.
-            string storageConnection = Engine.GetEnvironmentVariable("AzureWebJobsStorage", Log);
+            string storageConnection = Engine.GetEnvironmentVariable("AzureWebJobsStorage");
             CloudStorageAccount storageAccount = CloudStorageAccount.Parse(storageConnection);
             CloudBlobClient blobClient = storageAccount.CreateCloudBlobClient();
 
             // Get references to the source container, pending supervision, and the destination container, labeled data
-            string pendingSupervisionStorageContainerName = Engine.GetEnvironmentVariable("pendingSupervisionStorageContainerName", Log);
+            string pendingSupervisionStorageContainerName = Engine.GetEnvironmentVariable("pendingSupervisionStorageContainerName");
             CloudBlobContainer pendingSupervisionStorageContainer = blobClient.GetContainerReference(pendingSupervisionStorageContainerName);
-            string labeledDataStorageContainerName = Engine.GetEnvironmentVariable("labeledDataStorageContainerName", Log);
+            string labeledDataStorageContainerName = Engine.GetEnvironmentVariable("labeledDataStorageContainerName");
             CloudBlobContainer labeledDataStorageContainer = blobClient.GetContainerReference(labeledDataStorageContainerName);
-            string pendingNewModelStorageContainerName = Engine.GetEnvironmentVariable("pendingNewModelStorageContainerName", Log);
+            string pendingNewModelStorageContainerName = Engine.GetEnvironmentVariable("pendingNewModelStorageContainerName");
             CloudBlobContainer pendingNewModelStorageContainer = blobClient.GetContainerReference(pendingNewModelStorageContainerName);
 
             // Loop through each blob in the pending supervision container and ensure it is properly labeled in the bound json blob and the raw data blob is moved to the labeled data container.
@@ -480,18 +388,17 @@ namespace semisupervisedFramework
                     }
                     // hydrate the data blob's bound json blob and extract all labels.
                     string blobMd5 = rawDataBlob.Properties.ContentMD5;
-                    JsonBlob boundJsonBlob = new JsonBlob(blobMd5, Engine, Search, Log);
+                    JsonBlob boundJsonBlob = new JsonBlob(blobMd5, Engine, Search);
                     JObject jsonBlobJObject = JObject.Parse(boundJsonBlob.AzureBlob.DownloadText());
                     JObject labels = (JObject)jsonBlobJObject.SelectToken("labels");  //this is really just the label content for the data asset.  Do not think of it as the label data yet.
 
                     // Update labeling value in bound json to the latest labeling value
                     if (labels != null)
                     {
-                        Log.LogInformation($"\nJson blob {boundJsonBlob.Name} for  data file {rawDataBlob.Name} already has configured labels {labels}.  Existing labels overwritten.");
+                        Engine.Log.LogInformation($"\nJson blob {boundJsonBlob.Name} for  data file {rawDataBlob.Name} already has configured labels {labels}.  Existing labels overwritten.");
                         labels.Parent.Remove();
                     }
 
-                    LabelData labelData = new LabelData();
                     labels = new JObject();
 
                     JProperty dataLabel = new JProperty("label");

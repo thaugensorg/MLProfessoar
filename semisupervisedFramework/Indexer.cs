@@ -1,4 +1,3 @@
-using System;
 using System.IO;
 
 using Microsoft.Azure.WebJobs;
@@ -17,8 +16,8 @@ namespace semisupervisedFramework
 
             log.LogInformation($"\nInitiating indexing of: {blobName}");
 
-            Search search = new Search(engine, log);
-            Model model = new Model(engine, search, log);
+            Search search = new Search(engine);
+            Model model = new Model(engine, search);
 
             try
             {

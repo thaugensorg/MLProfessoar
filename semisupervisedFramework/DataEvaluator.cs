@@ -26,8 +26,8 @@ namespace semisupervisedFramework
 
             log.LogInformation($"\nInitiating evaluation of: {blobName}");
 
-            Search search = new Search(engine, log);
-            Model model = new Model(engine, search, log);
+            Search search = new Search(engine);
+            Model model = new Model(engine, search);
             try
             {
                 string result = await model.EvaluateData(blobName);

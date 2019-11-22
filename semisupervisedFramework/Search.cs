@@ -23,20 +23,18 @@ namespace semisupervisedFramework
     // about the iteration and results of the action AND the MD5 hash that binds data blobs and json blobs together.
     //**********************************************************************************************************
 
-    class Search
+    public class Search
     {
-        private ILogger _Log;
-        private Engine _Engine;
+        private Engine _engine;
         private SearchServiceClient _ServiceClient;
 
-        public Search(Engine engine, ILogger log)
+        public Search(Engine engine)
         {
-            _Log = log;
-            _Engine = engine;
-            string SearchApiKey = _Engine.GetKeyVaultSecret("BlobSearchKey").Result;
+            _engine = engine;
+            string SearchApiKey = _engine.GetKeyVaultSecret("BlobSearchKey").Result;
 
             //string SearchApiKey = _Engine.GetEnvironmentVariable("blobSearchKey", log);
-            string searchName = _Engine.GetEnvironmentVariable("blobSearchServiceName", log);
+            string searchName = _engine.GetEnvironmentVariable("blobSearchServiceName");
             _ServiceClient = Initialize(searchName, SearchApiKey);
         }
 
@@ -57,7 +55,7 @@ namespace semisupervisedFramework
             }
             catch (Exception e)
             {
-                _Log.LogInformation($"\nNo blob {blobName} found in {containerName} ", e.Message);
+                _engine.Log.LogInformation($"\nNo blob {blobName} found in {containerName} ", e.Message);
                 return null;
             }
         }
@@ -66,7 +64,7 @@ namespace semisupervisedFramework
         {
             try
             {
-                string blobSearchIndexerName = _Engine.GetEnvironmentVariable("blobSearchIndexerName", _Log);
+                string blobSearchIndexerName = _engine.GetEnvironmentVariable("blobSearchIndexerName");
                 _ServiceClient.Indexers.RunAsync(blobSearchIndexerName);
             }
             catch (CloudException e) when (e.Response.StatusCode == (HttpStatusCode)429)
@@ -83,11 +81,10 @@ namespace semisupervisedFramework
             return serviceClient;
         }
 
-        public async Task<SearchIndexClient> CreateSearchIndexClient(string indexName, ILogger log)
+        public async Task<SearchIndexClient> CreateSearchIndexClient(string indexName)
         {
-            string SearchApiKey = await _Engine.GetKeyVaultSecret("BlobSearchKey");
-            //string SearchApiKey = _Engine.GetEnvironmentVariable("blobSearchKey", log);
-            string SearchServiceName = _Engine.GetEnvironmentVariable("blobSearchServiceName", log);
+            string SearchApiKey = await _engine.GetKeyVaultSecret("BlobSearchKey");
+            string SearchServiceName = _engine.GetEnvironmentVariable("blobSearchServiceName");
 
             SearchIndexClient indexClient = new SearchIndexClient(SearchServiceName, indexName, new SearchCredentials(SearchApiKey));
             return indexClient;

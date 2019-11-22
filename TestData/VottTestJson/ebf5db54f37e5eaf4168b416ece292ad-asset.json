@@ -1,0 +1,48 @@
+{
+    "asset": {
+        "id": "ebf5db54f37e5eaf4168b416ece292ad",
+        "format": "jpg",
+        "state": 2,
+        "type": 1,
+        "name": "japanese_cherry_15.jpg",
+        "path": "https://mlprofessoarstorage.blob.core.windows.net/pendingsupervision/japanese_cherry_15.jpg?sv=2019-02-02&ss=bfqt&srt=sco&sp=rwdlacup&se=2019-12-31T23:46:33Z&st=2019-11-20T15:46:33Z&spr=https,http&sig=lhNJrEpK4jx38mVxgtaYDEqgQJKPkyh4wfvHFdqwTT0%3D",
+        "size": {
+            "width": 1920,
+            "height": 1200
+        }
+    },
+    "regions": [
+        {
+            "id": "TizJrWGhY",
+            "type": "RECTANGLE",
+            "tags": [
+                "Japanese Cherry"
+            ],
+            "boundingBox": {
+                "height": 995.4545454545455,
+                "width": 1479.472081218274,
+                "left": 214.41624365482235,
+                "top": 104.83766035600142
+            },
+            "points": [
+                {
+                    "x": 214.41624365482235,
+                    "y": 104.83766035600142
+                },
+                {
+                    "x": 1693.8883248730965,
+                    "y": 104.83766035600142
+                },
+                {
+                    "x": 1693.8883248730965,
+                    "y": 1100.2922058105469
+                },
+                {
+                    "x": 214.41624365482235,
+                    "y": 1100.2922058105469
+                }
+            ]
+        }
+    ],
+    "version": "2.1.0"
+}

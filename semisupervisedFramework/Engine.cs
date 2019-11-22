@@ -12,9 +12,7 @@ using Microsoft.Azure.Storage;
 using Microsoft.Azure.Storage.Blob;
 using Microsoft.Azure.Storage.DataMovement;
 using Microsoft.Azure.KeyVault;
-using Microsoft.Azure.KeyVault.Models;
 using Microsoft.Azure.Services.AppAuthentication;
-using Microsoft.IdentityModel.Clients.ActiveDirectory;
 
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -29,17 +27,17 @@ namespace semisupervisedFramework
     // interaction (think environment variables), http behavior and azure storage marshalling.
     //**********************************************************************************************************
 
-    class Engine
+    public class Engine
     {
-        private ILogger _Log;
         public CloudStorageAccount StorageAccount { get; set; }
+        public ILogger Log { get; }
 
         public Engine(ILogger log)
         {
-            _Log = log;
+            Log = log;
             try
             {
-                string StorageConnection = GetEnvironmentVariable("AzureWebJobsStorage", _Log);
+                string StorageConnection = GetEnvironmentVariable("AzureWebJobsStorage");
                 StorageAccount = CloudStorageAccount.Parse(StorageConnection);
             }
             catch
@@ -48,8 +46,9 @@ namespace semisupervisedFramework
             }
         }
 
+
         //Returns an environment variable matching the name parameter in the current app context
-        public string GetEnvironmentVariable(string name, ILogger log)
+        public string GetEnvironmentVariable(string name)
         {
             try
             {
@@ -65,12 +64,12 @@ namespace semisupervisedFramework
             }
             catch (EnvironmentVariableNotSetException e)
             {
-                log.LogInformation("\nNo environment variable " + name + " in application environment variables", e.Message);
+                Log.LogInformation("\nNo environment variable " + name + " in application environment variables", e.Message);
                 return null;
             }
             catch (Exception e)
             {
-                log.LogInformation("\nNo environment variable " + name + " in application environment variables", e.Message);
+                Log.LogInformation("\nNo environment variable " + name + " in application environment variables", e.Message);
                 return null;
             }
         }
@@ -82,16 +81,16 @@ namespace semisupervisedFramework
             JProperty blobEnvironment =
                 new JProperty("environment",
                     new JObject(
-                        new JProperty("parameter", GetEnvironmentVariable("evaluationDataParameterName", log)),
-                        new JProperty("pendingEvaluationStorage", GetEnvironmentVariable("pendingEvaluationStorageContainerName", log)),
-                        new JProperty("evaluatedDataStorage", GetEnvironmentVariable("evaluatedDataStorageContainerName", log)),
-                        new JProperty("pendingSupervisionStorage", GetEnvironmentVariable("pendingSupervisionStorageContainerName", log)),
-                        new JProperty("labeledDataStorage", GetEnvironmentVariable("labeledDataStorageContainerName", log)),
-                        new JProperty("modelValidationStorage", GetEnvironmentVariable("modelValidationStorageContainerName", log)),
-                        new JProperty("pendingNewModelStorage", GetEnvironmentVariable("pendingNewModelStorageContainerName", log)),
-                        new JProperty("confidenceJSONPath", GetEnvironmentVariable("confidenceJSONPath", log)),
-                        new JProperty("confidenceThreshold", GetEnvironmentVariable("confidenceThreshold", log)),
-                        new JProperty("verificationPercent", GetEnvironmentVariable("modelVerificationPercentage", log))
+                        new JProperty("parameter", GetEnvironmentVariable("evaluationDataParameterName")),
+                        new JProperty("pendingEvaluationStorage", GetEnvironmentVariable("pendingEvaluationStorageContainerName")),
+                        new JProperty("evaluatedDataStorage", GetEnvironmentVariable("evaluatedDataStorageContainerName")),
+                        new JProperty("pendingSupervisionStorage", GetEnvironmentVariable("pendingSupervisionStorageContainerName")),
+                        new JProperty("labeledDataStorage", GetEnvironmentVariable("labeledDataStorageContainerName")),
+                        new JProperty("modelValidationStorage", GetEnvironmentVariable("modelValidationStorageContainerName")),
+                        new JProperty("pendingNewModelStorage", GetEnvironmentVariable("pendingNewModelStorageContainerName")),
+                        new JProperty("confidenceJSONPath", GetEnvironmentVariable("confidenceJSONPath")),
+                        new JProperty("confidenceThreshold", GetEnvironmentVariable("confidenceThreshold")),
+                        new JProperty("verificationPercent", GetEnvironmentVariable("modelVerificationPercentage"))
                     )
                 );
             return blobEnvironment;
@@ -115,7 +114,7 @@ namespace semisupervisedFramework
                     {
                         stringReplaceEnd = modelApiEndpoint.IndexOf("}}", stringReplaceStart);
                         string StringToReplace = modelApiEndpoint.Substring(stringReplaceStart, stringReplaceEnd - stringReplaceStart);
-                        string ReplacementString = GetEnvironmentVariable(StringToReplace.Substring(2, StringToReplace.Length - 2), _Log);
+                        string ReplacementString = GetEnvironmentVariable(StringToReplace.Substring(2, StringToReplace.Length - 2));
                         modelApiEndpoint = modelApiEndpoint.Replace(StringToReplace, ReplacementString);
                     }
                 } while (stringReplaceStart != -1);
@@ -162,7 +161,7 @@ namespace semisupervisedFramework
             }
             catch (Exception e)
             {
-                _Log.LogInformation($"\nFailed HTTP request for URL {targetUrl} in application environment variables with message: {e.Message}");
+                Log.LogInformation($"\nFailed HTTP request for URL {targetUrl} in application environment variables with message: {e.Message}");
                 if (e.InnerException.Message == "No such host is known")
                 {
                     return new JObject(new JProperty("404 - " + e.InnerException.Message)).ToString();
@@ -175,7 +174,7 @@ namespace semisupervisedFramework
 
             //log the http elapsed time
             stopWatch.Stop();
-            _Log.LogInformation("\nHTTP call to " + targetUrl + " completed in:" + stopWatch.Elapsed.TotalSeconds + " seconds.");
+            Log.LogInformation("\nHTTP call to " + targetUrl + " completed in:" + stopWatch.Elapsed.TotalSeconds + " seconds.");
             return responseString;
         }
 
@@ -193,10 +192,10 @@ namespace semisupervisedFramework
                     await sourceBlob.DeleteIfExistsAsync();
                 }
                 loopCount++;
-                _Log.LogInformation($"{loopCount} pass of move Azure blob method for {destinationBlob.Name}");
+                Log.LogInformation($"{loopCount} pass of move Azure blob method for {destinationBlob.Name}");
             } while (!destinationBlob.Exists() && loopCount < 6); //*****TODO***** externalize loop count variable to allow for tuning
             stopWatch.Stop();
-            _Log.LogInformation("The Azure Blob " + sourceBlob + " deleted in: " + stopWatch.Elapsed.TotalSeconds + " seconds.");
+            Log.LogInformation("The Azure Blob " + sourceBlob + " deleted in: " + stopWatch.Elapsed.TotalSeconds + " seconds.");
         }
 
         public async Task CopyBlobsFromContainerToContainer(CloudBlobContainer sourceContainer, CloudBlobContainer destinationContainer)
@@ -206,6 +205,18 @@ namespace semisupervisedFramework
                 if (item is CloudBlockBlob sourceBlob)
                 {
                     CloudBlockBlob destinationBlob = destinationContainer.GetBlockBlobReference(sourceBlob.Name);
+                    await destinationBlob.StartCopyAsync(sourceBlob);
+                }
+            }
+        }
+
+        public async Task CopyBlobsFromDirectoryToContainer(CloudBlobDirectory sourceDirectory, CloudBlobContainer destinationContainer)
+        {
+            foreach (IListBlobItem item in sourceDirectory.ListBlobs(false))
+            {
+                if (item is CloudBlockBlob sourceBlob)
+                {
+                    CloudBlockBlob destinationBlob = destinationContainer.GetBlockBlobReference(sourceBlob.Name.Substring(sourceBlob.Parent.Prefix.Length));
                     await destinationBlob.StartCopyAsync(sourceBlob);
                 }
             }
@@ -247,7 +258,7 @@ namespace semisupervisedFramework
             }
             catch (TransferException e)
             {
-                _Log.LogInformation($"\nThe Azure Blob {sourceBlob.Name} already exists in {destinationBlob.Parent.Container.Name} with message {e.Message}");
+                Log.LogInformation($"\nThe Azure Blob {sourceBlob.Name} already exists in {destinationBlob.Parent.Container.Name} with message {e.Message}");
             }
             catch (Exception e)
             {
@@ -257,7 +268,7 @@ namespace semisupervisedFramework
             }
 
             stopWatch.Stop();
-            _Log.LogInformation($"The Azure Blob {sourceBlob.Name} transfer to {destinationBlob.Name} completed in: {stopWatch.Elapsed.TotalSeconds} seconds.");
+            Log.LogInformation($"The Azure Blob {sourceBlob.Name} transfer to {destinationBlob.Name} completed in: {stopWatch.Elapsed.TotalSeconds} seconds.");
         }
 
         //Gets a reference to a specific blob using container and blob names as strings
@@ -289,7 +300,7 @@ namespace semisupervisedFramework
                 {
                     ProgressHandler = new Progress<TransferStatus>((progress) =>
                     {
-                        _Log.LogInformation("\rBytes transferred: {0}", progress.BytesTransferred);
+                        Log.LogInformation("\rBytes transferred: {0}", progress.BytesTransferred);
                     })
                 };
 
@@ -297,7 +308,7 @@ namespace semisupervisedFramework
             }
             catch (Exception e)
             {
-                _Log.LogInformation("\nGet transfer progress update fails.", e.Message);
+                Log.LogInformation("\nGet transfer progress update fails.", e.Message);
                 return null;
             }
         }
@@ -388,7 +399,7 @@ namespace semisupervisedFramework
                 /* The next four lines of code show you how to use AppAuthentication library to fetch secrets from your key vault */
                 AzureServiceTokenProvider azureServiceTokenProvider = new AzureServiceTokenProvider();
                 KeyVaultClient keyVaultClient = new KeyVaultClient(new KeyVaultClient.AuthenticationCallback(azureServiceTokenProvider.KeyVaultTokenCallback));
-                string keyVaultName = GetEnvironmentVariable("KeyVaultName", _Log);
+                string keyVaultName = GetEnvironmentVariable("KeyVaultName");
                 var secret = await keyVaultClient.GetSecretAsync($"https://{keyVaultName}.vault.azure.net/secrets/{secretName}")
                         .ConfigureAwait(false);
                 return secret.Value;

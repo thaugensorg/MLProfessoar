@@ -1,8 +1,3 @@
-using System;
-
-using Microsoft.Azure.Storage;
-using Microsoft.Azure.Storage.Blob;
-
 using Microsoft.Azure.WebJobs;
 using Microsoft.Extensions.Logging;
 
@@ -32,18 +27,18 @@ namespace semisupervisedFramework
             Engine engine = new Engine(log);
 
             //if the model is not type trained then skip the training loop.
-            string modelType = engine.GetEnvironmentVariable("modelType", log);
+            string modelType = engine.GetEnvironmentVariable("modelType");
             log.LogInformation($"\nBranck condition set to foo blocking training proces from running while developing.  Must be set to Trained for release build.");
 
-            if (modelType == "foo")  // make this foo to stop the process from running while in development "Trained")
+            if (modelType == "foo")  // make this foo to stop the process from running while in development.  Set to "Trained" when deploying to production.)
             {
-                Search search = new Search(engine, log);
-                Model model = new Model(engine, search, log);
+                Search search = new Search(engine);
+                Model model = new Model(engine, search);
                 await model.TrainingProcess();
             }
             else
             {
-                log.LogInformation($"\nModel set to 'Static' execiution of training logic suspended.  If you would like to change this to a trained model please update appropriate environment variables.  If you were waiting for the pending evaluation blob trigger to fire and it is not firing then you probably do not have the right storage key set in your local.setting.json file.");
+                log.LogInformation($"\nModel set to 'Static' execution of training logic suspended.  If you would like to change this to a trained model please update appropriate environment variables.  If you were waiting for the pending evaluation blob trigger to fire and it is not firing then you probably do not have the right storage key set in your local.setting.json file.");
             }
         }
     }

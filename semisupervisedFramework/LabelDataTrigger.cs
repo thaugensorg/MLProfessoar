@@ -1,9 +1,6 @@
-using System;
 using System.IO;
-using System.Threading.Tasks;
 
 using Microsoft.Azure.WebJobs;
-using Microsoft.Azure.WebJobs.Host;
 using Microsoft.Extensions.Logging;
 
 
@@ -19,15 +16,18 @@ namespace semisupervisedFramework
             if (!blobName.ToLower().Contains("vott"))
             {
                 Engine engine = new Engine(log);
-                LabelData labelData = new LabelData();
+                Search search = new Search(engine);
+                Model model = new Model(engine, search);
 
-                // Add new labeling solutions here for every new tool that is integrated with ML Professoar
-                //*****TODO***** this needs to be updated to a class subclass model
-                string labelingSolutionName = engine.GetEnvironmentVariable("labelingSolutionName", log);
+                // Add new labeling solutions here for every new labeling tool that is integrated with ML Professoar
+                DataLabelerFactory dataLabelerFactory = null;
+                string labelingSolutionName = engine.GetEnvironmentVariable("labelingSolutionName");
                 switch (labelingSolutionName)
                 {
                     case "VoTT":
-                        labelData.VottLabelData(blobName, log);
+                        dataLabelerFactory = new VottDataLabelerFactory(engine, search, model);
+                        DataLabeler dataLabeler = dataLabelerFactory.GetDataLabeler();
+                        dataLabeler.LabelData(blobName);
                         break;
 
                     default:

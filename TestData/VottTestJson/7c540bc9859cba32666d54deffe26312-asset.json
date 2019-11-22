@@ -1,0 +1,48 @@
+{
+    "asset": {
+        "id": "7c540bc9859cba32666d54deffe26312",
+        "format": "jpg",
+        "state": 2,
+        "type": 1,
+        "name": "hemlock_15.jpg",
+        "path": "https://mlprofessoarstorage.blob.core.windows.net/pendingsupervision/hemlock_15.jpg?sv=2019-02-02&ss=bfqt&srt=sco&sp=rwdlacup&se=2019-12-31T23:46:33Z&st=2019-11-20T15:46:33Z&spr=https,http&sig=lhNJrEpK4jx38mVxgtaYDEqgQJKPkyh4wfvHFdqwTT0%3D",
+        "size": {
+            "width": 800,
+            "height": 535
+        }
+    },
+    "regions": [
+        {
+            "id": "LAiTTiJRy",
+            "type": "RECTANGLE",
+            "tags": [
+                "Hemlock"
+            ],
+            "boundingBox": {
+                "height": 345.8421851289833,
+                "width": 760.2030456852792,
+                "left": 6.49746192893401,
+                "top": 75.79843361931252
+            },
+            "points": [
+                {
+                    "x": 6.49746192893401,
+                    "y": 75.79843361931252
+                },
+                {
+                    "x": 766.7005076142132,
+                    "y": 75.79843361931252
+                },
+                {
+                    "x": 766.7005076142132,
+                    "y": 421.6406187482958
+                },
+                {
+                    "x": 6.49746192893401,
+                    "y": 421.6406187482958
+                }
+            ]
+        }
+    ],
+    "version": "2.1.0"
+}
