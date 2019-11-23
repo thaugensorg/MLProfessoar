@@ -661,7 +661,7 @@ Write-Host "Creating app config settings." -ForegroundColor "Green"
 $storageConnectionString = "DefaultEndpointsProtocol=https;AccountName=mlprofessoarstorage;AccountKey=" + $frameworkStorageAccountKey + ";EndpointSuffix=core.windows.net"
 $secretvalue = ConvertTo-SecureString $storageConnectionString -AsPlainText -Force
 $secret = Set-AzKeyVaultSecret -VaultName $frameworkKeyVaultName -Name 'AzureWebJobsStorage' -SecretValue $secretvalue
-$azureWebJobsStorageSetting = "AzureWebJobsStorage=@Microsoft.KeyVault(SecretUri=" + $secret.id + ") "
+$azureWebJobsStorageSetting = "@Microsoft.KeyVault(SecretUri=" + $secret.id + ") "
 
 # Create environment variables common to both static and trained models
 az functionapp config appsettings set `

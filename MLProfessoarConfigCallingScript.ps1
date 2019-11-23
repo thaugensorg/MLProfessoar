@@ -1,4 +1,4 @@
-$command = '.\SemisupervisedOrchestrationFrameworkEnvironmentConfiguration.ps1 `
+$command = '.\MLProfessoarEnvironmentConfiguration.ps1 `
     -subscription Thaugen-semisupervised-vision-closed-loop-solution `
     -frameworkResourceGroupName MLProfessoar `
     -frameworkLocation westus `
