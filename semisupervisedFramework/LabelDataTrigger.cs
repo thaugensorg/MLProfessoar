@@ -1,3 +1,4 @@
+using System;
 using System.IO;
 
 using Microsoft.Azure.WebJobs;
@@ -20,22 +21,21 @@ namespace semisupervisedFramework
                 Model model = new Model(engine, search);
 
                 // Add new labeling solutions here for every new labeling tool that is integrated with ML Professoar
-                DataLabelerFactory dataLabelerFactory = null;
+                //*****TODO***** eliminate the factory model and replace with C# activate call.
                 string labelingSolutionName = engine.GetEnvironmentVariable("labelingSolutionName");
-                switch (labelingSolutionName)
+                labelingSolutionName = $"semisupervisedFramework.{labelingSolutionName}DataLabeler";
+                Type classType = Type.GetType(labelingSolutionName, true, true);
+                if (classType != null)
                 {
-                    case "VoTT":
-                        dataLabelerFactory = new VottDataLabelerFactory(engine, search, model);
-                        DataLabeler dataLabeler = dataLabelerFactory.GetDataLabeler();
-                        dataLabeler.LabelData(blobName);
-                        break;
-
-                    default:
-                        log.LogInformation($"\nInvalid labeling solution name {labelingSolutionName}.  No method exists to handle this labeling solution type.");
-                        break;
+                    DataLabeler dataLabeler = (DataLabeler)Activator.CreateInstance(classType, new Object[] { engine, search, model });
+                    dataLabeler.LabelData(blobName);
+                }
+                else
+                {
+                    log.LogInformation($"LabelDataTrigger blob trigger function failed processing blob Name:{blobName}");
                 }
             }
-            log.LogInformation($"LabelDataTrigger blob trigger function Processed blob\n Name:{blobName} \n Size: {myBlob.Length} Bytes");
+            log.LogInformation($"LabelDataTrigger blob trigger function Processed blob Name:{blobName}");
         }
     }
 }

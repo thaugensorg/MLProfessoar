@@ -22,13 +22,13 @@ namespace semisupervisedFramework
                     Engine engine = new Engine(log);
                     Search search = new Search(engine);
                     Model model = new Model(engine, search);
-                    string labelingSolutionName = engine.GetEnvironmentVariable("labelingSolutionName");
-                    
+
                     // Instanciate test labeling class that matches the configured labeling solution.
-                    // Note: test labeling class must follow the nameing convention - {environment variable namign soluition name}TestLabeler
+                    // Note: test labeling class must follow the nameing convention - {environment variable naming soluition name}TestLabeler
                     // If this convention is not followed ML Professoar cannot find the test labeling class to instanciate.
-                    Type factoryType = Type.GetType($"semisupervisedFramework.{labelingSolutionName}TestLabeler");
-                    Test test = (Test)Activator.CreateInstance(factoryType, new Object[] { engine, search, model });
+                    string labelingSolutionName = engine.GetEnvironmentVariable("labelingSolutionName");
+                    Type classType = Type.GetType($"semisupervisedFramework.{labelingSolutionName}TestLabeler");
+                    Test test = (Test)Activator.CreateInstance(classType, new Object[] { engine, search, model });
 
                     // Inititialize test result variables
                     string noTrainedModelTestResults = "";

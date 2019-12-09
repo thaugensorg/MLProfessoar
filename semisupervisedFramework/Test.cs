@@ -101,6 +101,7 @@ namespace semisupervisedFramework
             // training tags from the labeling solution such as VoTT.
             //await dataLabelingTagsBlob.StartCopyAsync(testDataLabelingTagsBlob);
 
+
             //Load the list of valid training tags to ensure all data labels are valid.
             string loadTrainingTagsResult = Model.LoadTrainingTags();
 
@@ -309,7 +310,8 @@ namespace semisupervisedFramework
             string labelingOutputStorageContainerName = Engine.GetEnvironmentVariable("labelingOutputStorageContainerName");
             CloudBlobContainer labelingOutputStorageContainer = blobClient.GetContainerReference(labelingOutputStorageContainerName);
 
-            // mock the supervision loop by labeling data.  This happens by simply copying the test label data into the labelingoutput container
+            // Mock the supervision loop by labeling data.  This happens by simply copying the test label data into the labelingoutput container
+            // The labeling output container has a blob trigger on it that moves labels from the labeler output to the MLProfessoar json file.
             await Engine.CopyBlobsFromDirectoryToContainer(vottTestDataDirectory, labelingOutputStorageContainer);
 
             // Initialize loop control variables
@@ -334,7 +336,7 @@ namespace semisupervisedFramework
                             }
                         }
                     } //end if not cloud block blob
-                }
+                } //end loop through labeled data container
 
                 // If after making a pass through all of the test container blobs the test has not passed wait and then check again.  Because the code
                 // does not invoke the Orchestration Engine directly we cannot await the call to evaluate data so we have to delay and try again.
@@ -369,15 +371,10 @@ namespace semisupervisedFramework
             CloudStorageAccount storageAccount = CloudStorageAccount.Parse(storageConnection);
             CloudBlobClient blobClient = storageAccount.CreateCloudBlobClient();
 
-            // Get references to the source container, pending supervision, and the destination container, labeled data
+            // Loop through each blob in the pending supervision container, create labeling json, and upload the file to labeling out put to mock
+            // a labeling app generating labels and creating a labels output file.
             string pendingSupervisionStorageContainerName = Engine.GetEnvironmentVariable("pendingSupervisionStorageContainerName");
             CloudBlobContainer pendingSupervisionStorageContainer = blobClient.GetContainerReference(pendingSupervisionStorageContainerName);
-            string labeledDataStorageContainerName = Engine.GetEnvironmentVariable("labeledDataStorageContainerName");
-            CloudBlobContainer labeledDataStorageContainer = blobClient.GetContainerReference(labeledDataStorageContainerName);
-            string pendingNewModelStorageContainerName = Engine.GetEnvironmentVariable("pendingNewModelStorageContainerName");
-            CloudBlobContainer pendingNewModelStorageContainer = blobClient.GetContainerReference(pendingNewModelStorageContainerName);
-
-            // Loop through each blob in the pending supervision container and ensure it is properly labeled in the bound json blob and the raw data blob is moved to the labeled data container.
             foreach (IListBlobItem item in pendingSupervisionStorageContainer.ListBlobs(null, false))
             {
                 if (item is CloudBlockBlob rawDataBlob)
@@ -386,20 +383,6 @@ namespace semisupervisedFramework
                     {
                         //you have to 'touch' the cloudBlockBlob or the properties will be null.
                     }
-                    // hydrate the data blob's bound json blob and extract all labels.
-                    string blobMd5 = rawDataBlob.Properties.ContentMD5;
-                    JsonBlob boundJsonBlob = new JsonBlob(blobMd5, Engine, Search);
-                    JObject jsonBlobJObject = JObject.Parse(boundJsonBlob.AzureBlob.DownloadText());
-                    JObject labels = (JObject)jsonBlobJObject.SelectToken("labels");  //this is really just the label content for the data asset.  Do not think of it as the label data yet.
-
-                    // Update labeling value in bound json to the latest labeling value
-                    if (labels != null)
-                    {
-                        Engine.Log.LogInformation($"\nJson blob {boundJsonBlob.Name} for  data file {rawDataBlob.Name} already has configured labels {labels}.  Existing labels overwritten.");
-                        labels.Parent.Remove();
-                    }
-
-                    labels = new JObject();
 
                     JProperty dataLabel = new JProperty("label");
 
@@ -413,25 +396,22 @@ namespace semisupervisedFramework
                         dataLabel.Value = "Japanese Cherry";
                     }
 
-                    JObject labelsObject = new JObject
-                    {
-                        dataLabel
-                    };
-
-
                     // Create a labels property, add it to the bound json and then upload the file.
-                    labels.Add(labelsObject);
-                    JProperty labelsJProperty = new JProperty("labels", labels);
-                    jsonBlobJObject.Add(labelsJProperty);
-                    await Engine.UploadJsonBlob(boundJsonBlob.AzureBlob, jsonBlobJObject);
+                    JObject dataLabelJObject = new JObject(dataLabel);
+                    //JArray dataLabelsJArray = new JArray(dataLabelJObject);
+                    //JProperty dataLabelsJproperty = new JProperty("labels", dataLabelsJArray);
+                    //JObject dataLabelsJobject = new JObject(dataLabelsJArray);
 
-                    // copy current raw blob working file from pending supervision to labeled data AND pending new model containers
-                    CloudBlockBlob labeledDataDestinationBlob = labeledDataStorageContainer.GetBlockBlobReference(rawDataBlob.Name);
-                    CloudBlockBlob pendingNewModelDestinationBlob = pendingNewModelStorageContainer.GetBlockBlobReference(rawDataBlob.Name);
-                    await Engine.CopyAzureBlobToAzureBlob(storageAccount, rawDataBlob, pendingNewModelDestinationBlob);
-                    await Engine.MoveAzureBlobToAzureBlob(storageAccount, rawDataBlob, labeledDataDestinationBlob);
-                    //*****TODO***** should this be using the start copy + delete if exists or the async versions in Engine.
-                    //destinationBlob.StartCopy(rawDataBlob);
+                    // Create labeling output file using file name as the source of the labels
+                    string labelingOutputStorageContainerName = Engine.GetEnvironmentVariable("labelingOutputStorageContainerName");
+                    CloudBlobContainer labelingOutputStorageContainer = blobClient.GetContainerReference(labelingOutputStorageContainerName);
+
+                    // Note, we are simply appending the json extention to a full blob name.  This allows downstream code to hydrate the source
+                    // raw data blob name.
+                    CloudBlockBlob labelingOutputJsonBlob = labelingOutputStorageContainer.GetBlockBlobReference($"{rawDataBlob.Name}.json");
+                    labelingOutputJsonBlob.Properties.ContentType = "application/json";
+                    await Engine.UploadJsonBlob(labelingOutputJsonBlob, dataLabelJObject);
+
                     //*****TODO***** should this test validate the transfer to both directories?  Probably.
 
                 } //end if not cloud block blob
@@ -443,6 +423,12 @@ namespace semisupervisedFramework
             int checkLoops = 0;
 
             // Loop through all blobs in labeled data container and ensure there is a corresponding blob in the expectged pending new model container.
+            string pendingNewModelStorageContainerName = Engine.GetEnvironmentVariable("pendingNewModelStorageContainerName");
+            CloudBlobContainer pendingNewModelStorageContainer = blobClient.GetContainerReference(pendingNewModelStorageContainerName);
+            string labeledDataStorageContainerName = Engine.GetEnvironmentVariable("labeledDataStorageContainerName");
+            CloudBlobContainer labeledDataStorageContainer = blobClient.GetContainerReference(labeledDataStorageContainerName);
+
+
             do
             {
                 verifiedBlobs = 0;
@@ -454,13 +440,13 @@ namespace semisupervisedFramework
                         if (expectedBlob.Exists())
                         {
                             verifiedBlobs++;
-                            if (verifiedBlobs == 30)
+                            if (verifiedBlobs == 20)
                             {
                                 return $"Passed: 30 blobs verified in {labeledDataStorageContainerName} and {pendingNewModelStorageContainer}";
                             }
                         }
                     } //end if not cloud block blob
-                }
+                } //end loop through labeled data container
 
                 // If after making a pass through all of the test container blobs the test has not passed wait and then check again.  Because the code
                 // does not invoke the Orchestration Engine directly we cannot await the call to evaluate data so we have to delay and try again.
@@ -468,10 +454,10 @@ namespace semisupervisedFramework
                 await Task.Delay(5000);
                 checkLoops++;
 
-                // Keep looping until either the test passes or 10 attempts have been made.  *****TODO***** this should be externalized in the future for performance tuning.
-            } while (verifiedBlobs <= 30 && checkLoops <= 10);
+            // Keep looping until either the test passes or 10 attempts have been made.  *****TODO***** this should be externalized in the future for performance tuning.
+            } while (verifiedBlobs <= 20 && checkLoops <= 10);
 
-            return $"failed: {verifiedBlobs} found in {labeledDataStorageContainerName} and {pendingNewModelStorageContainer}, 30 were expected";
-        }
-    }
+            return $"failed: {verifiedBlobs} found in {labeledDataStorageContainerName} and {pendingNewModelStorageContainer}, 20 were expected";
+        } //end LabelData method
+    } //end FileNameTestLabeler class
 }

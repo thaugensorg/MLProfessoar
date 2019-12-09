@@ -22,42 +22,22 @@ namespace semisupervisedFramework
         }
 
         public abstract Task<string> LabelData(string labelingJsonBlobName);
-    }
 
-    class VottDataLabeler : DataLabeler
-    {
-        public VottDataLabeler(Engine engine, Search search, Model model) : base(engine, search, model)
+        public async Task AddLabeledDataToJsonFile(JObject labelingJobject, string rawDataFileName)
         {
-        }
-
-        public override async Task<string> LabelData(string labelingJsonBlobName)
-        {
-            Engine.Log.LogInformation($"\nInitiating labeling of: {labelingJsonBlobName}");
-
-            // Hydrate the labeling results blob
             CloudBlobClient blobClient = Engine.StorageAccount.CreateCloudBlobClient();
-            string labelingOutputStorageContainerName = Engine.GetEnvironmentVariable("labelingOutputStorageContainerName");
-            CloudBlobContainer labelingOutputStorageContainer = blobClient.GetContainerReference(labelingOutputStorageContainerName);
-            CloudBlockBlob labelingOutputJsonBlob = labelingOutputStorageContainer.GetBlockBlobReference(labelingJsonBlobName);
-
-            // Download the labeling results Json
-            string labelingOutput = labelingOutputJsonBlob.DownloadText();
-            JObject labelingOutputJobject = JObject.Parse(labelingOutput);
-
-            // Hydrate the raw data file
-            //*****TODO*****externalize the json location of the file name or make sure it will be in the standardised location created by MLProfessoar.
-            string labelingOutputJsonFileName = (string)labelingOutputJobject.SelectToken("asset.name");
             string pendingSupervisionStorageContainerName = Engine.GetEnvironmentVariable("pendingSupervisionStorageContainerName");
             CloudBlobContainer pendingSupervisionStorageContainer = blobClient.GetContainerReference(pendingSupervisionStorageContainerName);
-            CloudBlockBlob rawDataBlob = pendingSupervisionStorageContainer.GetBlockBlobReference(labelingOutputJsonFileName);
+            CloudBlockBlob rawDataBlob = pendingSupervisionStorageContainer.GetBlockBlobReference(rawDataFileName);
 
-            // Hydrate bound json blob and get its Json.
+            // Hydrate bound json blob and download its Json.
             // You must 'touch' the blob before you can access properties or they are all null.
             if (rawDataBlob.Exists())
             {
             }
 
-            // Update labeling value in bound json to the latest labeling value
+            // Update labeling value in bound json to the latest labeling value.  If labeling data exists then simply delete the token
+            // as it allows the same code to be used to create the token every for both update and create.
             JsonBlob boundJsonBlob = new JsonBlob(rawDataBlob.Properties.ContentMD5.ToString(), Engine, Search);
             JToken labels = (JToken)boundJsonBlob.Json.SelectToken("labels");
             if (labels != null)
@@ -68,7 +48,7 @@ namespace semisupervisedFramework
             }
 
             // Create a labels property, add it to the bound json and then upload the file.
-            JProperty labelsJProperty = new JProperty("labels", labelingOutputJobject);
+            JProperty labelsJProperty = new JProperty("labels", labelingJobject);
             boundJsonBlob.Json.Add(labelsJProperty);
 
             // update bound json blob with the latest json
@@ -87,12 +67,73 @@ namespace semisupervisedFramework
             await Engine.CopyAzureBlobToAzureBlob(Engine.StorageAccount, rawDataBlob, pendingNewModelDestinationBlob);
             await Engine.MoveAzureBlobToAzureBlob(Engine.StorageAccount, rawDataBlob, labeledDataDestinationBlob);
 
-            Engine.Log.LogInformation($"\nCompleted labeling of: {labelingJsonBlobName}");
+            Engine.Log.LogInformation($"\nCompleted labeling of: {rawDataFileName}");
+        }
+    }
 
-            return $"Labeling of: {labelingJsonBlobName} was successfull.";
+    public class VottDataLabeler : DataLabeler
+    {
+        public VottDataLabeler(Engine engine, Search search, Model model) : base(engine, search, model)
+        {
         }
 
+        public override async Task<string> LabelData(string labelingOutputJsonBlobName)
+        {
+            Engine.Log.LogInformation($"\nInitiating labeling of: {labelingOutputJsonBlobName}");
+
+            // Hydrate the labeling results blob
+            CloudBlobClient blobClient = Engine.StorageAccount.CreateCloudBlobClient();
+            string labelingOutputStorageContainerName = Engine.GetEnvironmentVariable("labelingOutputStorageContainerName");
+            CloudBlobContainer labelingOutputStorageContainer = blobClient.GetContainerReference(labelingOutputStorageContainerName);
+            CloudBlockBlob labelingOutputJsonBlob = labelingOutputStorageContainer.GetBlockBlobReference(labelingOutputJsonBlobName);
+
+            // Download the labeling results Json
+            string labelingOutput = labelingOutputJsonBlob.DownloadText();
+            JObject labelingOutputJobject = JObject.Parse(labelingOutput);
+
+            // Get the raw data file name and use that to add the label data to the bound json file.
+            //*****TODO*****externalize the json location of the file name or make sure it will be in the standardised location created by MLProfessoar.
+            string rawDataFileName = (string)labelingOutputJobject.SelectToken("asset.name");
+            await AddLabeledDataToJsonFile(labelingOutputJobject, rawDataFileName);
+
+            Engine.Log.LogInformation($"\nCompleted labeling of: {labelingOutputJsonBlobName}");
+
+            return $"Labeling of: {labelingOutputJsonBlobName} was successfull.";
+
+        }
     }
+
+    public class FileNameDataLabeler : DataLabeler
+    {
+        public FileNameDataLabeler(Engine engine, Search search, Model model) : base(engine, search, model)
+        {
+        }
+
+        public override async Task<string> LabelData(string fileNameLabelerOutputBlobName)
+        {
+            Engine.Log.LogInformation($"\nInitiating labeling of: {fileNameLabelerOutputBlobName}");
+
+            // Hydrate the labeling results blob
+            CloudBlobClient blobClient = Engine.StorageAccount.CreateCloudBlobClient();
+            string labelingOutputStorageContainerName = Engine.GetEnvironmentVariable("labelingOutputStorageContainerName");
+            CloudBlobContainer labelingOutputStorageContainer = blobClient.GetContainerReference(labelingOutputStorageContainerName);
+            CloudBlockBlob labelingOutputJsonBlob = labelingOutputStorageContainer.GetBlockBlobReference(fileNameLabelerOutputBlobName);
+
+            // Download the labeling results Json
+            string labelingOutput = labelingOutputJsonBlob.DownloadText();
+            JObject labelingOutputJobject = JObject.Parse(labelingOutput);
+
+            // Get the raw data file name and use that to add the label data to the bound json file.
+            string rawDataBlobName = System.IO.Path.GetFileNameWithoutExtension(fileNameLabelerOutputBlobName);
+            await AddLabeledDataToJsonFile(labelingOutputJobject, rawDataBlobName);
+
+            Engine.Log.LogInformation($"\nCompleted labeling of: {fileNameLabelerOutputBlobName}");
+
+            return $"Labeling of: {fileNameLabelerOutputBlobName} was successfull.";
+
+        }
+    }
+
     public abstract class DataLabelerFactory
     {
         public abstract DataLabeler GetDataLabeler();
