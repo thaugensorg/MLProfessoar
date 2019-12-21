@@ -1,8 +1,8 @@
 Param(
   [Parameter(Mandatory=$true)] [string] $subscription, 
   [Parameter(Mandatory=$true)] [string] $frameworkResourceGroupName,
-  [Parameter(mandatory=$false)] [string] $frameworkKeyVaultName = $frameworkResourceGroupName + "KeyVault",
-  [Parameter(mandatory=$false)] [string] $frameworkStorageAccountName = $frameworkResourceGroupName.ToLower() + "storage",
+  [Parameter(mandatory=$false)] [string] $frameworkKeyVaultName = $frameworkResourceGroupName + "KV",
+  [Parameter(mandatory=$false)] [string] $frameworkStorageAccountName = $frameworkResourceGroupName.ToLower() + "strg",
   [Parameter(mandatory=$false)] [string] $frameworkStorageAccountKey,        
   [Parameter(mandatory=$false)] [string] $frameworkFunctionAppName = $frameworkResourceGroupName + "App",
   [Parameter(mandatory=$true)] [string] $frameworkLocation,
@@ -28,41 +28,81 @@ Param(
   [Parameter(mandatory=$false)] [string] $labelingTagsParameterName,
   [Parameter(mandatory=$false)] [string] $labelingTagsFileHash = 'hash not initialized',
   [Parameter(mandatory=$false)] [string] $labelingTagsBlobName = 'LabelingTags.json',
-  [Parameter(mandatory=$false)] [string] $blobSearchServiceName = 'bindinghashsearch',
+  [Parameter(mandatory=$false)] [string] $blobSearchServiceName = $frameworkResourceGroupName.ToLower() + "srch",
   [Parameter(mandatory=$false)] [string] $labelingOutputStorageContainerName = 'labelingoutput')
 
 # To Do: replace all azure CLI calls to PowerShell cmdlets such as get-azureRmStorageAccountKey
-
-while([string]::IsNullOrWhiteSpace($frameworkStorageAccountName))
-  {$frameworkStorageAccountName = Read-Host -Prompt 'Input the name of the azure storage account you want to create for this installation of the orchestration framework.  Note this needs to be between 3 and 24 characters, globally unique in Azure, and contain all lowercase letters and or numbers.'
-  if ($frameworkStorageAccountName.length -lt 2){$frameworkStorageAccountName=$null
-    Write-Host "Storage account name cannot be shorter than 24 charaters." -ForegroundColor "Red"}
-  if ($frameworkStorageAccountName.length -gt 24){$frameworkStorageAccountName=$null
-    Write-Host "Storage account name cannot be longer than 24 charaters." -ForegroundColor "Red"}
-  if (-Not ($frameworkStorageAccountName -cmatch "^[a-z0-9]*$")) {$frameworkStorageAccountName=$null
-    Write-Host "Storage account name must not have upper case letters." -ForegroundColor "Red"}
+#*****TODO***** enable "-" char in storage account name.
+$validStorageAccountName = $false
+$minLength = $false
+$maxLength = $false
+$charSet = $false
+while(-not $validStorageAccountName){
+  if ($frameworkStorageAccountName.length -lt 2){
+    $frameworkStorageAccountName = Read-Host -Prompt "Storage account name $frameworkStorageAccountName cannot be shorter than 2 charaters"
+  }else {$minLength = $true}
+  if ($frameworkStorageAccountName.length -gt 24){
+    $frameworkStorageAccountName = Read-Host -Prompt "Storage account name $frameworkStorageAccountName cannot be longer than 24 charaters"
+  }else {$maxLength = $true}
+  if (-Not ($frameworkStorageAccountName -cmatch '[a-z_0-9]')) {
+    $frameworkStorageAccountName = Read-Host -Prompt "Storage account name $frameworkStorageAccountName can only contain lowercase letters, numbers, and -"
+  }else {$charSet = $true}
+  if ($minLength -and $maxLength -and $charSet){$validStorageAccountName = $true}
   }
 
 #*****TODO***** enable "-" char in function app name.
-while([string]::IsNullOrWhiteSpace($frameworkFunctionAppName))
-  {$frameworkFunctionAppName = Read-Host -Prompt 'Input the name for the azure function app you want to create for this installation of the orchestration framework.  Note this has to be unique across all of Azure.'
-  if ($frameworkFunctionAppName.length -lt 2){$frameworkFunctionAppName=$null
-    Write-Host "Function app name cannot be shorter than 2 charaters." -ForegroundColor "Red"}
-  if ($frameworkFunctionAppName.length -gt 60){$frameworkFunctionAppName=$null
-    Write-Host "Function app name cannot be longer than 60 charaters." -ForegroundColor "Red"}
-  if (-Not ($frameworkFunctionAppName -cmatch "^[A-Za-z0-9]*$")) {$frameworkFunctionAppName=$null
-    Write-Host "Function app name can only have numbers and upper / lower case letters." -ForegroundColor "Red"}
+$validFunctionAppName = $false
+$minLength = $false
+$maxLength = $false
+$charSet = $false
+while(-not $validFunctionAppName){
+  if ($frameworkFunctionAppName.length -lt 2){
+    $frameworkFunctionAppName = Read-Host -Prompt "Function app name $frameworkFunctionAppName cannot be shorter than 2 charaters"
+  }else {$minLength = $true}
+  if ($frameworkFunctionAppName.length -gt 60){
+    $frameworkFunctionAppName = Read-Host -Prompt "Function app name $frameworkFunctionAppName cannot be longer than 60 charaters"
+  }else {$maxLength = $true}
+  if (-Not ($frameworkFunctionAppName -cmatch '[a-zA-Z_0-9]')) {
+    $frameworkFunctionAppName = Read-Host -Prompt "Function app name $frameworkFunctionAppName can only have numbers and upper / lower case letters"
+  }else {$charSet = $true}
+  if ($minLength -and $maxLength -and $charSet){$validFunctionAppName = $true}
+  }
+
+$validKeyVaultName = $false
+$minLength = $false
+$maxLength = $false
+$charSet = $false
+while(-not $validKeyVaultName){
+  if ($frameworkKeyVaultName.length -lt 3){
+    $frameworkKeyVaultName = Read-Host -Prompt "Key Vault name $frameworkKeyVaultName cannot be shorter than 3 charaters"
+  }else {$minLength = $true}
+  if ($frameworkKeyVaultName.length -gt 24){
+    $frameworkKeyVaultName = Read-Host -Prompt "Key Vault name $frameworkKeyVaultName cannot be longer than 24 charaters"
+  }else {$maxLength = $true}
+  if (-Not ($frameworkKeyVaultName -cmatch '[a-zA-Z_0-9]')) {
+    $frameworkKeyVaultName = Read-Host -Prompt "Key Vault name $frameworkKeyVaultName must not have upper case letters"
+  }else {$charSet = $true}
+  if ($minLength -and $maxLength -and $charSet){$validKeyVaultName = $true}
   }
 
 #These environment variables are only used for trained models
 if ($modelType -eq "Trained")
 {
-  while([string]::IsNullOrWhiteSpace($blobSearchServiceName))
-  {$blobSearchServiceName = Read-Host -Prompt 'Input the name of the search service that will be used to access the blob binding hash. This name must be globally unique across Azure consist only of lowercase letters and dashes and cannot be longer than 60 characters.'
-  if ($blobSearchServiceName.length -gt 60){$blobSearchServiceName=$null
-    Write-Host "Search service name cannot be shorter than 2 characters and no longer than 60 charaters." -ForegroundColor "Red"}
-  if ($blobSearchServiceName -cmatch '[A-Z]') {$blobSearchServiceName=$null
-    Write-Host "Search service name must only contain lowercase letters, digits or dashes, cannot use dash as the first two or last one characters, cannot contain consecutive dashes, and is limited between 2 and 60 characters in length." -ForegroundColor "Red"}
+  $validSerchServiceName = $false
+  $minLength = $false
+  $maxLength = $false
+  $charSet = $false
+  while(-not $validSerchServiceName){
+  if ($blobSearchServiceName.length -lt 2){
+    $blobSearchServiceName = Read-Host -Prompt "Search service name: $blobSearchServiceName cannot be shorter than 2 characters and no longer than 60 charaters"
+  }else {$minLength = $true}
+  if ($blobSearchServiceName.length -gt 60){
+    $blobSearchServiceName = Read-Host -Prompt "Search service name: $blobSearchServiceName cannot be greater than 60 characters and no longer than 60 charaters"
+  }else {$maxLength = $true}
+  if (-Not ($blobSearchServiceName -cmatch '[a-z_0-9]')) {
+    $blobSearchServiceName = Read-Host -Prompt "Search service name: $blobSearchServiceName must only contain lowercase letters, digits or dashes, cannot use dash as the first two or last one characters, cannot contain consecutive dashes"
+  }else {$charSet = $true}
+  if ($minLength -and $maxLength -and $charSet){$validSerchServiceName = $true}
   }
 
   $blobsearchdatasource = $blobSearchServiceName + "datasource"
@@ -145,13 +185,9 @@ az functionapp create `
   --consumption-plan-location $frameworkLocation `
   --resource-group $frameworkResourceGroupName
 
+Write-Host "Setting Key Vault Permissions." -ForegroundColor "Green"
+  
 az webapp identity assign --name $frameworkFunctionAppName --resource-group $frameworkResourceGroupName
-
-Write-Host "frameworkFunctionAppName: " $frameworkFunctionAppName -ForegroundColor "Red"
-Write-Host "frameworkKeyVaultName: " $frameworkKeyVaultName -ForegroundColor "Red"
-$objectId = (Get-AzureADServicePrincipal -SearchString $frameworkFunctionAppName).ObjectId
-Write-Host "objectId: " $objectId -ForegroundColor "Red"
-Set-AzKeyVaultAccessPolicy -VaultName $frameworkKeyVaultName -ObjectId $objectId -PermissionsToSecrets Get
 
 $staticStorageContainers = "$pendingEvaluationStorageContainerName $evaluatedDataStorageContainerName $pendingSupervisionStorageContainerName $jsonStorageContainerName testinvocation testdata" 
 Write-Host "Creating static model storage containers: " $staticStorageContainers  -ForegroundColor "Green"
@@ -164,6 +200,12 @@ if ($modelType -eq "Trained")
   Write-Host "Creating trained model storage containers: " $staticStorageContainers -ForegroundColor "Green"
   $staticStorageContainers.split() | New-AzStorageContainer -Context $StorageContext
 }
+
+Write-Host "frameworkFunctionAppName: " $frameworkFunctionAppName -ForegroundColor "Blue"
+Write-Host "frameworkKeyVaultName: " $frameworkKeyVaultName -ForegroundColor "Blue"
+$objectId = (Get-AzureADServicePrincipal -SearchString $frameworkFunctionAppName).ObjectId
+Write-Host "objectId: " $objectId -ForegroundColor "Blue"
+Set-AzKeyVaultAccessPolicy -VaultName $frameworkKeyVaultName -ObjectId $objectId -PermissionsToSecrets Get
 
 #Search and labeling solution are only used with trained models
 if ($modelType -eq "Trained")
@@ -688,7 +730,7 @@ Write-Host "Creating app config settings for trained models" -ForegroundColor "G
 
 $secretvalue = ConvertTo-SecureString $blobSearchServiceKey -AsPlainText -Force
 $secret = Set-AzKeyVaultSecret -VaultName $frameworkKeyVaultName -Name 'blobSearchKey' -SecretValue $secretvalue
-$blobSearchKeySetting = "blobSearchKey=@Microsoft.KeyVault(SecretUri=" + $secret.id + ") "
+$blobSearchKeySetting = "blobSearchKey=@Microsoft.KeyVault(SecretUri=" + $secret.id + ")"
 
 az functionapp config appsettings set `
   --name $frameworkFunctionAppName `
@@ -696,7 +738,7 @@ az functionapp config appsettings set `
   --settings "blobSearchEndpoint=$blobSearchEndpointUrl " `
   "labelingTagsParameterName=$labelingTagsParameterName " `
   "KeyVaultName=$frameworkKeyVaultName " `
-  $blobSearchKeySetting `
+  "blobSearchKey=$blobSearchKeySetting " `
   "blobSearchIndexName=$blobSearchIndexName " `
   "blobSearchServiceName=$blobSearchServiceName " `
   "blobsearchdatasource=$blobsearchdatasource " `
