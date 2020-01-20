@@ -137,11 +137,12 @@ namespace semisupervisedFramework
             //*****TODO***** we cannot store the labels JSON in this container until we exclude this file from indexing
             // as the schema is different from the index.  In the mean time just pull directly from the test data location.
             //string jsonDataContainerName = _Engine.GetEnvironmentVariable("jsonStorageContainerName");
-            CloudBlobContainer Container = labelsBlobClient.GetContainerReference("testdata");
+            CloudBlobContainer testDataContainer = labelsBlobClient.GetContainerReference("testdata");
+            CloudBlobDirectory labelingTagsDirectory = testDataContainer.GetDirectoryReference("LabelingTags");
 
             //get the training tags json blob from the container
             string labelingTagsBlobName = _Engine.GetEnvironmentVariable("labelingTagsBlobName");
-            CloudBlockBlob dataTagsBlob = Container.GetBlockBlobReference(labelingTagsBlobName);
+            CloudBlockBlob dataTagsBlob = labelingTagsDirectory.GetBlockBlobReference(labelingTagsBlobName);
 
             //the blob has to be "touched" or the properties will all be null
             if (dataTagsBlob.Exists() != true)

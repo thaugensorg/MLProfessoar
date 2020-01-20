@@ -31,11 +31,10 @@ namespace semisupervisedFramework
         public Search(Engine engine)
         {
             _engine = engine;
-            string SearchApiKey = _engine.GetKeyVaultSecret("BlobSearchKey").Result;
-
-            //string SearchApiKey = _Engine.GetEnvironmentVariable("blobSearchKey", log);
+            string searchApiKey = _engine.GetKeyVaultSecret("BlobSearchKey").Result;
+            //string searchApiKey = _engine.GetEnvironmentVariable("blobSearchKey");
             string searchName = _engine.GetEnvironmentVariable("blobSearchServiceName");
-            _ServiceClient = Initialize(searchName, SearchApiKey);
+            _ServiceClient = Initialize(searchName, searchApiKey);
         }
 
         // *****TODO***** update index to track deleted items or we will get duplicate hash entries if the json data is reloaded.
@@ -83,10 +82,11 @@ namespace semisupervisedFramework
 
         public async Task<SearchIndexClient> CreateSearchIndexClient(string indexName)
         {
-            string SearchApiKey = await _engine.GetKeyVaultSecret("BlobSearchKey");
-            string SearchServiceName = _engine.GetEnvironmentVariable("blobSearchServiceName");
+            //string searchApiKey = _engine.GetEnvironmentVariable("blobSearchKey");
+            string searchApiKey = await _engine.GetKeyVaultSecret("BlobSearchKey");
+            string searchServiceName = _engine.GetEnvironmentVariable("blobSearchServiceName");
 
-            SearchIndexClient indexClient = new SearchIndexClient(SearchServiceName, indexName, new SearchCredentials(SearchApiKey));
+            SearchIndexClient indexClient = new SearchIndexClient(searchServiceName, indexName, new SearchCredentials(searchApiKey));
             return indexClient;
         }
     }

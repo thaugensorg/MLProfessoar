@@ -44,40 +44,47 @@ namespace semisupervisedFramework
             string pendingSupervisionStorageContainerName = Engine.GetEnvironmentVariable("pendingSupervisionStorageContainerName");
             CloudBlobContainer pendingSupervisionStorageContainer = blobClient.GetContainerReference(pendingSupervisionStorageContainerName);
 
+            // Get the test file count
+            string strTestFileCount = Engine.GetEnvironmentVariable("TestFileCount");
+
             // Initialize loop control variables
             int verifiedBlobs = 0;
             int checkLoops = 0;
+            int testFileCount = 0;
 
-            // Loop through all blobs in test data container and ensure there is a corresponding file in the expectged pending supervision container.
-            do
+            if (int.TryParse(strTestFileCount, out testFileCount))
             {
-                verifiedBlobs = 0;
-                foreach (IListBlobItem item in testDataContainer.ListBlobs(null, false))
+                // Loop through all blobs in test data container and ensure there is a corresponding file in the expectged pending supervision container.
+                do
                 {
-                    if (item is CloudBlockBlob verificationBlob)
+                    verifiedBlobs = 0;
+                    foreach (IListBlobItem item in testDataContainer.ListBlobs(null, false))
                     {
-                        CloudBlockBlob expectedBlob = pendingSupervisionStorageContainer.GetBlockBlobReference(verificationBlob.Name);
-                        if (expectedBlob.Exists())
+                        if (item is CloudBlockBlob verificationBlob)
                         {
-                            verifiedBlobs++;
-                            if (verifiedBlobs == 30)
+                            CloudBlockBlob expectedBlob = pendingSupervisionStorageContainer.GetBlockBlobReference(verificationBlob.Name);
+                            if (expectedBlob.Exists())
                             {
-                                return $"Passed: 30 blobs verified in {pendingSupervisionStorageContainerName}";
+                                verifiedBlobs++;
+                                if (verifiedBlobs == testFileCount)
+                                {
+                                    return $"Passed: {testFileCount} blobs verified in {pendingSupervisionStorageContainerName}";
+                                }
                             }
                         }
                     }
-                }
 
-                // If after making a pass through all of the test container blobs the test has not passed wait and then check again.  Because the code
-                // does not invoke the Orchestration Engine directly we cannot await the call to evaluate data so we have to delay and try again.
-                // Given Azure Functions performance we are delaying 5 seconds.  If Azure function performance improves this time can be reduced.
-                await Task.Delay(5000);
-                checkLoops++;
+                    // If after making a pass through all of the test container blobs the test has not passed wait and then check again.  Because the code
+                    // does not invoke the Orchestration Engine directly we cannot await the call to evaluate data so we have to delay and try again.
+                    // Given Azure Functions performance we are delaying 5 seconds.  If Azure function performance improves this time can be reduced.
+                    await Task.Delay(5000);
+                    checkLoops++;
 
-            // Keep looping until either the test passes or 10 attempts have been made.  *****TODO***** this should be externalized in the future for performance tuning.
-            } while (verifiedBlobs <= 30 && checkLoops <= 10);
+                    // Keep looping until either the test passes or 10 attempts have been made.  *****TODO***** this should be externalized in the future for performance tuning.
+                } while (verifiedBlobs <= testFileCount && checkLoops <= 10);
+            }
 
-            return $"Failed: NoTrainedModelTest only found {verifiedBlobs} in {pendingSupervisionStorageContainerName} but 20 were expected.";
+            return $"Failed: NoTrainedModelTest only found {verifiedBlobs} in {pendingSupervisionStorageContainerName} but {testFileCount} were expected.";
         }
 
         public async Task<string> LoadLabels()
@@ -90,10 +97,12 @@ namespace semisupervisedFramework
             // Get references to the test label data and the location the test blobs needs to be to run tests.
             string jsonStorageContainerName = Engine.GetEnvironmentVariable("jsonStorageContainerName");
             CloudBlobContainer jsonStorageContainer = blobClient.GetContainerReference(jsonStorageContainerName);
-            CloudBlockBlob dataLabelingTagsBlob = jsonStorageContainer.GetBlockBlobReference("LabelingTags.json");
+            string labelingTagsBlobName = Engine.GetEnvironmentVariable("labelingTagsBlobName");
+            CloudBlockBlob dataLabelingTagsBlob = jsonStorageContainer.GetBlockBlobReference(labelingTagsBlobName);
             string testDataContainerName = "testdata";
             CloudBlobContainer testDataContainer = blobClient.GetContainerReference(testDataContainerName);
-            CloudBlockBlob testDataLabelingTagsBlob = testDataContainer.GetBlockBlobReference("LabelingTags.json");
+            CloudBlobDirectory labelingTagsDirectory = testDataContainer.GetDirectoryReference("LabelingTags");
+            CloudBlockBlob testDataLabelingTagsBlob = labelingTagsDirectory.GetBlockBlobReference(labelingTagsBlobName);
 
             //copy the test labeling tags blob to the expected location.
             //*****TODO***** we cannot copy the training lables JSON to the JSON file as it will trigger indexing of the 
@@ -171,9 +180,9 @@ namespace semisupervisedFramework
                         if (expectedBlob.Exists())
                         {
                             verifiedBlobs++;
-                            if (verifiedBlobs == 2)
+                            if (verifiedBlobs == 7)
                             {
-                                return response + $"\nPassed: 2 blobs did not pass evaluation and were verified in {pendingSupervisionStorageContainerName}";
+                                return response + $"\nPassed: 7 blobs did not pass evaluation and were verified in {pendingSupervisionStorageContainerName}";
                             }
                         }
 
@@ -186,10 +195,10 @@ namespace semisupervisedFramework
 
                 if (checkLoops > 5)
                 {
-                    response = response + $"\n{verifiedBlobs} blobs found in {pendingSupervisionStorageContainerName} when 2 were expected.";
+                    response = response + $"\n{verifiedBlobs} blobs found in {pendingSupervisionStorageContainerName} when 7 were expected.";
                 }
 
-            } while (verifiedBlobs < 2 && checkLoops <= 5);
+            } while (verifiedBlobs < 7 && checkLoops <= 5);
 
             return "Failed: " + response;
 
@@ -243,7 +252,7 @@ namespace semisupervisedFramework
                         if (expectedBlob.Exists())
                         {
                             verifiedBlobs++;
-                            if (verifiedBlobs == 7)
+                            if (verifiedBlobs == 2)
                             {
                                 return $"\nPassed: {verifiedBlobs} passing blobs verified in {evaluatedDataStorageContainerName}";
                             }
@@ -257,10 +266,10 @@ namespace semisupervisedFramework
                 checkLoops++;
                 if (checkLoops > 4)
                 {
-                    response = $"\n{verifiedBlobs} found in {evaluatedDataStorageContainerName} when 7 were expected.";
+                    response = $"\n{verifiedBlobs} found in {evaluatedDataStorageContainerName} when 2 were expected.";
                 }
 
-            } while (verifiedBlobs < 7 && checkLoops <= 5);
+            } while (verifiedBlobs < 2 && checkLoops <= 5);
 
             return "Failed: " + response;
 
@@ -371,7 +380,7 @@ namespace semisupervisedFramework
             CloudStorageAccount storageAccount = CloudStorageAccount.Parse(storageConnection);
             CloudBlobClient blobClient = storageAccount.CreateCloudBlobClient();
 
-            // Loop through each blob in the pending supervision container, create labeling json, and upload the file to labeling out put to mock
+            // Loop through each blob in the pending supervision container, create labeling json, and upload the file to labeling output to mock
             // a labeling app generating labels and creating a labels output file.
             string pendingSupervisionStorageContainerName = Engine.GetEnvironmentVariable("pendingSupervisionStorageContainerName");
             CloudBlobContainer pendingSupervisionStorageContainer = blobClient.GetContainerReference(pendingSupervisionStorageContainerName);
@@ -398,9 +407,6 @@ namespace semisupervisedFramework
 
                     // Create a labels property, add it to the bound json and then upload the file.
                     JObject dataLabelJObject = new JObject(dataLabel);
-                    //JArray dataLabelsJArray = new JArray(dataLabelJObject);
-                    //JProperty dataLabelsJproperty = new JProperty("labels", dataLabelsJArray);
-                    //JObject dataLabelsJobject = new JObject(dataLabelsJArray);
 
                     // Create labeling output file using file name as the source of the labels
                     string labelingOutputStorageContainerName = Engine.GetEnvironmentVariable("labelingOutputStorageContainerName");
@@ -411,7 +417,6 @@ namespace semisupervisedFramework
                     CloudBlockBlob labelingOutputJsonBlob = labelingOutputStorageContainer.GetBlockBlobReference($"{rawDataBlob.Name}.json");
                     labelingOutputJsonBlob.Properties.ContentType = "application/json";
                     await Engine.UploadJsonBlob(labelingOutputJsonBlob, dataLabelJObject);
-
                     //*****TODO***** should this test validate the transfer to both directories?  Probably.
 
                 } //end if not cloud block blob

@@ -47,12 +47,11 @@ namespace semisupervisedFramework
                     CloudBlockBlob testInitiationBlob = testDataContainer.GetBlockBlobReference(name);
 
                     string testResults = "Initialized";
+                    testInitiationBlob.DeleteIfExists();
 
                     switch (name)
                     {
                         case "TestAll.test":
-
-                            testInitiationBlob.DeleteIfExists();
                             noTrainedModelTestResults = await test.NoTrainedModel();
                             labelDataTestResults = await test.LabelData();
                             loadLabeledDataTestResults = await test.LoadLabeledData();
@@ -74,108 +73,101 @@ namespace semisupervisedFramework
                             break;
 
                         case "NoTrainedModel.test":
-                            testInitiationBlob.DeleteIfExists();
                             noTrainedModelTestResults = await test.NoTrainedModel();
                             if (noTrainedModelTestResults.Contains("Failed:"))
                             {
-                                testResults = $"\nFailed: Some test failures exist:\n{noTrainedModelTestResults}";
+                                testResults = $"\nNo Trained Model test failed: Some test failures exist:\n{noTrainedModelTestResults}";
                                 log.LogInformation(testResults);
                             }
                             else
                             {
-                                testResults = $"\nAll test passed! with results: {noTrainedModelTestResults}";
+                                testResults = $"\nNo Trained Model test passed! with results: {noTrainedModelTestResults}";
                                 log.LogInformation(testResults);
                             }
                             break;
                         case "TrainModel.test":
-                            testInitiationBlob.DeleteIfExists();
                             trainModelTestResults = await test.TrainModel();
                             if (trainModelTestResults.Contains("Failed:"))
                             {
-                                testResults = $"\nFailed: Some test failures exist:\n{trainModelTestResults}";
+                                testResults = $"\nTrain Model test failed: Some test failures exist:\n{trainModelTestResults}";
                                 log.LogInformation(testResults);
                             }
                             else
                             {
-                                testResults = $"\nAll test passed! with results: {trainModelTestResults}";
+                                testResults = $"\nTrain Model test passed! with results: {trainModelTestResults}";
                                 log.LogInformation(testResults);
                             }
 
                             break;
                         case "EvaluatePassingData.test":
-                            testInitiationBlob.DeleteIfExists();
                             evaluatePassingDataTestResults = await test.EvaluatePassingData();
                             if (evaluatePassingDataTestResults.Contains("Failed:"))
                             {
-                                testResults = $"\nFailed: Some test failures exist:\n{evaluatePassingDataTestResults}";
+                                testResults = $"\nEvaluate Passing Data test failed: Some test failures exist:\n{evaluatePassingDataTestResults}";
                                 log.LogInformation(testResults);
                             }
                             else
                             {
-                                testResults = $"\nAll test passed! with results: {evaluatePassingDataTestResults}";
+                                testResults = $"\nEvaluate Passing Data test passed! with results: {evaluatePassingDataTestResults}";
                                 log.LogInformation(testResults);
                             }
 
                             break;
                         case "EvaluateFailingData.test":
-                            testInitiationBlob.DeleteIfExists();
                             evaluateFailingDataTestResults = await test.EvaluateFailingData();
                             if (evaluateFailingDataTestResults.Contains("Failed:"))
                             {
-                                testResults = $"\nFailed: Some test failures exist:\n{evaluateFailingDataTestResults}";
+                                testResults = $"\nEvaluate Failing Data test failed: Some test failures exist:\n{evaluateFailingDataTestResults}";
                                 log.LogInformation(testResults);
                             }
                             else
                             {
-                                testResults = $"\nAll test passed! with results: {evaluateFailingDataTestResults}";
+                                testResults = $"\nEvaluate Failing Data test passed! with results: {evaluateFailingDataTestResults}";
                                 log.LogInformation(testResults);
                             }
 
                             break;
 
                         case "LabelData.test":
-                            testInitiationBlob.DeleteIfExists();
                             labelDataTestResults = await test.LabelData();
                             if (labelDataTestResults.Contains("Failed:"))
                             {
-                                testResults = $"\nFailed: Some test failures exist:\n{labelDataTestResults}";
+                                testResults = $"\nLabel Data test failed: Some test failures exist:\n{labelDataTestResults}";
                                 log.LogInformation(testResults);
                             }
                             else
                             {
-                                testResults = $"\nAll test passed! with results: {labelDataTestResults}";
+                                testResults = $"\nLabel Data test passed! with results: {labelDataTestResults}";
                                 log.LogInformation(testResults);
                             }
 
                             break;
 
                         case "LoadLabeledData.test":
-                            testInitiationBlob.DeleteIfExists();
                             loadLabeledDataTestResults = await test.LoadLabeledData();
                             if (loadLabeledDataTestResults.Contains("Failed:"))
                             {
-                                testResults = $"\nFailed: Some test failures exist:\n{loadLabeledDataTestResults}";
+                                testResults = $"\nLoad Labeled Data test failed: Some test failures exist:\n{loadLabeledDataTestResults}";
                                 log.LogInformation(testResults);
                             }
                             else
                             {
-                                testResults = $"\nAll test passed! with results: {loadLabeledDataTestResults}";
+                                testResults = $"\nLoad Labeled Data test passed! with results: {loadLabeledDataTestResults}";
                                 log.LogInformation(testResults);
                             }
 
                             break;
 
                         case "LoadLabels.test":
-                            testInitiationBlob.DeleteIfExists();
                             LoadLabelsTestResults = await test.LoadLabels();
                             if (LoadLabelsTestResults.Contains("Failed:"))
                             {
-                                testResults = $"\nFailed: Some test failures exist:\n{LoadLabelsTestResults}";
+                                testResults = $"\nLoad Labeles test failed: Some test failures exist:\n{LoadLabelsTestResults}";
                                 log.LogInformation(testResults);
                             }
                             else
                             {
-                                testResults = $"\nAll test passed! with results: {LoadLabelsTestResults}";
+                                testResults = $"\nLoad Labeles test passed! with results: {LoadLabelsTestResults}";
                                 log.LogInformation(testResults);
                             }
 

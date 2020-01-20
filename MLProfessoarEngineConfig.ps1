@@ -29,6 +29,7 @@ Param(
   [Parameter(mandatory=$false)] [string] $labelingTagsFileHash = 'hash not initialized',
   [Parameter(mandatory=$false)] [string] $labelingTagsBlobName = 'LabelingTags.json',
   [Parameter(mandatory=$false)] [string] $blobSearchServiceName = $frameworkResourceGroupName.ToLower() + "srch",
+  [Parameter(Mandatory=$true)] [int] $testFileCount,
   [Parameter(mandatory=$false)] [string] $labelingOutputStorageContainerName = 'labelingoutput')
 
 # To Do: replace all azure CLI calls to PowerShell cmdlets such as get-azureRmStorageAccountKey
@@ -112,7 +113,8 @@ if ($modelType -eq "Trained")
 
 #########      settign up the Azure environment
 if (az group exists --name $frameworkResourceGroupName) `
-	{az group delete `
+  {Write-Host "Deleting resource group: $frameworkResourceGroupName" -ForegroundColor "Green" 
+  az group delete `
 	  --name $frameworkResourceGroupName `
 	  --subscription $subscription `
 	  --yes -y}
@@ -203,6 +205,18 @@ if ($modelType -eq "Trained")
 
 Write-Host "frameworkFunctionAppName: " $frameworkFunctionAppName -ForegroundColor "Blue"
 Write-Host "frameworkKeyVaultName: " $frameworkKeyVaultName -ForegroundColor "Blue"
+
+# It can take time for Azure to get the service principals fully registered.  This loop allows for some latency.
+$retryCount = 0
+$maxRetryCount = 3
+$sleepLength = 5
+while (-not $objectId -and $retryCount -lt $maxRetryCount) {
+  Write-Host "App service principal lookup try $retryCount + 1 of $maxRetryCount"
+  $objectId = (Get-AzureADServicePrincipal -SearchString $frameworkFunctionAppName).ObjectId
+  $retryCount = $retryCount + 1
+  Start-Sleep -s $sleepLength
+  $sleepLength = $sleepLength + $sleepLength
+}
 $objectId = (Get-AzureADServicePrincipal -SearchString $frameworkFunctionAppName).ObjectId
 Write-Host "objectId: " $objectId -ForegroundColor "Blue"
 Set-AzKeyVaultAccessPolicy -VaultName $frameworkKeyVaultName -ObjectId $objectId -PermissionsToSecrets Get
@@ -224,6 +238,7 @@ if ($modelType -eq "Trained")
   Write-Host "Creating blob binding hash search service data source: " $blobsearchdatasource -ForegroundColor "Green"
 
   $blobSearchServiceKey = (Invoke-AzureRmResourceAction -Action listAdminKeys -ResourceType "Microsoft.Search/searchServices" -ResourceGroupName $frameworkResourceGroupName -ResourceName $blobSearchServiceName -ApiVersion 2015-08-19 -Force).primaryKey
+  $blobSearchServiceKey
 
   $url = "https://$blobSearchServiceName.search.windows.net/datasources/" + $blobsearchdatasource + "?api-version=2019-05-06"
   
@@ -753,5 +768,6 @@ az functionapp config appsettings set `
   "TagsUploadServiceEndpoint=$tagsUploadServiceEndpoint " `
   "LabeledDataServiceEndpoint=$LabeledDataServiceEndpoint " `
   "labelingTagsBlobName=$labelingTagsBlobName " `
+  "TestFileCount=$testFileCount " `
   "LabelingSolutionName=$LabelingSolutionName"
 }
