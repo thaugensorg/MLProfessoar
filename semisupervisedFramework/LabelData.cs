@@ -37,7 +37,7 @@ namespace semisupervisedFramework
             }
 
             // Update labeling value in bound json to the latest labeling value.  If labeling data exists then simply delete the token
-            // as it allows the same code to be used to create the token every for both update and create.
+            // as it allows the same code to be used to create the token for both update and create.
             JsonBlob boundJsonBlob = new JsonBlob(rawDataBlob.Properties.ContentMD5.ToString(), Engine, Search);
             JToken labels = (JToken)boundJsonBlob.Json.SelectToken("labels");
             if (labels != null)

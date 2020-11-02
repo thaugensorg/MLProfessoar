@@ -117,7 +117,10 @@ if (az group exists --name $frameworkResourceGroupName) `
   az group delete `
 	  --name $frameworkResourceGroupName `
 	  --subscription $subscription `
-	  --yes -y}
+    --yes -y}
+
+  Remove-AzKeyVault -Name $frameworkKeyVaultName -ResourceGroupName $frameworkResourceGroupName -InRemovedState -Force
+
 
 Write-Host "Creating Resource Group: " $modelResourceGroupName  -ForegroundColor "Green"
 
@@ -127,7 +130,9 @@ az group create `
 
 Write-Host "Creating key vault: " $frameworkKeyVaultName  -ForegroundColor "Green"
 
-az keyvault create --name $frameworkKeyVaultName -g $frameworkResourceGroupName
+New-AzKeyVault -Name $frameworkKeyVaultName -ResourceGroupName $frameworkResourceGroupName -Location $frameworkLocation
+
+# az keyvault create --name $frameworkKeyVaultName -g $frameworkResourceGroupName
 
 Write-Host "Creating storage account: " $frameworkStorageAccountName  -ForegroundColor "Green"
 
@@ -211,7 +216,7 @@ $retryCount = 0
 $maxRetryCount = 3
 $sleepLength = 5
 while (-not $objectId -and $retryCount -lt $maxRetryCount) {
-  Write-Host "App service principal lookup try $retryCount + 1 of $maxRetryCount"
+  Write-Host ("App service principal lookup for " + $frameworkFunctionAppName + " try" + ($retryCount + 1) + " of $maxRetryCount")
   $objectId = (Get-AzureADServicePrincipal -SearchString $frameworkFunctionAppName).ObjectId
   $retryCount = $retryCount + 1
   Start-Sleep -s $sleepLength
@@ -636,7 +641,7 @@ if ($modelType -eq "Trained")
       "facetable": false,
       "filterable": false,
       "key": false,
-      "retrievable": false,
+      "retrievable": true,
       "searchable": false,
       "sortable": false,
       "analyzer": null,
@@ -651,7 +656,7 @@ if ($modelType -eq "Trained")
       "facetable": false,
       "filterable": false,
       "key": false,
-      "retrievable": false,
+      "retrievable": true,
       "searchable": false,
       "sortable": false,
       "analyzer": null,
@@ -666,7 +671,7 @@ if ($modelType -eq "Trained")
       "facetable": false,
       "filterable": false,
       "key": false,
-      "retrievable": false,
+      "retrievable": true,
       "searchable": false,
       "sortable": false,
       "analyzer": null,

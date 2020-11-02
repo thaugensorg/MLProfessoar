@@ -127,7 +127,7 @@ namespace semisupervisedFramework
                 new SearchParameters()
                 {
                     //SearchFields = new[] { "Hash" },
-                    Select = new[] { "Id", "Name", "Hash" }
+                    Select = new[] { "Id", "Name", "Hash" , "metadata_storage_path" }
                 };
 
             //return indexClient.Documents.Search<BlobInfo>(Hash, parameters);

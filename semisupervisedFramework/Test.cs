@@ -275,7 +275,6 @@ namespace semisupervisedFramework
 
         }
 
-        //*****TODO***** this should be updated to be a base class with subclasses for each type of labeler such as VoTT or File names.
         public abstract Task<string> LabelData();
 
         public abstract Test Create(string labelingSolutionName);
