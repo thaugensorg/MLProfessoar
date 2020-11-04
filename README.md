@@ -18,15 +18,17 @@ First, review the [architecture image](https://github.com/thaugensorg/semisuperv
 This solution configures an Azure subscription to enable automated orchestation of semi-supervised AI/ML solutions.  A semi-supervised solution will have two components, the engine, covered in this readme and a model provided by you.  The model is generally a custom model specific to the ML problem but Azure provides three "packaged" models that have been integrated with ML Professoar by way of example.  There are two versions of the engine that can be deployed, static and trained.  A static model cannot be trained but can still have evaluations that do not meet the confidence threshold required by your solution vs a trained model which will have a labeling stage allowing the capabilities of your model to improve over time through trainng based on the labels.  The ML Professoar solution handles all of the invocation of the training and models as well as the management of the content and its associated labeling required to operationalize a semi-supervised ML solution.  Data Scientists using this model are required to have minimal knowledge of Azure and the code required to orchestrate a model on Azure.  Models simply have to be invocable via HTTP and respond with JSON.  The interface beyond that is fully configurable such that it often works with existing models with little or no changes to the existing model.
 
 ## Dependencies
-ML Professoar is dependent on an externalized model, the model must be invocable via http that accepts a file URL and returns JSON content in the body of the response where a single value in the JSON represents confidence in the model analysis.  All interface definition is via environment configuration values so the address, parameter names, and JSON path are not hardcoded dependencies for this project but are configurable through Azure Functions.  You can find a static model sample at [Brand Detection Model](https://github.com/thaugensorg/brandDetectionModel) and a trained model sample at [Semisupervised Data EvaluationModel](https://github.com/thaugensorg/SemisupervisedDataEvaluationModel)
-
-Additionally, the project requires the Azure Search CLI installed.  From your Cloud Shell run "Install-Module az.search" accept the warning prompt.  Once it installs you will be able to run the PS1 script to configure the ML Professoar Azure environment. @Todd - need more instructions here - could not get this to run.
+ML Professoar is dependent on an externalized model, the model must be invocable via http that accepts a file URL and returns JSON content in the body of the response where a single value in the JSON represents confidence in the model analysis.  All interface definition is via environment configuration values so the address, parameter names, and JSON path are not hardcoded dependencies for this project but are configurable through Azure Functions.  You can find a static model sample at [Brand Detection Model](https://github.com/thaugensorg/brandDetectionModel) and a trained model sample at [Semisupervised Data EvaluationModel](https://github.com/thaugensorg/SemisupervisedDataEvaluationModel) 
 
 ## Getting started
 First, review the [architecture image](https://github.com/thaugensorg/semisupervisedFramework/blob/master/Architecture.jpg) included with the solution as it will help you understand the structure of the solution.
 
-To get started, install azure search module for powershell as Administrator:
+Additionally, the project requires the Azure Search CLI installed.  
+
+To get started, install azure search module from a Powershell as Administrator and accept the warning prompt.
 `install-module az.search`
+
+Once it installs you will be able to run the PS1 script to configure the ML Professoar Azure environment.
 
 Next, open a non Administrator powershell and save as MLProfessoarEngienConfig.ps1, script to your environment, see deployment below.  This is the script that will configure your azure environment for ML Professoar.  Because this framework is dependent on having an analysis model to run, please deploy your analysis model before running this script, see the SemisupervisedDataEvaluationModelEnvironmentConfiguration.ps1 script in the semisupervised data evaluation model project.  It will save you additional configuration steps after you complete deployment.
 
