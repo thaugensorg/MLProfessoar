@@ -28,19 +28,17 @@ Additionally, the project requires the Azure Search CLI installed.
 To get started, install azure search module from a Powershell as Administrator and accept the warning prompt.
 `install-module az.search`
 
-Once it installs you will be able to run the PS1 script to configure the ML Professoar Azure environment.
+Next, please deploy your analysis model since this framework is dependent on having an analysis model to run.  See the SemisupervisedDataEvaluationModelEnvironmentConfiguration.ps1 script in the semisupervised data evaluation model project.  It will save you additional configuration steps after you complete deployment. Todd can't find this ps1 script
 
 Next, open a non Administrator powershell and run: Todd this file cannot be run because it is not digitally signed...
 
 `.\MLProfessoarEngineConfig`
 
-This is the script that will configure your azure environment for ML Professoar.  Because this framework is dependent on having an analysis model to run, please deploy your analysis model before running this script, see the SemisupervisedDataEvaluationModelEnvironmentConfiguration.ps1 script in the semisupervised data evaluation model project.  It will save you additional configuration steps after you complete deployment.
-
 The PowerShell script will prompt for a significant number of parameters about the environment.  As a result, it will help to plan your environment in advance.  See the Configuration Parameters below for the values the scripts require.
 
-Note: if the script errors simply run it again.  Enter the same name for the resource group and the script will clean up the previous attempt as the first step. When the script checks for the resource group if it does not find it the script will out put a red message resource group not found.  This is OK, it simply means that the script needs to create the resource group. 
+Note: if the script errors simply run it again.  Enter the same name for the resource group and the script will clean up the previous attempt as the first step. When the script checks for the resource group if it does not find it the script will out put a red message resource group not found.  This is OK, it simply means that the script needs to create the resource group.
 
-## Deploying to Azure
+## Deploying to Azure - Todd moving this part to Terraform?
 This article shows how to upload and run powershell scripts in Azure:
 [PowerShell in Azure](https://www.ntweekly.com/2019/05/24/upload-and-run-powershell-script-from-azure-cloud-shell/)
 
