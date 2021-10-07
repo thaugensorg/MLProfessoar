@@ -12,6 +12,8 @@
 **A**zure
 **R**esources
 
+FYI, this repo is currently not functioning.  Azure changed the deployment interfaces and I have not had time to fix them yet.  When I fix them I will also port to GraphQL and organize teh connected read me files better.
+
 First, review the [architecture image](https://github.com/thaugensorg/semisupervisedFramework/blob/master/Architecture.jpg) included with the solution as it will help you understand the structure of the solution.
 
 # ML Professoar
